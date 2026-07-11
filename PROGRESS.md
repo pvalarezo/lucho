@@ -22,10 +22,12 @@ Se actualiza al completar hitos significativos.
 | Tarea | Estado | Fecha | Notas |
 |-------|--------|-------|-------|
 | Estructura del proyecto FastAPI | ✅ | 2026-07-11 | app/, routers/, models/, schemas/, services/ |
-| Docker Compose | ✅ | 2026-07-11 | PostgreSQL+pgvector, MinIO, Redis, Traefik, app |
+| Docker Compose (producción) | ✅ | 2026-07-11 | PostgreSQL+pgvector, MinIO, Redis, Traefik, app |
+| Docker Compose (desarrollo) | ✅ | 2026-07-11 | Redis + MinIO solamente, app en local, DB externa |
 | Dockerfile | ✅ | 2026-07-11 | Python 3.12-slim + uvicorn |
 | Alembic config (async) | ✅ | 2026-07-11 | env.py configurado con modelos y async engine |
-| .env.example | ✅ | 2026-07-11 | — |
+| .env configurado | ✅ | 2026-07-11 | PostgreSQL localhost:5433, Redis/MinIO en Docker |
+| .env.example | ✅ | 2026-07-11 | Actualizado con patrón dev |
 | CI/CD básico | ⬚ Pendiente | — | — |
 
 ### Base de datos

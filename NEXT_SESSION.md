@@ -6,41 +6,56 @@
 
 **Avances:**
 - Lectura y análisis completo de `docs/lucho_especificaciones_proyecto.md` (v1.6)
-- Creación de archivos de control del proyecto: AGENTS.md, ROADMAP.md, PROGRESS.md, NEXT_SESSION.md
-- Inicialización de Git (branch `main`) + `.gitignore`
-- Tag `v0.1.0` — Project bootstrap: control files, rules, and specifications
+- Creación de archivos de control: AGENTS.md, ROADMAP.md, PROGRESS.md, NEXT_SESSION.md
+- Git init (branch `main`) + `.gitignore`
+- Tag `v0.1.0` — Project bootstrap
 
-**Segundo bloque (estructura del proyecto):**
-- Estructura completa de FastAPI:
-  - `app/main.py` — entry point con lifespan y health check
-  - `app/config.py` — Settings con pydantic-settings
-  - `app/database.py` — SQLAlchemy async engine + session + Base
-  - `app/models/` — User, Message, Asset, Event, Reminder (SQLAlchemy ORM)
-  - `app/schemas/` — Pydantic schemas para todos los modelos
-  - `app/routers/health.py` — health check endpoint
-  - `app/services/` — directorio creado (vacío)
-- Docker Compose: PostgreSQL 16+pgvector, MinIO, Redis, Traefik, app
-- Dockerfile: Python 3.12-slim + uvicorn
-- Alembic configurado con async engine y target_metadata de nuestros modelos
-- `requirements.txt` y `.env.example`
+**Segundo bloque — estructura del proyecto:**
+- Estructura FastAPI completa: `app/main.py`, `config.py`, `database.py`
+- Modelos ORM: User, Message, Asset (JSONB+GIN), Event, Reminder
+- Schemas Pydantic con discriminadores por `asset_type`
+- Router de health check (`GET /health`)
+- Docker Compose producción: PostgreSQL+pgvector, MinIO, Redis, Traefik, app
+- Dockerfile Python 3.12-slim
+- Alembic configurado con async engine + target_metadata
+- `requirements.txt`
 - Tag `v0.2.0` — FastAPI project structure, Docker Compose, ORM models
+
+**Tercer bloque — adaptación para desarrollo local:**
+- `docker-compose.dev.yml`: solo Redis + MinIO (DB externa en localhost:5433, sin Traefik)
+- `.env` configurado con credenciales reales: PostgreSQL `localhost:5433`, `lucho`, `postgres:1234abcd`
+- `.env.example` actualizado con patrón de desarrollo
+- Confirmado: **Traefik NO es necesario en desarrollo** — solo en producción para SSL/dominio
+- Tag `v0.2.1` — Dev environment: docker-compose.dev.yml, local DB config
 
 ---
 
 ## Próxima sesión
 
-**Objetivo:** Generar migración inicial y levantar el entorno
+**Objetivo:** Levantar entorno, migración inicial, y webhook de Telegram
 
 **Tareas planificadas:**
-1. Generar la migración inicial de Alembic (`alembic revision --autogenerate -m "initial"`)
-2. Revisar y ajustar la migración (tipos ENUM, índices GIN, vector pgvector)
-3. Levantar los servicios con `docker compose up -d`
-4. Ejecutar migraciones contra la base de datos
-5. Verificar health check del API
-6. Implementar el webhook de Telegram (recepción de mensajes)
-7. Implementar el ack inmediato ("Recibido, dame un segundo")
+1. Levantar Redis + MinIO: `docker compose -f docker-compose.dev.yml up -d`
+2. Instalar dependencias Python: `pip install -r requirements.txt`
+3. Generar migración inicial: `alembic revision --autogenerate -m "initial"`
+4. Ajustar la migración (tipos ENUM, GIN en assets.attributes, VECTOR(1024) en assets.embedding)
+5. Ejecutar migración: `alembic upgrade head`
+6. Levantar API: `uvicorn app.main:app --reload --port 8000`
+7. Verificar health check: `curl localhost:8000/health`
+8. Implementar webhook de Telegram (recepción + ack inmediato)
 
-**Notas:**
-- Se necesita PostgreSQL corriendo para `alembic autogenerate`
-- Verificar que el tipo `VECTOR` de pgvector se mapee correctamente en SQLAlchemy
-- El `embedding` en `Asset` está declarado como `list[float]` — la migración debe usar `VECTOR(1024)`
+**Comandos rápidos:**
+
+```bash
+# Iniciar servicios auxiliares (Redis + MinIO)
+docker compose -f docker-compose.dev.yml up -d
+
+# Detener servicios auxiliares
+docker compose -f docker-compose.dev.yml down
+
+# Ejecutar migraciones
+alembic upgrade head
+
+# API con hot reload
+uvicorn app.main:app --reload --port 8000
+```
