@@ -1,0 +1,30 @@
+# FastAPI
+fastapi>=0.115.0
+uvicorn[standard]>=0.34.0
+
+# Database
+sqlalchemy[asyncio]>=2.0.36
+asyncpg>=0.30.0
+alembic>=1.14.0
+pgvector>=0.3.6
+
+# Redis
+redis>=5.2.0
+
+# MinIO
+minio>=7.2.10
+
+# Settings
+pydantic-settings>=2.7.0
+
+# LLM / AI
+anthropic>=0.42.0
+openai>=1.58.0    # Whisper
+
+# HTTP
+httpx>=0.28.0
+python-telegram-bot>=21.9
+
+# Utils
+python-multipart>=0.0.18
+python-dotenv>=1.0.1

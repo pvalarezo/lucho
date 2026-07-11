@@ -21,16 +21,22 @@ Se actualiza al completar hitos significativos.
 ### Infraestructura y proyecto
 | Tarea | Estado | Fecha | Notas |
 |-------|--------|-------|-------|
-| Estructura del proyecto FastAPI | ⬚ Pendiente | — | — |
-| Docker Compose | ⬚ Pendiente | — | — |
+| Estructura del proyecto FastAPI | ✅ | 2026-07-11 | app/, routers/, models/, schemas/, services/ |
+| Docker Compose | ✅ | 2026-07-11 | PostgreSQL+pgvector, MinIO, Redis, Traefik, app |
+| Dockerfile | ✅ | 2026-07-11 | Python 3.12-slim + uvicorn |
+| Alembic config (async) | ✅ | 2026-07-11 | env.py configurado con modelos y async engine |
+| .env.example | ✅ | 2026-07-11 | — |
 | CI/CD básico | ⬚ Pendiente | — | — |
 
 ### Base de datos
 | Tarea | Estado | Fecha | Notas |
 |-------|--------|-------|-------|
-| Esquema `users`, `messages` | ⬚ Pendiente | — | — |
-| Esquema `assets` | ⬚ Pendiente | — | — |
-| Esquema `events`, `reminders` | ⬚ Pendiente | — | — |
+| Modelo `users` | ✅ | 2026-07-11 | SQLAlchemy + Pydantic |
+| Modelo `messages` | ✅ | 2026-07-11 | Con ENUMs, JSONB, timestamps por etapa |
+| Modelo `assets` | ✅ | 2026-07-11 | JSONB + GIN index + soft delete + asset_type ENUM |
+| Modelo `events` | ✅ | 2026-07-11 | target_date indexada, recurrence_rule JSONB |
+| Modelo `reminders` | ✅ | 2026-07-11 | Con auditoría de mensaje enviado |
+| Migración inicial | ⬚ Pendiente | — | Generar con alembic autogenerate |
 | Esquema `topics`, `notes` | ⬚ Pendiente | — | — |
 | Esquema `lists`, `list_items` | ⬚ Pendiente | — | — |
 | Esquema `projects`, `project_tasks` | ⬚ Pendiente | — | — |
