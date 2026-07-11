@@ -1,0 +1,102 @@
+# PROGRESS.md — Lucho
+
+Estado actual de cada fase, módulo y entregable.  
+Se actualiza al completar hitos significativos.
+
+---
+
+## Fase 0 — Validación
+
+| Estado | Fecha | Detalle |
+|--------|-------|---------|
+| ✅ | — | Encuestas de validación completadas |
+| ✅ | — | Preferencia WhatsApp confirmada |
+
+---
+
+## Fase 1 — MVP Técnico (Telegram primero)
+
+**Estado general:** 🔨 En progreso — Inicio: 2026-07-11
+
+### Infraestructura y proyecto
+| Tarea | Estado | Fecha | Notas |
+|-------|--------|-------|-------|
+| Estructura del proyecto FastAPI | ⬚ Pendiente | — | — |
+| Docker Compose | ⬚ Pendiente | — | — |
+| CI/CD básico | ⬚ Pendiente | — | — |
+
+### Base de datos
+| Tarea | Estado | Fecha | Notas |
+|-------|--------|-------|-------|
+| Esquema `users`, `messages` | ⬚ Pendiente | — | — |
+| Esquema `assets` | ⬚ Pendiente | — | — |
+| Esquema `events`, `reminders` | ⬚ Pendiente | — | — |
+| Esquema `topics`, `notes` | ⬚ Pendiente | — | — |
+| Esquema `lists`, `list_items` | ⬚ Pendiente | — | — |
+| Esquema `projects`, `project_tasks` | ⬚ Pendiente | — | — |
+| Esquema contactos, gastos, suscripción | ⬚ Pendiente | — | — |
+| Vista `searchable_content` | ⬚ Pendiente | — | — |
+
+### Bot de Telegram
+| Tarea | Estado | Fecha | Notas |
+|-------|--------|-------|-------|
+| Webhook recepción mensajes | ⬚ Pendiente | — | — |
+| Ack inmediato | ⬚ Pendiente | — | — |
+| Confirmación editable | ⬚ Pendiente | — | — |
+
+### Pipeline de IA
+| Tarea | Estado | Fecha | Notas |
+|-------|--------|-------|-------|
+| Integración Haiku 4.5 | ⬚ Pendiente | — | — |
+| Integración Sonnet 5 | ⬚ Pendiente | — | — |
+| Integración Whisper | ⬚ Pendiente | — | — |
+| OCR/visión de facturas | ⬚ Pendiente | — | — |
+
+### Motor de Reglas
+| Tarea | Estado | Fecha | Notas |
+|-------|--------|-------|-------|
+| Regla matriculación por placa | ⬚ Pendiente | — | — |
+| Pico y placa semanal | ⬚ Pendiente | — | — |
+| APScheduler cron diario | ⬚ Pendiente | — | — |
+| Recordatorios escalonados | ⬚ Pendiente | — | — |
+
+### Núcleo Transversal
+| Tarea | Estado | Fecha | Notas |
+|-------|--------|-------|-------|
+| Captura libre de texto | ⬚ Pendiente | — | — |
+| Múltiples instrucciones | ⬚ Pendiente | — | — |
+| Recurrencias complejas | ⬚ Pendiente | — | — |
+| Búsqueda conversacional | ⬚ Pendiente | — | — |
+| Listas simples | ⬚ Pendiente | — | — |
+| Resumen diario/semanal opt-in | ⬚ Pendiente | — | — |
+
+### "Lucho piensa" (mínimo)
+| Tarea | Estado | Fecha | Notas |
+|-------|--------|-------|-------|
+| Cálculos sobre datos | ⬚ Pendiente | — | — |
+| Explicaciones con norma citable | ⬚ Pendiente | — | — |
+| Preparación de acciones | ⬚ Pendiente | — | — |
+
+---
+
+## Fase 2 — Beta Cerrada
+**Estado:** ⬚ No iniciada
+
+## Fase 3 — Lanzamiento con Monetización
+**Estado:** ⬚ No iniciada
+
+## Fase 4 — Cruce a SMB
+**Estado:** ⬚ No iniciada
+
+## Fase 5 — Expansión Regional y Premium
+**Estado:** ⬚ No iniciada
+
+---
+
+## Leyenda
+
+- ✅ Completado
+- 🔨 En progreso
+- ⬚ Pendiente
+- ❌ Cancelado
+- ⚠️ Bloqueado
