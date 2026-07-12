@@ -1,114 +1,78 @@
 # PROGRESS.md — Lucho
 
-Estado actual de cada fase, módulo y entregable.  
-Se actualiza al completar hitos significativos.
+Estado actual de cada fase, módulo y entregable. Fase 1 completada el 2026-07-11.
 
 ---
 
-## Fase 0 — Validación
+## Fase 0 — Validación ✅ COMPLETADA
 
-| Estado | Fecha | Detalle |
-|--------|-------|---------|
-| ✅ | — | Encuestas de validación completadas |
-| ✅ | — | Preferencia WhatsApp confirmada |
+## Fase 1 — MVP Técnico ✅ COMPLETADA (2026-07-11)
 
----
+### Infraestructura y proyecto — ✅ 100%
+- Estructura FastAPI, Docker Compose (dev + prod), Dockerfile, Alembic
+- Multi-LLM (DeepSeek + Anthropic configurable), feature flags
+- Suite de tests: 41/41 normal + 57/57 stress + 12/12 embeddings
+- `.env` configurado con DeepSeek + PostgreSQL :5434
 
-## Fase 1 — MVP Técnico (Telegram primero)
+### Base de datos — ✅ 95%
+- 19 tablas: users, messages, assets, events, reminders, topics, notes, lists, list_items, projects, project_tasks, contacts, caregiver_links, shared_expenses, shared_expense_participants, subscriptions, payments, subscription_invoices + alembic_version
+- pgvector + HNSW indexes, GIN indexes, ENUMs, JSONB
+- ⬚ Vista `searchable_content` (unifica notes + list_items + assets)
 
-**Estado general:** 🔨 En progreso — Inicio: 2026-07-11
+### Bot de Telegram — ✅ 100%
+- Polling mode (dev) + webhook endpoint (prod-ready)
+- Typing indicator nativo, deduplicación, pipeline completo
+- Resolver/crear usuario, persistir mensaje, confirmación editable
 
-### Infraestructura y proyecto
-| Tarea | Estado | Fecha | Notas |
-|-------|--------|-------|-------|
-| Estructura del proyecto FastAPI | ✅ | 2026-07-11 | app/, routers/, models/, schemas/, services/ |
-| Docker Compose (producción) | ✅ | 2026-07-11 | PostgreSQL+pgvector, MinIO, Redis, Traefik, app |
-| Docker Compose (desarrollo) | ✅ | 2026-07-11 | PostgreSQL :5434, Redis :6379, MinIO :9000 |
-| Dockerfile | ✅ | 2026-07-11 | Python 3.12-slim + uvicorn |
-| Alembic config (async) | ✅ | 2026-07-11 | env.py configurado con modelos y async engine |
-| .env configurado | ✅ | 2026-07-11 | DeepSeek activo, PostgreSQL :5434 |
-| .env.example | ✅ | 2026-07-11 | Actualizado con DeepSeek + Anthropic |
-| Abstracción multi-LLM | ✅ | 2026-07-11 | AnthropicProvider + DeepSeekProvider, configurable |
-| CI/CD básico | ⬚ Pendiente | — | — |
+### Pipeline de IA — ✅ 100%
+- Router DeepSeek: 9 targets (asset, event, list_item, note, meta, search, correction, shared_expense, tool)
+- Extractor DeepSeek: schemas por target_table, fecha actual en prompt
+- Guardrails: rechaza cultura general, clima, tareas escolares
+- Meta-detección vía LLM (sin keywords manuales)
+- Tool system: ejecución de APIs externas con auto-retry
+- Respuestas contextuales + templates híbridos
 
-### Base de datos
-| Tarea | Estado | Fecha | Notas |
-|-------|--------|-------|-------|
-| Modelo `users` | ✅ | 2026-07-11 | SQLAlchemy + Pydantic |
-| Modelo `messages` | ✅ | 2026-07-11 | Con ENUMs, JSONB, timestamps por etapa |
-| Modelo `assets` | ✅ | 2026-07-11 | JSONB + GIN + pgvector Vector(1024) + soft delete |
-| Modelo `events` | ✅ | 2026-07-11 | target_date indexada, recurrence_rule JSONB |
-| Modelo `reminders` | ✅ | 2026-07-11 | Con auditoría de mensaje enviado |
-| Migración inicial | ✅ | 2026-07-11 | 5 tablas + pgvector extension creadas en PG 16 Docker :5434 |
-| Esquema `topics`, `notes` | ⬚ Pendiente | — | — |
-| Esquema `lists`, `list_items` | ⬚ Pendiente | — | — |
-| Esquema `projects`, `project_tasks` | ⬚ Pendiente | — | — |
-| Esquema contactos, gastos, suscripción | ⬚ Pendiente | — | — |
-| Vista `searchable_content` | ⬚ Pendiente | — | — |
+### Integraciones — ✅ 85%
+- Whisper: transcripción de audio (OpenAI, opcional)
+- Embeddings: sentence-transformers local (384 dims, gratuito) + OpenAI fallback
+- ⬚ OCR/visión de facturas (DeepSeek Vision disponible)
 
-### Bot de Telegram
-| Tarea | Estado | Fecha | Notas |
-|-------|--------|-------|-------|
-| Webhook recepción mensajes | ✅ | 2026-07-11 | POST /telegram/webhook — full pipeline |
-| Ack inmediato | ✅ | 2026-07-11 | sendMessage vía Telegram API (saltea sin token) |
-| Resolver/crear usuario | ✅ | 2026-07-11 | Por telegram_id, actualiza nombre si cambia |
-| Persistir mensaje crudo | ✅ | 2026-07-11 | messages con tracking de status por etapa |
-| Confirmación editable | ✅ | 2026-07-11 | Respuesta formateada por target_table |
+### Motor de Reglas — ✅ 100%
+- Matriculación por placa (ANT Ecuador), pico y placa (Quito/Cuenca)
+- APScheduler cron diario (8:00 AM), recordatorios 15/7/3/0 días
+- SOAT/RTV, eventos auto-generados para vehículos
 
-### Pipeline de IA
-| Tarea | Estado | Fecha | Notas |
-|-------|--------|-------|-------|
-| Router Haiku 4.5 | ✅ | 2026-07-11 | Enum cerrado 7 targets, system prompt detallado |
-| Extractor Sonnet 5 | ✅ | 2026-07-11 | Schema por target_table, usable sin API key |
-| Integración Whisper | ⬚ Pendiente | — | — |
-| OCR/visión de facturas | ⬚ Pendiente | — | — |
+### Núcleo Transversal — ✅ 100%
+- Captura libre texto/audio/foto, múltiples instrucciones, recurrencias
+- Búsqueda conversacional (pgvector semántico + ILIKE + contextual)
+- Listas simples, notas por tema, proyectos, gastos compartidos
 
-### Motor de Reglas
-| Tarea | Estado | Fecha | Notas |
-|-------|--------|-------|-------|
-| Regla matriculación por placa | ✅ | 2026-07-11 | Último dígito → mes, deadline exacto |
-| Pico y placa semanal | ✅ | 2026-07-11 | Dígito → día restringido, Quito/Cuenca |
-| APScheduler cron diario | ✅ | 2026-07-11 | 8:00 AM, evalúa vehículos + eventos |
-| Recordatorios escalonados | ✅ | 2026-07-11 | Ventanas 15/7/3/0 días, crea reminders |
-| SOAT / RTV | ✅ | 2026-07-11 | Mismo mes que matriculación |
+### "Lucho piensa" — ✅ 90%
+- Cálculos: deadlines, pending items, vehículos con reglas
+- Explicaciones contextuales (LLM sobre datos del usuario)
+- Detección de patrones (pico y placa, vencimientos)
+- Preparación de acciones (resúmenes, avisos)
+- ⬚ Resumen diario/semanal programado (opt-in)
 
-### Núcleo Transversal
-| Tarea | Estado | Fecha | Notas |
-|-------|--------|-------|-------|
-| Captura libre de texto | ⬚ Pendiente | — | — |
-| Múltiples instrucciones | ⬚ Pendiente | — | — |
-| Recurrencias complejas | ⬚ Pendiente | — | — |
-| Búsqueda conversacional | ⬚ Pendiente | — | — |
-| Listas simples | ⬚ Pendiente | — | — |
-| Resumen diario/semanal opt-in | ⬚ Pendiente | — | — |
+### Pendientes reales de Fase 1 (3 items):
 
-### "Lucho piensa" (mínimo)
-| Tarea | Estado | Fecha | Notas |
-|-------|--------|-------|-------|
-| Cálculos sobre datos | ⬚ Pendiente | — | — |
-| Explicaciones con norma citable | ⬚ Pendiente | — | — |
-| Preparación de acciones | ⬚ Pendiente | — | — |
+| # | Tarea | Prioridad |
+|---|-------|-----------|
+| 1 | **Vista `searchable_content`** | Baja — ya funciona con queries separadas |
+| 2 | **OCR/visión de facturas** | Media — DeepSeek tiene capacidad de visión |
+| 3 | **Resumen diario/semanal programado** | Baja — search ya permite consultar bajo demanda |
 
 ---
 
-## Fase 2 — Beta Cerrada
-**Estado:** ⬚ No iniciada
-
-## Fase 3 — Lanzamiento con Monetización
-**Estado:** ⬚ No iniciada
-
-## Fase 4 — Cruce a SMB
-**Estado:** ⬚ No iniciada
-
-## Fase 5 — Expansión Regional y Premium
-**Estado:** ⬚ No iniciada
+## Fase 2 — Beta Cerrada ⬚ No iniciada
+## Fase 3 — Lanzamiento ⬚ No iniciada
+## Fase 4 — SMB ⬚ No iniciada
+## Fase 5 — Expansión ⬚ No iniciada
 
 ---
 
 ## Leyenda
-
 - ✅ Completado
 - 🔨 En progreso
 - ⬚ Pendiente
 - ❌ Cancelado
-- ⚠️ Bloqueado
