@@ -167,7 +167,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             content = text or "[audio/photo message]"
 
             # Quick meta-check: user asking about Lucho's capabilities?
-            if _is_meta_question(content):
+            if await _is_meta_question(content):
                 await msg.reply_text(HELP_TEXT, parse_mode="Markdown")
                 await session.commit()
                 return
