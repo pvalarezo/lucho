@@ -51,7 +51,7 @@ class Settings(BaseSettings):
 
     # ---- OpenAI (Whisper + Embeddings) ----
     OPENAI_API_KEY: str = ""
-    EMBEDDING_PROVIDER: str = "none"  # "openai" | "none"
+    EMBEDDING_PROVIDER: str = "none"  # "openai" | "local" | "none"
     OPENAI_EMBEDDING_MODEL: str = "text-embedding-3-small"
 
     # ---- Feature Flags ----
