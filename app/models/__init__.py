@@ -8,6 +8,10 @@ from app.models.event import Event, EventCertainty, EventStatus
 from app.models.reminder import Reminder, ReminderChannel, ReminderStatus
 from app.models.topic import Topic, Note
 from app.models.list import List, ListItem, ListType, ItemStatus
+from app.models.project import Project, ProjectTask, ProjectStatus, TaskStatus
+from app.models.contact import Contact, CaregiverLink
+from app.models.shared_expense import SharedExpense, SharedExpenseParticipant, SplitType, ParticipantStatus
+from app.models.subscription import Subscription, Payment, SubscriptionInvoice, SubscriptionPlan, SubscriptionStatus, PaymentStatus
 
 __all__ = [
     "Base",
@@ -32,4 +36,20 @@ __all__ = [
     "ListItem",
     "ListType",
     "ItemStatus",
+    "Project",
+    "ProjectTask",
+    "ProjectStatus",
+    "TaskStatus",
+    "Contact",
+    "CaregiverLink",
+    "SharedExpense",
+    "SharedExpenseParticipant",
+    "SplitType",
+    "ParticipantStatus",
+    "Subscription",
+    "Payment",
+    "SubscriptionInvoice",
+    "SubscriptionPlan",
+    "SubscriptionStatus",
+    "PaymentStatus",
 ]

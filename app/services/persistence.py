@@ -16,6 +16,9 @@ from app.models.asset import Asset, AssetType
 from app.models.event import Event, EventCertainty, EventStatus
 from app.models.list import List, ListItem, ItemStatus, ListType
 from app.models.topic import Topic, Note
+from app.models.project import Project, ProjectTask, TaskStatus
+from app.models.contact import Contact
+from app.models.shared_expense import SharedExpense, SharedExpenseParticipant, SplitType, ParticipantStatus
 
 logger = logging.getLogger(__name__)
 
@@ -204,3 +207,122 @@ async def persist_note(
     await session.flush()
     logger.info("Created note %s in topic '%s'", note.id, topic_name)
     return note
+
+
+# ---- Projects ----
+
+async def persist_project_task(
+    session: AsyncSession,
+    user_id: uuid.UUID,
+    project_name: str,
+    content: str,
+    due_date: date | None = None,
+) -> ProjectTask:
+    """Create a task in a project. Creates the project if it doesn't exist."""
+    if not project_name or not project_name.strip():
+        project_name = "general"
+
+    # Resolve or create project
+    result = await session.execute(
+        select(Project).where(
+            Project.user_id == user_id,
+            Project.name == project_name,
+        )
+    )
+    project = result.scalar_one_or_none()
+
+    if not project:
+        project = Project(user_id=user_id, name=project_name)
+        session.add(project)
+        await session.flush()
+        logger.info("Created project: %s", project_name)
+
+    task = ProjectTask(
+        project_id=project.id,
+        content=content,
+        due_date=due_date,
+    )
+    session.add(task)
+    await session.flush()
+    logger.info("Added task '%s' to project '%s'", content[:60], project_name)
+    return task
+
+
+# ---- Shared Expenses ----
+
+async def persist_shared_expense(
+    session: AsyncSession,
+    user_id: uuid.UUID,
+    description: str,
+    total_amount: float,
+    participants: list[str],
+    split_type: str = "equal",
+    currency: str = "USD",
+    expense_date: date | None = None,
+) -> SharedExpense:
+    """Create a shared expense with participants."""
+    if not description:
+        description = "gasto compartido"
+    if not participants:
+        participants = ["otro"]
+
+    try:
+        st = SplitType(split_type)
+    except ValueError:
+        st = SplitType.equal
+
+    if expense_date is None:
+        expense_date = date.today()
+
+    per_person = total_amount / len(participants) if participants else total_amount
+
+    expense = SharedExpense(
+        user_id=user_id,
+        description=description,
+        total_amount=total_amount,
+        currency=currency,
+        split_type=st,
+        expense_date=expense_date,
+    )
+    session.add(expense)
+    await session.flush()
+
+    for name in participants:
+        participant = SharedExpenseParticipant(
+            expense_id=expense.id,
+            name=name.strip(),
+            amount=per_person,
+        )
+        session.add(participant)
+
+    await session.flush()
+    logger.info(
+        "Created shared expense: %s $%.2f / %d people = $%.2f c/u",
+        description, total_amount, len(participants), per_person,
+    )
+    return expense
+
+
+# ---- Contacts ----
+
+async def persist_contact(
+    session: AsyncSession,
+    user_id: uuid.UUID,
+    name: str,
+    phone_number: str | None = None,
+    relationship: str | None = None,
+) -> Contact:
+    """Create a contact for the user."""
+    if not name or not name.strip():
+        name = "sin nombre"
+
+    contact = Contact(
+        user_id=user_id,
+        name=name,
+        phone_number=phone_number,
+        relationship=relationship,
+    )
+    session.add(contact)
+    await session.flush()
+    logger.info("Created contact: %s", name)
+    return contact
