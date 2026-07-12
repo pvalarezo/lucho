@@ -66,10 +66,11 @@ Se actualiza al completar hitos significativos.
 ### Motor de Reglas
 | Tarea | Estado | Fecha | Notas |
 |-------|--------|-------|-------|
-| Regla matriculación por placa | ⬚ Pendiente | — | — |
-| Pico y placa semanal | ⬚ Pendiente | — | — |
-| APScheduler cron diario | ⬚ Pendiente | — | — |
-| Recordatorios escalonados | ⬚ Pendiente | — | — |
+| Regla matriculación por placa | ✅ | 2026-07-11 | Último dígito → mes, deadline exacto |
+| Pico y placa semanal | ✅ | 2026-07-11 | Dígito → día restringido, Quito/Cuenca |
+| APScheduler cron diario | ✅ | 2026-07-11 | 8:00 AM, evalúa vehículos + eventos |
+| Recordatorios escalonados | ✅ | 2026-07-11 | Ventanas 15/7/3/0 días, crea reminders |
+| SOAT / RTV | ✅ | 2026-07-11 | Mismo mes que matriculación |
 
 ### Núcleo Transversal
 | Tarea | Estado | Fecha | Notas |
