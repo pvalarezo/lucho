@@ -104,6 +104,7 @@ Responde ÚNICAMENTE un objeto JSON."""
             "note": 'Extrae: {"topic_name": "tema corto", "content": "contenido completo"}.',
             "correction": 'Extrae: {"original_target": "qué se está corrigiendo", "corrected_fields": {"campo": "nuevo valor"}}.',
             "shared_expense": 'Extrae: {"description": "descripción", "amount": 0.0, "currency": "USD", "participants": ["nombre1"], "split_type": "equal|custom", "date": "YYYY-MM-DD o null"}.',
+            "search": 'Extrae: {"search_type": "vehicle|list|deadline|note|pending|general", "entity_name": "nombre de lo que busca (ej: carro, compras, SOAT)", "specific_field": "campo específico o null"}. Usa search_type=vehicle si pregunta por carro, vehículo, placa, SOAT, matriculación. Usa list/pending si pregunta por compras, pendientes, tareas. Usa deadline si pregunta por fechas, vencimientos. Usa note si pregunta por ideas, notas, temas.',
         }
 
         return base + "\n\n" + table_prompts.get(target_table, table_prompts["note"])

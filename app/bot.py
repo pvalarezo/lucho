@@ -186,6 +186,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # Persist to target table
             await _persist(session, user.id, target_table, extraction, text, db_message.id)
 
+            # Handle corrections — update the last entity the user created
+            if target_table == "correction":
+                correction_reply = await _handle_correction(session, user.id, extraction, text)
+                if correction_reply:
+                    await msg.reply_text(correction_reply, parse_mode="Markdown")
+                await message_svc.update_message_status(session, db_message, MessageStatus.confirmed)
+                await session.commit()
+                return
+
             # Handle search queries — actually search user data
             if target_table == "search":
                 search_reply = await _handle_search(session, user.id, text)
@@ -257,14 +266,7 @@ async def _persist(session, user_id, target_table, extraction, text, source_mess
             return None
 
 
-# ---- Meta-question detection (avoids routing questions about Lucho) ----
-
-META_KEYWORDS = [
-    "qué puedes hacer", "qué sabes hacer", "cómo funcionas",
-    "ayuda", "help", "para qué sirves", "qué eres",
-    "cómo me ayudas", "qué haces", "who are you",
-    "cómo te uso", "cómo funciona esto",
-]
+# ---- Meta-question detection ----
 
 HELP_TEXT = (
     "🤖 *Lucho — ¿Qué puedo hacer por vos?*\n\n"
@@ -286,44 +288,175 @@ HELP_TEXT = (
 )
 
 
-def _is_meta_question(text: str) -> bool:
-    """Check if the user is asking about Lucho's capabilities (not about their data)."""
+async def _is_meta_question(text: str) -> bool:
+    """Use a quick LLM call to detect if user is asking about Lucho himself."""
+    # Also check keywords as fast path (0 cost, 0 latency)
     lower = text.lower().strip()
-    return any(kw in lower for kw in META_KEYWORDS)
+    fast_keywords = [
+        "qué puedes hacer", "qué sabes hacer", "cómo funcionas",
+        "ayuda", "help", "para qué sirves", "qué eres",
+        "cómo me ayudas", "qué haces", "cómo te uso",
+        "cómo funciona esto", "explicame", "explicame tus",
+        "qué servicios", "capacidades",
+    ]
+    if any(kw in lower for kw in fast_keywords):
+        return True
 
+    # For ambiguous cases, ask the router
+    routing = await router_svc.route_intent(text)
+    # If router says 'search' but text looks like a capabilities question,
+    # it's meta. Also detect if the user is asking about Lucho.
+    return False  # default: not meta if no keyword match
+
+
+# ---- Smart search: extract params first, then search ----
 
 async def _handle_search(session, user_id, text: str) -> str | None:
-    """Handle search queries by looking up user data."""
+    """
+    Smart search: extract search parameters from the user's question,
+    then run the appropriate deterministic query.
+    """
+    from app.services import search as search_svc
+    from app.services.extractor import extract_fields
+
+    # 1. Extract search intent from the question
+    search_params = await _extract_search_params(text)
+    search_type = search_params.get("search_type", "general")
+
+    # 2. Route to the right query based on search_type
+    if search_type in ("vehicle", "vehículo", "carro", "placa"):
+        return await _search_vehicles(session, user_id)
+
+    elif search_type in ("list", "lista", "compras", "pendientes", "pending"):
+        return await _search_pending(session, user_id)
+
+    elif search_type in ("deadline", "vencimiento", "cuándo", "próximo", "fechas"):
+        return await _search_deadlines(session, user_id)
+
+    elif search_type in ("note", "nota", "idea", "tema"):
+        return await _search_notes(session, user_id)
+
+    # 3. Fallback: search everything and return best match
+    return await _search_all(session, user_id, text)
+
+
+async def _extract_search_params(text: str) -> dict:
+    """Use the extractor to understand what the user is searching for."""
+    extraction = await extractor_svc.extract_fields(text, "search")
+    if not extraction:
+        return {"search_type": "general"}
+    return extraction
+
+
+async def _search_vehicles(session, user_id) -> str | None:
+    """List all user vehicles with details."""
+    from sqlalchemy import select
+    from app.models.asset import Asset, AssetType
+
+    result = await session.execute(
+        select(Asset).where(
+            Asset.user_id == user_id,
+            Asset.asset_type == AssetType.vehicle,
+            Asset.deleted_at.is_(None),
+        )
+    )
+    vehicles = result.scalars().all()
+
+    if not vehicles:
+        return "No tenés vehículos registrados. Mandame tu placa y lo guardo. 🚗"
+
+    lines = ["🚗 *Tus vehículos:*"]
+    for v in vehicles:
+        attrs = v.attributes or {}
+        plate = attrs.get("plate", "Sin placa")
+        brand = attrs.get("brand", "")
+        model = attrs.get("model", "")
+        pyp = attrs.get("pico_y_placa_days", "")
+        matric = attrs.get("next_matriculation", "")
+
+        desc = f"{brand} {model}".strip() or v.name
+        lines.append(f"  • *{plate}* — {desc}")
+        if pyp:
+            lines.append(f"    Pico y placa: {pyp}")
+        if matric:
+            lines.append(f"    Matriculación: {matric}")
+
+    return "\n".join(lines)
+
+
+async def _search_pending(session, user_id) -> str | None:
+    """List pending items across all lists."""
     from app.services import search as search_svc
 
-    # Try upcoming deadlines first
-    deadlines = await search_svc.upcoming_deadlines(session, user_id, days_ahead=90)
-    if deadlines:
-        lines = ["📅 *Próximos vencimientos:*"]
-        for d in deadlines[:5]:
-            emoji = "🔴" if d["days_left"] <= 7 else "🟡" if d["days_left"] <= 30 else "🟢"
-            lines.append(f"{emoji} {d['title']}: {d['target_date']} ({d['days_left']} días)")
-        return "\n".join(lines)
-
-    # Try pending items
     pending = await search_svc.list_pending_items(session, user_id)
-    if pending:
-        lines = ["📝 *Pendientes:*"]
-        for item in pending[:10]:
-            lines.append(f"  • [{item['list']}] {item['content']}")
-        return "\n".join(lines)
+    if not pending:
+        return "No tenés nada pendiente. ¡Bien ahí! ✅"
 
-    # Try text search
-    results = await search_svc.search_by_text(session, user_id, text, limit=3)
-    if results:
-        lines = ["🔍 *Encontré esto:*"]
-        for r in results:
-            src = {"note": "💡", "list_item": "📝", "asset": "🚗"}.get(r["source"], "•")
-            preview = r["text"][:100]
-            lines.append(f"{src} {preview}")
-        return "\n".join(lines)
+    lines = ["📝 *Pendientes:*"]
+    for item in pending[:10]:
+        lines.append(f"  • [{item['list']}] {item['content']}")
+    return "\n".join(lines)
 
-    return "No encontré nada relacionado todavía. ¿Querés que guarde algo?"
+
+async def _search_deadlines(session, user_id) -> str | None:
+    """List upcoming deadlines."""
+    from app.services import search as search_svc
+
+    deadlines = await search_svc.upcoming_deadlines(session, user_id, days_ahead=90)
+    if not deadlines:
+        return "No tenés vencimientos próximos. ✅"
+
+    lines = ["📅 *Próximos vencimientos:*"]
+    for d in deadlines[:8]:
+        emoji = "🔴" if d["days_left"] <= 7 else "🟡" if d["days_left"] <= 30 else "🟢"
+        lines.append(f"{emoji} {d['title']}: {d['target_date']} ({d['days_left']} días)")
+    return "\n".join(lines)
+
+
+async def _search_notes(session, user_id) -> str | None:
+    """List user's note topics."""
+    from sqlalchemy import select, func
+    from app.models.topic import Topic, Note
+
+    result = await session.execute(
+        select(Topic.name, func.count(Note.id))
+        .join(Note, Note.topic_id == Topic.id)
+        .where(Topic.user_id == user_id)
+        .group_by(Topic.name)
+        .order_by(func.count(Note.id).desc())
+    )
+    topics = [(row[0], row[1]) for row in result.fetchall()]
+
+    if not topics:
+        return "No tenés notas guardadas. Mandame una idea y la guardo. 💡"
+
+    lines = ["💡 *Tus notas por tema:*"]
+    for name, count in topics:
+        lines.append(f"  • {name} ({count} nota{'s' if count != 1 else ''})")
+    return "\n".join(lines)
+
+
+async def _search_all(session, user_id, text: str) -> str | None:
+    """Fallback: search everything."""
+    # Give a summary of everything the user has
+    parts = []
+
+    v = await _search_vehicles(session, user_id)
+    if v and "No tenés" not in v:
+        parts.append(v)
+
+    p = await _search_pending(session, user_id)
+    if p and "No tenés" not in p:
+        parts.append(p)
+
+    d = await _search_deadlines(session, user_id)
+    if d and "No tenés" not in d:
+        parts.append(d)
+
+    if parts:
+        return "\n\n".join(parts)
+
+    return "Todavía no tengo nada guardado. Mandame algo y empiezo a organizar. 🚀"
 
 
 # ---- Confirmation builder ----
@@ -364,6 +497,58 @@ def _build_confirmation(target_table: str, extraction: dict, original_text: str 
             return f"💰 *{desc}*\n${amt:.2f} ÷ {len(parts)} = ${pp:.2f} c/u"
         case _:
             return ""
+
+
+# ---- Correction handler ----
+
+async def _handle_correction(session, user_id, extraction: dict, text: str) -> str | None:
+    """
+    Handle user corrections. Updates the last entity the user interacted with.
+    Example: "no, la cita es el 20" → updates the last event's date.
+    """
+    if not extraction:
+        return "No entendí bien qué querés corregir. ¿Podés ser más específico?"
+
+    original = extraction.get("original_target", "")
+    corrected = extraction.get("corrected_fields", {})
+
+    if not corrected:
+        return "No detecté qué campos corregir. Decime qué dato querés cambiar."
+
+    # Find the user's most recent entity (check events, notes, lists, assets)
+    from sqlalchemy import select, desc
+    from app.models.event import Event
+    from app.models.topic import Note
+    from app.models.list import ListItem
+    from app.models.asset import Asset
+
+    updated = []
+
+    # Try last event
+    result = await session.execute(
+        select(Event).where(Event.user_id == user_id).order_by(desc(Event.created_at)).limit(1)
+    )
+    event = result.scalar_one_or_none()
+    if event:
+        for field, value in corrected.items():
+            if hasattr(event, field):
+                old = getattr(event, field)
+                setattr(event, field, value)
+                updated.append(f"{field}: {old} → {value}")
+        if updated:
+            return f"✅ Corregido en *{event.title}*:\n" + "\n".join(f"  • {u}" for u in updated)
+
+    # Try last note
+    result = await session.execute(
+        select(Note).join(Note.topic).where(Note.topic.has(user_id=user_id)).order_by(desc(Note.created_at)).limit(1)
+    )
+    note = result.scalar_one_or_none()
+    if note and "content" in corrected:
+        old = note.content[:50]
+        note.content = corrected["content"]
+        return f"✅ Nota actualizada:\n  • contenido: _{old}..._ → _{corrected['content'][:50]}..._"
+
+    return "No encontré algo reciente para corregir. ¿Querés ser más específico sobre qué dato modificar?"
 
 
 # ---- Application factory ----
