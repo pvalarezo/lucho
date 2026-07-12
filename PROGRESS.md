@@ -48,15 +48,17 @@ Se actualiza al completar hitos significativos.
 ### Bot de Telegram
 | Tarea | Estado | Fecha | Notas |
 |-------|--------|-------|-------|
-| Webhook recepción mensajes | ✅ | 2026-07-11 | POST /telegram/webhook — texto, photo, audio |
-| Ack inmediato | ⬚ Pendiente | — | Estructura lista, falta enviar mensaje a Telegram API |
-| Confirmación editable | ⬚ Pendiente | — | — |
+| Webhook recepción mensajes | ✅ | 2026-07-11 | POST /telegram/webhook — full pipeline |
+| Ack inmediato | ✅ | 2026-07-11 | sendMessage vía Telegram API (saltea sin token) |
+| Resolver/crear usuario | ✅ | 2026-07-11 | Por telegram_id, actualiza nombre si cambia |
+| Persistir mensaje crudo | ✅ | 2026-07-11 | messages con tracking de status por etapa |
+| Confirmación editable | ✅ | 2026-07-11 | Respuesta formateada por target_table |
 
 ### Pipeline de IA
 | Tarea | Estado | Fecha | Notas |
 |-------|--------|-------|-------|
-| Integración Haiku 4.5 | ⬚ Pendiente | — | — |
-| Integración Sonnet 5 | ⬚ Pendiente | — | — |
+| Router Haiku 4.5 | ✅ | 2026-07-11 | Enum cerrado 7 targets, system prompt detallado |
+| Extractor Sonnet 5 | ✅ | 2026-07-11 | Schema por target_table, usable sin API key |
 | Integración Whisper | ⬚ Pendiente | — | — |
 | OCR/visión de facturas | ⬚ Pendiente | — | — |
 
