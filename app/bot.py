@@ -160,6 +160,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             # Route intent
             content = text or "[audio/photo message]"
+
+            # Quick meta-check: user asking about Lucho's capabilities?
+            if _is_meta_question(content):
+                await msg.reply_text(HELP_TEXT, parse_mode="Markdown")
+                await session.commit()
+                return
+
             routing = await router_svc.route_intent(content)
             target_table = routing.get("target_table", "note")
 
@@ -178,6 +185,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             # Persist to target table
             await _persist(session, user.id, target_table, extraction, text, db_message.id)
+
+            # Handle search queries — actually search user data
+            if target_table == "search":
+                search_reply = await _handle_search(session, user.id, text)
+                if search_reply:
+                    await msg.reply_text(search_reply, parse_mode="Markdown")
+                await message_svc.update_message_status(session, db_message, MessageStatus.confirmed)
+                await session.commit()
+                return
 
             # Build and send confirmation
             confirmation = _build_confirmation(target_table, extraction, text)
@@ -239,6 +255,75 @@ async def _persist(session, user_id, target_table, extraction, text, source_mess
             )
         case _:
             return None
+
+
+# ---- Meta-question detection (avoids routing questions about Lucho) ----
+
+META_KEYWORDS = [
+    "qué puedes hacer", "qué sabes hacer", "cómo funcionas",
+    "ayuda", "help", "para qué sirves", "qué eres",
+    "cómo me ayudas", "qué haces", "who are you",
+    "cómo te uso", "cómo funciona esto",
+]
+
+HELP_TEXT = (
+    "🤖 *Lucho — ¿Qué puedo hacer por vos?*\n\n"
+    "Soy tu asistente personal. Me hablás sin estructura y yo organizo:\n\n"
+    "🚗 *Vehículos*\n"
+    "_\"Mi carro es PBC-1234\"_ → Calculo matriculación, pico y placa, SOAT\n\n"
+    "📅 *Recordatorios*\n"
+    "_\"Cita dentista el lunes a las 3pm\"_ → Te aviso con anticipación\n\n"
+    "📝 *Listas*\n"
+    "_\"Comprar leche, pan y huevos\"_ → Creo tu lista de compras\n\n"
+    "💡 *Notas*\n"
+    "_\"Idea de negocio: exportar rosas\"_ → Guardo tus ideas por tema\n\n"
+    "💰 *Gastos compartidos*\n"
+    "_\"Cena $60 entre 4 personas\"_ → Calculo cuánto toca por persona\n\n"
+    "🔍 *Buscar*\n"
+    "_\"¿Cuándo vence mi SOAT?\"_ → Encuentro lo que guardaste\n\n"
+    "Mandame *fotos* de facturas y *notas de voz*.\n"
+    "Escribime lo que necesites, sin comandos. 😊"
+)
+
+
+def _is_meta_question(text: str) -> bool:
+    """Check if the user is asking about Lucho's capabilities (not about their data)."""
+    lower = text.lower().strip()
+    return any(kw in lower for kw in META_KEYWORDS)
+
+
+async def _handle_search(session, user_id, text: str) -> str | None:
+    """Handle search queries by looking up user data."""
+    from app.services import search as search_svc
+
+    # Try upcoming deadlines first
+    deadlines = await search_svc.upcoming_deadlines(session, user_id, days_ahead=90)
+    if deadlines:
+        lines = ["📅 *Próximos vencimientos:*"]
+        for d in deadlines[:5]:
+            emoji = "🔴" if d["days_left"] <= 7 else "🟡" if d["days_left"] <= 30 else "🟢"
+            lines.append(f"{emoji} {d['title']}: {d['target_date']} ({d['days_left']} días)")
+        return "\n".join(lines)
+
+    # Try pending items
+    pending = await search_svc.list_pending_items(session, user_id)
+    if pending:
+        lines = ["📝 *Pendientes:*"]
+        for item in pending[:10]:
+            lines.append(f"  • [{item['list']}] {item['content']}")
+        return "\n".join(lines)
+
+    # Try text search
+    results = await search_svc.search_by_text(session, user_id, text, limit=3)
+    if results:
+        lines = ["🔍 *Encontré esto:*"]
+        for r in results:
+            src = {"note": "💡", "list_item": "📝", "asset": "🚗"}.get(r["source"], "•")
+            preview = r["text"][:100]
+            lines.append(f"{src} {preview}")
+        return "\n".join(lines)
+
+    return "No encontré nada relacionado todavía. ¿Querés que guarde algo?"
 
 
 # ---- Confirmation builder ----
