@@ -36,10 +36,18 @@ class Settings(BaseSettings):
     # ---- Telegram ----
     TELEGRAM_BOT_TOKEN: str = ""
 
-    # ---- LLM / Anthropic ----
+    # ---- LLM Provider (anthropic | deepseek) ----
+    LLM_PROVIDER: str = "anthropic"
+
+    # ---- Anthropic (Claude) ----
     ANTHROPIC_API_KEY: str = ""
     ANTHROPIC_HAIKU_MODEL: str = "claude-3-5-haiku-latest"
     ANTHROPIC_SONNET_MODEL: str = "claude-3-5-sonnet-latest"
+
+    # ---- DeepSeek ----
+    DEEPSEEK_API_KEY: str = ""
+    DEEPSEEK_ROUTER_MODEL: str = "deepseek-chat"
+    DEEPSEEK_EXTRACTOR_MODEL: str = "deepseek-chat"
 
     # ---- OpenAI (Whisper) ----
     OPENAI_API_KEY: str = ""
