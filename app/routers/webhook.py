@@ -24,6 +24,7 @@ from app.services import user as user_svc
 from app.services import message as message_svc
 from app.services import router as router_svc
 from app.services import extractor as extractor_svc
+from app.services import persistence as persist_svc
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["telegram"], prefix="/telegram")
@@ -103,12 +104,23 @@ async def telegram_webhook(request: Request, session: AsyncSession = Depends(get
     }
     await message_svc.update_message_status(session, db_message, MessageStatus.extracted)
 
-    # ---- 7. Build confirmation message (editable) ----
+    # ---- 7. Persist to target table (deterministic write) ----
+    persisted_id = await _persist_extraction(
+        session=session,
+        user_id=user.id,
+        target_table=target_table,
+        extraction=extraction,
+        text=text,
+        source_message_id=db_message.id,
+    )
+
+    # ---- 8. Build confirmation message (editable) ----
     confirmation_text = _build_confirmation(target_table, extraction, text)
     if settings.TELEGRAM_BOT_TOKEN and confirmation_text:
         await telegram_svc.send_message(chat_id, confirmation_text)
+    await message_svc.update_message_status(session, db_message, MessageStatus.confirmed)
 
-    # ---- 8. Commit everything ----
+    # ---- 9. Commit everything ----
     await session.commit()
 
     return {
@@ -177,3 +189,67 @@ def _build_confirmation(target_table: str, extraction: dict, original_text: str 
 
         case _:
             return ""
+
+
+async def _persist_extraction(
+    session: AsyncSession,
+    user_id,
+    target_table: str,
+    extraction: dict,
+    text: str | None,
+    source_message_id,
+) -> str | None:
+    """
+    Persist extracted data to the correct target table.
+    Returns the ID of the created entity as a string, or None.
+    """
+    if not extraction:
+        return None
+
+    match target_table:
+        case "asset":
+            asset = await persist_svc.persist_asset(
+                session=session,
+                user_id=user_id,
+                asset_type=extraction.get("asset_type", "other"),
+                name=extraction.get("name", text or "sin nombre"),
+                attributes=extraction.get("attributes", {}),
+                notes=extraction.get("notes"),
+                source_message_id=source_message_id,
+            )
+            return str(asset.id)
+
+        case "event":
+            event = await persist_svc.persist_event(
+                session=session,
+                user_id=user_id,
+                title=extraction.get("title", text or "evento"),
+                target_date=extraction.get("target_date", ""),
+                description=extraction.get("description"),
+                certainty=extraction.get("certainty", "certain"),
+                recurrence_rule=extraction.get("recurrence_rule"),
+            )
+            return str(event.id)
+
+        case "list_item":
+            items = await persist_svc.persist_list_items(
+                session=session,
+                user_id=user_id,
+                list_name=extraction.get("list_name", "general"),
+                items=extraction.get("items", [text] if text else []),
+                quantity=extraction.get("quantity"),
+            )
+            return items[0].list_id if items else None
+
+        case "note":
+            note = await persist_svc.persist_note(
+                session=session,
+                user_id=user_id,
+                topic_name=extraction.get("topic_name", "general"),
+                content=extraction.get("content", text or ""),
+                source_message_id=source_message_id,
+            )
+            return str(note.id)
+
+        case _:
+            return None

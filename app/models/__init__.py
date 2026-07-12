@@ -6,6 +6,8 @@ from app.models.message import Message, MessageChannel, MessageType, MessageStat
 from app.models.asset import Asset, AssetType
 from app.models.event import Event, EventCertainty, EventStatus
 from app.models.reminder import Reminder, ReminderChannel, ReminderStatus
+from app.models.topic import Topic, Note
+from app.models.list import List, ListItem, ListType, ItemStatus
 
 __all__ = [
     "Base",
@@ -24,4 +26,10 @@ __all__ = [
     "Reminder",
     "ReminderChannel",
     "ReminderStatus",
+    "Topic",
+    "Note",
+    "List",
+    "ListItem",
+    "ListType",
+    "ItemStatus",
 ]
