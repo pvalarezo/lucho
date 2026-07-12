@@ -32,10 +32,13 @@ Estado actual de cada fase, módulo y entregable. Fase 1 completada el 2026-07-1
 - Tool system: ejecución de APIs externas con auto-retry
 - Respuestas contextuales + templates híbridos
 
-### Integraciones — ✅ 85%
+### Integraciones — ✅ 90%
 - Whisper: transcripción de audio (OpenAI, opcional)
 - Embeddings: sentence-transformers local (384 dims, gratuito) + OpenAI fallback
-- ⬚ OCR/visión de facturas (DeepSeek Vision disponible)
+- MinIO: upload/download de documentos con fotos
+- AI Vision: DeepSeek analiza imágenes sin caption, clasifica y pregunta
+- Respuestas meta contextuales (LLM genera respuesta natural, no guía estática)
+- ⬚ OCR/visión de facturas (DeepSeek Vision disponible, prompt pendiente)
 
 ### Motor de Reglas — ✅ 100%
 - Matriculación por placa (ANT Ecuador), pico y placa (Quito/Cuenca)
@@ -59,8 +62,18 @@ Estado actual de cada fase, módulo y entregable. Fase 1 completada el 2026-07-1
 | # | Tarea | Prioridad |
 |---|-------|-----------|
 | 1 | **Vista `searchable_content`** | Baja — ya funciona con queries separadas |
-| 2 | **OCR/visión de facturas** | Media — DeepSeek tiene capacidad de visión |
+| 2 | **OCR/visión de facturas** | Media — DeepSeek tiene capacidad de visión, falta prompt |
 | 3 | **Resumen diario/semanal programado** | Baja — search ya permite consultar bajo demanda |
+
+### Mejoras implementadas post-Fase 1:
+
+| # | Mejora | Tag |
+|---|--------|-----|
+| 1 | MinIO document upload/download | v1.4.0 |
+| 2 | Smart photo handling (pregunta si no hay caption) | v1.4.1 |
+| 3 | AI Vision analysis for photos | v1.5.0 |
+| 4 | Stronger meta detection (puedes/sabes/eres capaz) | v1.5.1 |
+| 5 | Contextual natural meta responses | v1.5.2 |
 
 ---
 
