@@ -563,37 +563,37 @@ async def _search_all(session, user_id, text: str) -> str | None:
 # ---- Confirmation builder ----
 
 def _build_confirmation(target_table: str, extraction: dict, original_text: str | None) -> str:
-    """Build a human-readable confirmation."""
+    """Build a human-readable confirmation. None-safe on all fields."""
     if not extraction:
         return ""
 
     match target_table:
         case "asset":
-            at = extraction.get("asset_type", "otro")
-            name = extraction.get("name", original_text or "nuevo")
+            at = extraction.get("asset_type") or "otro"
+            name = extraction.get("name") or original_text or "nuevo"
             return (
                 f"📋 Guardado: *{name}* ({at})\n"
                 f"¿Está bien? Podés corregirme en cualquier momento."
             )
         case "event":
-            title = extraction.get("title", original_text or "evento")
-            td = extraction.get("target_date", "")
+            title = extraction.get("title") or original_text or "evento"
+            td = extraction.get("target_date") or ""
             ds = f" — {td}" if td else ""
             return f"📅 Agendado: *{title}*{ds}"
         case "list_item":
-            ln = extraction.get("list_name", "general")
-            items = extraction.get("items", [])
-            its = "\n".join(f"  ✓ {i}" for i in items)
+            ln = extraction.get("list_name") or "general"
+            items = extraction.get("items") or []
+            its = "\n".join(f"  ✓ {i}" for i in items) if items else "  ✓ (lista vacía)"
             return f"📝 Agregado a *{ln}*:\n{its}"
         case "note":
-            topic = extraction.get("topic_name", "general")
-            content = extraction.get("content", original_text or "")
+            topic = extraction.get("topic_name") or "general"
+            content = extraction.get("content") or original_text or ""
             preview = content[:100] + "..." if len(content) > 100 else content
             return f"💡 Nota en *{topic}*:\n{preview}"
         case "shared_expense":
-            desc = extraction.get("description", original_text or "gasto")
-            amt = extraction.get("amount", 0)
-            parts = extraction.get("participants", [])
+            desc = extraction.get("description") or original_text or "gasto"
+            amt = extraction.get("amount") or 0
+            parts = extraction.get("participants") or []
             pp = amt / len(parts) if parts else amt
             return f"💰 *{desc}*\n${amt:.2f} ÷ {len(parts)} = ${pp:.2f} c/u"
         case _:

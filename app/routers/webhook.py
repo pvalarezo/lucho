@@ -85,10 +85,16 @@ async def telegram_webhook(request: Request, session: AsyncSession = Depends(get
         await telegram_svc.send_typing(chat_id)
         await message_svc.update_message_status(session, db_message, MessageStatus.acked)
 
-    # ---- 5. Route intent (Haiku) ----
+    # ---- 5. Route intent ----
     content_for_routing = text or "[audio/photo message]"
-    routing = await router_svc.route_intent(content_for_routing)
-    target_table = routing.get("target_table", "note")
+
+    # Ultra-short messages ("ok", "sí", "no" → 1-3 chars) default to note
+    if text and len(text.strip()) <= 3:
+        target_table = "note"
+        routing = {"target_table": "note", "reasoning": "short_message"}
+    else:
+        routing = await router_svc.route_intent(content_for_routing)
+        target_table = routing.get("target_table", "note")
 
     # ---- 6. Extract fields (Sonnet) ----
     # Only extract for content-bearing messages, not corrections
@@ -131,14 +137,14 @@ async def telegram_webhook(request: Request, session: AsyncSession = Depends(get
 
 
 def _build_confirmation(target_table: str, extraction: dict, original_text: str | None) -> str:
-    """Build a human-readable confirmation message based on extraction results."""
+    """Build a human-readable confirmation message. None-safe on all fields."""
     if not extraction:
         return ""
 
     match target_table:
         case "asset":
-            asset_type = extraction.get("asset_type", "otro")
-            name = extraction.get("name", original_text or "nuevo registro")
+            asset_type = extraction.get("asset_type") or "otro"
+            name = extraction.get("name") or original_text or "nuevo registro"
             return (
                 f"📋 Entendido, voy a guardar:\n"
                 f"*{name}* ({asset_type})\n\n"
@@ -146,8 +152,8 @@ def _build_confirmation(target_table: str, extraction: dict, original_text: str 
             )
 
         case "event":
-            title = extraction.get("title", original_text or "evento")
-            target_date = extraction.get("target_date", "")
+            title = extraction.get("title") or original_text or "evento"
+            target_date = extraction.get("target_date") or ""
             date_str = f" — {target_date}" if target_date else ""
             return (
                 f"📅 Voy a recordarte:\n"
@@ -156,9 +162,9 @@ def _build_confirmation(target_table: str, extraction: dict, original_text: str 
             )
 
         case "list_item":
-            list_name = extraction.get("list_name", "general")
-            items = extraction.get("items", [])
-            items_str = "\n".join(f"  • {item}" for item in items)
+            list_name = extraction.get("list_name") or "general"
+            items = extraction.get("items") or []
+            items_str = "\n".join(f"  • {item}" for item in items) if items else "  • (sin ítems)"
             return (
                 f"📝 Agregado a *{list_name}*:\n"
                 f"{items_str}\n\n"
@@ -166,8 +172,8 @@ def _build_confirmation(target_table: str, extraction: dict, original_text: str 
             )
 
         case "note":
-            topic = extraction.get("topic_name", "general")
-            content = extraction.get("content", original_text or "")
+            topic = extraction.get("topic_name") or "general"
+            content = extraction.get("content") or original_text or ""
             preview = content[:100] + "..." if len(content) > 100 else content
             return (
                 f"💡 Nota en *{topic}*:\n"
@@ -176,9 +182,9 @@ def _build_confirmation(target_table: str, extraction: dict, original_text: str 
             )
 
         case "shared_expense":
-            desc = extraction.get("description", original_text or "gasto")
-            amount = extraction.get("amount", 0)
-            participants = extraction.get("participants", [])
+            desc = extraction.get("description") or original_text or "gasto"
+            amount = extraction.get("amount") or 0
+            participants = extraction.get("participants") or []
             per_person = amount / len(participants) if participants else amount
             return (
                 f"💰 *{desc}*\n"

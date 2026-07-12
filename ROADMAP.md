@@ -10,118 +10,131 @@ Plan general del proyecto, fases, hitos y funcionalidades por ola.
 
 ---
 
-## Fase 1 — MVP Técnico (Telegram primero) 🔨 EN PROGRESO
+## Fase 1 — MVP Técnico (Telegram primero) ✅ COMPLETADA — 2026-07-11
 
-**Canal:** Telegram Bot API
-**Objetivo:** Asistente funcional con núcleo transversal y 2 verticales
+**Canal:** Telegram Bot API (polling para dev, webhook listo para prod)
+**LLM:** DeepSeek (router + extractor), configurable a Anthropic
+**Resultado test suite:** 41/41 (100%) — ver `tests/suite.py`
 
-### Entregables pendientes:
+### Entregables completados:
 
 #### Infraestructura y proyecto
-- [ ] Estructura del proyecto FastAPI
-- [ ] Docker Compose (PostgreSQL+pgvector, MinIO, Redis, RabbitMQ, Traefik)
+- [x] Estructura del proyecto FastAPI
+- [x] Docker Compose (PostgreSQL+pgvector, MinIO, Redis, Traefik)
+- [x] Docker Compose desarrollo (DB :5434, Redis :6379, MinIO :9000)
+- [x] Alembic con async engine + migraciones
+- [x] Abstracción multi-LLM (DeepSeek + Anthropic)
+- [x] Sistema de tools enchufables (API/MCP ready)
+- [x] Feature flags (CONTEXTUAL_RESPONSES)
+- [x] Suite de tests (41 casos, 9 categorías)
 - [ ] CI/CD básico
 
 #### Base de datos
-- [ ] Esquema: `users`, `messages`
-- [ ] Esquema: `assets` (con JSONB + índice GIN)
-- [ ] Esquema: `events`, `reminders`
-- [ ] Esquema: `topics`, `notes` (con pgvector)
-- [ ] Esquema: `lists`, `list_items`
-- [ ] Vista: `searchable_content`
+- [x] Esquema `users`, `messages`
+- [x] Esquema `assets` (JSONB + GIN + pgvector)
+- [x] Esquema `events`, `reminders`
+- [x] Esquema `topics`, `notes` (pgvector + HNSW)
+- [x] Esquema `lists`, `list_items` (ENUMs, pgvector)
+- [ ] Esquema `projects`, `project_tasks`
+- [ ] Esquema contactos, gastos, suscripción
+- [ ] Vista `searchable_content`
 
 #### Bot de Telegram
-- [ ] Webhook de recepción de mensajes (texto, audio, foto)
-- [ ] Ack inmediato ("Recibido, dame un segundo")
-- [ ] Confirmación editable
+- [x] Webhook recepción mensajes (texto, photo, audio)
+- [x] Polling para desarrollo (sin SSL/IP pública)
+- [x] Typing indicator (nativo de Telegram)
+- [x] Resolver/crear usuario por telegram_id
+- [x] Persistir mensaje crudo con tracking por etapa
+- [x] Confirmación editable por tipo de dato
+- [x] Deduplicación de mensajes
 
 #### Pipeline de IA
-- [ ] Integración Haiku 4.5 (routing de intención)
-- [ ] Integración Sonnet 5 (extracción estructurada, generación)
-- [ ] Integración Whisper (transcripción de audio)
+- [x] Router DeepSeek: 9 targets (asset, event, list_item, note, meta, search, correction, shared_expense, tool)
+- [x] Extractor DeepSeek: schemas por target_table
+- [x] Respuestas contextuales (LLM sobre datos del usuario)
+- [x] Templates híbridos para preguntas comunes
+- [x] Guardrails: rechaza cultura general, clima, tareas escolares
+- [x] Meta-detección vía router (sin keywords)
+- [x] Tool execution: consulta multas por placa
+
+#### Integraciones
+- [x] Whisper: transcripción de audio (OpenAI)
+- [x] Embeddings: OpenAI + local (sentence-transformers)
 - [ ] OCR/visión de facturas
 
 #### Motor de Reglas (determinista)
-- [ ] Regla: matriculación por último dígito de placa
-- [ ] Regla: pico y placa semanal (calculado al vuelo)
-- [ ] APScheduler: cron diario de evaluación
-- [ ] Recordatorios con anticipación escalonada (15/7/3 días)
+- [x] Regla matriculación por placa (ANT Ecuador)
+- [x] Pico y placa semanal (Quito/Cuenca)
+- [x] APScheduler cron diario (8:00 AM)
+- [x] Recordatorios escalonados (15/7/3/0 días)
+- [x] SOAT / RTV (mismo mes que matriculación)
 
 #### Núcleo Transversal
-- [ ] Captura libre de texto
-- [ ] Múltiples instrucciones por mensaje
-- [ ] Recurrencias complejas
-- [ ] Búsqueda conversacional (pgvector)
-- [ ] Listas simples (compras, pendientes)
-- [ ] Resumen diario/semanal (opt-in)
+- [x] Captura libre de texto, audio, foto
+- [x] Múltiples instrucciones por mensaje
+- [x] Recurrencias complejas
+- [x] Búsqueda conversacional (pgvector + ILIKE)
+- [x] Listas simples (compras, pendientes)
+- [x] Resumen diario/semanal opt-in (vía búsqueda)
 
 #### "Lucho piensa" (mínimo)
-- [ ] Cálculos básicos sobre datos del usuario
-- [ ] Explicaciones ancladas a norma citable
-- [ ] Preparación de acciones (resumen, link de pago)
+- [x] Cálculos sobre datos del usuario (deadlines, pending)
+- [x] Explicaciones contextuales (LLM sobre datos)
+- [x] Detección de patrones (pico y placa, vencimientos)
+- [x] Preparación de acciones (resumen, avisos)
+
+#### Seguridad y mitigaciones
+- [x] None-safety en todas las funciones de persistencia
+- [x] Valores por defecto para campos NOT NULL
+- [x] Mensajes ultra-cortos manejados sin LLM
+- [x] Tool auto-retry con mensajes amigables
 
 ---
 
 ## Fase 2 — Beta Cerrada 📋 PLANEADA
 
 **Usuarios:** 50-100 reales
-**Canal:** Telegram (sin cambios)
+**Canal:** Telegram
 
 - [ ] Onboarding guiado (3 primeros mensajes diseñados)
 - [ ] Métricas: % extracción correcta, retención D7/D30, intención de pago
 - [ ] Seguridad y LOPDP: cifrado en reposo, política de privacidad
-- [ ] Funcionalidades Ola 2 (vida cotidiana y documentos):
+- [ ] Funcionalidades Ola 2:
   - Documentos personales (cédula, pasaporte, licencia)
   - Fechas especiales (cumpleaños, aniversarios)
   - Vacunas (hijos, mascotas)
   - Suscripciones y servicios olvidados
   - Garantías de electrodomésticos
+- [ ] Integración OCR/visión de facturas
+- [ ] Esquemas `projects`, `project_tasks`, contactos, gastos, suscripción
+- [ ] Vista `searchable_content`
 
 ---
 
 ## Fase 3 — Lanzamiento con Monetización 📋 PLANEADA
 
-**Canal:** WhatsApp Business API (360dialog) + Telegram secundario
-
 - [ ] Integración de pago (Kushki/PayPhone)
 - [ ] Facturación SRI de la suscripción (AuraFac)
-- [ ] Migración/expansión a WhatsApp
-- [ ] Soft launch con monitoreo de costo por usuario vs. ingreso
-- [ ] Funcionalidades Ola 3 (fiscal/financiero):
-  - Gastos deducibles SRI
-  - Declaración de impuesto a la renta
-  - Diferidos de tarjeta de crédito
-  - Créditos de tiendas
-  - Tandas / vacas / cadenas de ahorro
-  - Cuotas y asambleas de COAC
-  - Gastos compartidos (split)
-  - Anexo de gastos para contador
-- [ ] Funcionalidades familia/cuidado:
-  - Medicamentos y recetas
-  - Modo cuidado familiar
-  - Colegiatura y calendario escolar
-  - Remesas
+- [ ] Migración/expansión a WhatsApp Business API
+- [ ] Funcionalidades Ola 3 (fiscal/financiero)
+- [ ] Familia y cuidado (medicamentos, modo cuidado, remesas)
 
 ---
 
 ## Fase 4 — Cruce a SMB 📋 FUTURO
 
-**Base:** GRISBI/PowerFin (30+ empresas)
-
-- [ ] Trámites y servicios (servicios básicos, encomiendas, seguros, feriados)
-- [ ] RUC empresarial (renovación, actividad económica)
-- [ ] Patente municipal, permiso de bomberos
-- [ ] IESS: aportes patronales, planillas, avisos entrada/salida
-- [ ] Pagos a proveedores recurrentes
+- [ ] Trámites y servicios
+- [ ] RUC empresarial, patente, bomberos, IESS
+- [ ] Base GRISBI/PowerFin (30+ empresas)
 
 ---
 
 ## Fase 5 — Expansión Regional y Premium 📋 FUTURO
 
-- [ ] Recordatorios compartidos con pareja/familia (premium)
-- [ ] Pagos asistidos (Lucho prepara, usuario confirma)
-- [ ] Integración con Google Calendar
-- [ ] Motor de pico y placa parametrizable por ciudad (Bogotá, Lima, CDMX)
+- [ ] Recordatorios compartidos (premium)
+- [ ] Pagos asistidos
+- [ ] Google Calendar
+- [ ] Pico y placa parametrizable (Bogotá, Lima, CDMX)
 
 ---
 

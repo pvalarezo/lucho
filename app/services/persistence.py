@@ -7,7 +7,7 @@ the actual database writes, resolving entities, and enforcing business rules.
 
 import logging
 import uuid
-from datetime import date
+from datetime import date, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -33,7 +33,11 @@ async def persist_asset(
     Create or update an asset for the user.
     Resolves duplicates by asset_type + name similarity before inserting.
     """
-    # Resolve asset_type enum (with fallback)
+    # Guard against null values
+    if not name or not name.strip():
+        name = "sin nombre"
+    if not attributes:
+        attributes = {}
     try:
         at_enum = AssetType(asset_type)
     except ValueError:
@@ -85,7 +89,12 @@ async def persist_event(
     """Create an event for the user."""
     # Parse date if string
     if isinstance(target_date, str):
-        target_date = date.fromisoformat(target_date)
+        try:
+            target_date = date.fromisoformat(target_date)
+        except (ValueError, TypeError):
+            target_date = date.today() + timedelta(days=1)  # default: tomorrow
+    elif target_date is None:
+        target_date = date.today() + timedelta(days=1)
 
     # Resolve certainty enum
     try:
@@ -117,7 +126,10 @@ async def persist_list_items(
     quantity: str | None = None,
 ) -> list[ListItem]:
     """Create or add items to a list. Creates the list if it doesn't exist."""
-    # Resolve or create list
+    if not list_name or not list_name.strip():
+        list_name = "general"
+    if not items:
+        return []
     result = await session.execute(
         select(List).where(
             List.user_id == user_id,
@@ -161,7 +173,11 @@ async def persist_note(
     source_message_id: uuid.UUID | None = None,
 ) -> Note:
     """Create a note under a topic. Creates the topic if it doesn't exist."""
-    # Resolve or create topic
+    # Guard against null/empty topic names from extractor
+    if not topic_name or not topic_name.strip():
+        topic_name = "general"
+    if not content or not content.strip():
+        content = "(sin contenido)"
     result = await session.execute(
         select(Topic).where(
             Topic.user_id == user_id,
