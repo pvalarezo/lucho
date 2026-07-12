@@ -93,7 +93,7 @@ async def semantic_search(
                 "created_at": row.created_at.isoformat(),
             })
 
-    # Search assets by name (no embedding yet, fallback to ILIKE — TODO: add asset embeddings)
+    # Search assets by name (only those with real embeddings)
     if source_tables is None or "assets" in source_tables:
         asset_results = await session.execute(
             select(
@@ -101,11 +101,14 @@ async def semantic_search(
                 Asset.name.label("text"),
                 Asset.asset_type,
                 Asset.created_at,
+                (1 - Asset.embedding.cosine_distance(query_embedding)).label("similarity"),
             )
             .where(
                 Asset.user_id == user_id,
                 Asset.deleted_at.is_(None),
+                Asset.embedding.isnot(None),  # only assets with real embeddings
             )
+            .order_by(Asset.embedding.cosine_distance(query_embedding))
             .limit(top_k)
         )
         for row in asset_results:
@@ -113,7 +116,7 @@ async def semantic_search(
                 "id": str(row.id),
                 "source": "asset",
                 "text": f"{row.asset_type}: {row.text}",
-                "similarity": 0.5,  # placeholder until embeddings added
+                "similarity": round(float(row.similarity), 4),
                 "created_at": row.created_at.isoformat(),
             })
 

@@ -75,6 +75,14 @@ async def persist_asset(
     )
     session.add(asset)
     await session.flush()
+
+    # Generate embedding for semantic search
+    from app.services import embeddings as embed_svc
+    emb_text = f"{at_enum.value}: {name}"
+    embedding = await embed_svc.generate_embedding(emb_text)
+    if embedding:
+        asset.embedding = embedding
+
     logger.info("Created asset %s: %s (%s)", asset.id, name, asset_type)
     return asset
 
