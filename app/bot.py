@@ -145,17 +145,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     await session.rollback()
                     return
 
-            # Handle photo: save to MinIO, link to asset
+            # Handle photo: save to MinIO, ask user if no caption
             photo_object_key = None
             if has_photo:
-                await msg.reply_text("📸 Guardando tu documento...")
+                # Upload to MinIO always
                 try:
-                    # Get the largest photo (last in array is highest resolution)
                     largest_photo = msg.photo[-1]
                     file = await context.bot.get_file(largest_photo.file_id)
                     photo_bytes = await file.download_as_bytearray()
-
-                    # Upload to MinIO
                     from app.services import minio as minio_svc
                     photo_object_key = await minio_svc.upload_file(
                         user_id=str(user.id),
@@ -163,13 +160,31 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         filename=f"photo_{msg.message_id}.jpg",
                         content_type="image/jpeg",
                     )
-                    if photo_object_key:
-                        await msg.reply_text("✅ Documento guardado. Decime de qué es para catalogarlo.")
-                    else:
-                        await msg.reply_text("⚠️ No pude guardar la imagen. Pero tomé nota de tu mensaje.")
                 except Exception as exc:
                     logger.exception("Photo upload failed: %s", exc)
-                    await msg.reply_text("⚠️ Error al guardar la foto, pero procesé tu mensaje.")
+
+                # No caption → ask user what this is
+                if not text and not has_voice:
+                    await msg.reply_text(
+                        "📸 *Guardé tu imagen.*\n\n"
+                        "¿De qué se trata? Por ejemplo:\n"
+                        "• _\"Mi cédula de identidad\"_\n"
+                        "• _\"Factura del supermaxi\"_\n"
+                        "• _\"SOAT de mi carro\"_\n"
+                        "• _\"Garantía de la lavadora\"_\n\n"
+                        "Respondeme con una descripción y la catalogo.",
+                        parse_mode="Markdown",
+                    )
+                    # Save raw message and return — wait for user's text response
+                    db_message = await message_svc.create_message(
+                        session=session, user_id=user.id,
+                        channel=MessageChannel.telegram,
+                        message_type=MessageType.photo,
+                        text="[foto sin descripción]",
+                        file_path=photo_object_key,
+                    )
+                    await session.commit()
+                    return
             db_message = await message_svc.create_message(
                 session=session,
                 user_id=user.id,
@@ -183,6 +198,28 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             # Route intent
             content = text or "[audio/photo message]"
+            # Route intent
+            content = text or "[audio/photo message]"
+
+            # If previous message was a photo without description, link this text to it
+            extra_attrs = {}
+            if message_type == MessageType.text and not has_photo:
+                from sqlalchemy import select, desc
+                from app.models.message import Message
+                last_msg = await session.execute(
+                    select(Message).where(
+                        Message.user_id == user.id,
+                        Message.message_type == MessageType.photo,
+                        Message.text == "[foto sin descripción]",
+                    ).order_by(desc(Message.received_at)).limit(1)
+                )
+                last_photo = last_msg.scalar_one_or_none()
+                if last_photo and last_photo.file_path:
+                    extra_attrs["photo_key"] = last_photo.file_path
+                    # Update the old photo message with the new description
+                    last_photo.text = text
+                    logger.info("Linked text response to photo: %s", last_photo.file_path)
+
             routing = await router_svc.route_intent(content)
             target_table = routing.get("target_table", "note")
 
@@ -211,7 +248,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await message_svc.update_message_status(session, db_message, MessageStatus.extracted)
 
             # Persist to target table
-            await _persist(session, user.id, target_table, extraction, text, db_message.id, photo_object_key)
+            await _persist(session, user.id, target_table, extraction, text, db_message.id, photo_object_key, extra_attrs)
 
             # Handle corrections — update the last entity the user created
             if target_table == "correction":
@@ -256,7 +293,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ---- Persistence helper ----
 
-async def _persist(session, user_id, target_table, extraction, text, source_message_id, photo_key=None):
+async def _persist(session, user_id, target_table, extraction, text, source_message_id, photo_key=None, extra_attrs=None):
     """Write extracted data to the correct target table."""
     if not extraction:
         return None
@@ -275,6 +312,8 @@ async def _persist(session, user_id, target_table, extraction, text, source_mess
             # Link MinIO photo key to asset attributes
             if photo_key and "minio://" not in str(photo_key):
                 asset.attributes = {**asset.attributes, "photo_key": photo_key}
+            if extra_attrs:
+                asset.attributes = {**asset.attributes, **extra_attrs}
             return asset
         case "event":
             return await persist_svc.persist_event(
