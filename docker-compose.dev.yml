@@ -2,6 +2,20 @@
 # PostgreSQL is local, only Redis + MinIO run in Docker
 
 services:
+  # ---- PostgreSQL 16 + pgvector (semantic search) ----
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: lucho-db-dev
+    environment:
+      POSTGRES_USER: lucho
+      POSTGRES_PASSWORD: lucho
+      POSTGRES_DB: lucho
+    ports:
+      - "5434:5432"    # 5434 on host → 5432 in container (avoids conflict with local PG 9.6:5432, 13:5433)
+    volumes:
+      - pgdata-dev:/var/lib/postgresql/data
+    restart: unless-stopped
+
   # ---- Redis (session memory) ----
   redis:
     image: redis:7-alpine
@@ -28,5 +42,6 @@ services:
     restart: unless-stopped
 
 volumes:
+  pgdata-dev:
   redis-data-dev:
   minio-data-dev:

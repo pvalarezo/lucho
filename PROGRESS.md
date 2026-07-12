@@ -35,10 +35,10 @@ Se actualiza al completar hitos significativos.
 |-------|--------|-------|-------|
 | Modelo `users` | ✅ | 2026-07-11 | SQLAlchemy + Pydantic |
 | Modelo `messages` | ✅ | 2026-07-11 | Con ENUMs, JSONB, timestamps por etapa |
-| Modelo `assets` | ✅ | 2026-07-11 | JSONB + GIN index + soft delete + asset_type ENUM |
+| Modelo `assets` | ✅ | 2026-07-11 | JSONB + GIN + pgvector Vector(1024) + soft delete |
 | Modelo `events` | ✅ | 2026-07-11 | target_date indexada, recurrence_rule JSONB |
 | Modelo `reminders` | ✅ | 2026-07-11 | Con auditoría de mensaje enviado |
-| Migración inicial | ⬚ Pendiente | — | Generar con alembic autogenerate |
+| Migración inicial | ✅ | 2026-07-11 | 5 tablas + pgvector extension creadas en PG 16 Docker :5434 |
 | Esquema `topics`, `notes` | ⬚ Pendiente | — | — |
 | Esquema `lists`, `list_items` | ⬚ Pendiente | — | — |
 | Esquema `projects`, `project_tasks` | ⬚ Pendiente | — | — |
@@ -48,8 +48,8 @@ Se actualiza al completar hitos significativos.
 ### Bot de Telegram
 | Tarea | Estado | Fecha | Notas |
 |-------|--------|-------|-------|
-| Webhook recepción mensajes | ⬚ Pendiente | — | — |
-| Ack inmediato | ⬚ Pendiente | — | — |
+| Webhook recepción mensajes | ✅ | 2026-07-11 | POST /telegram/webhook — texto, photo, audio |
+| Ack inmediato | ⬚ Pendiente | — | Estructura lista, falta enviar mensaje a Telegram API |
 | Confirmación editable | ⬚ Pendiente | — | — |
 
 ### Pipeline de IA

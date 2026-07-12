@@ -14,6 +14,7 @@ from sqlalchemy import String, DateTime, ForeignKey, Enum, Index, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import UUID
+from pgvector.sqlalchemy import Vector
 
 from app.models.base import UUIDMixin, TimestampMixin, Base, utcnow
 
@@ -60,10 +61,8 @@ class Asset(UUIDMixin, TimestampMixin, Base):
         default=1, nullable=False
     )
 
-    # Embedding for semantic search (populated on write)
-    embedding: Mapped[list[float] | None] = mapped_column(
-        nullable=True
-    )  # pgvector VECTOR type set via Alembic migration
+    # Embedding for semantic search (pgvector, populated on write)
+    embedding = mapped_column(Vector(1024), nullable=True)
 
     # Soft delete
     deleted_at: Mapped[datetime | None] = mapped_column(

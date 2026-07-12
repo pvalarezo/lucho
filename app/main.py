@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app.config import settings
-from app.routers import health
+from app.routers import health, webhook
 
 
 @asynccontextmanager
@@ -25,6 +25,7 @@ app = FastAPI(
 
 # Routers
 app.include_router(health.router)
+app.include_router(webhook.router)
 
 
 @app.get("/")

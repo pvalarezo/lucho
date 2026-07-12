@@ -4,58 +4,45 @@
 
 ## Sesión actual — 2026-07-11
 
-**Avances:**
-- Lectura y análisis completo de `docs/lucho_especificaciones_proyecto.md` (v1.6)
-- Creación de archivos de control: AGENTS.md, ROADMAP.md, PROGRESS.md, NEXT_SESSION.md
-- Git init (branch `main`) + `.gitignore`
-- Tag `v0.1.0` — Project bootstrap
+**Avances completados:**
+1. ✅ Archivos de control: AGENTS.md, ROADMAP.md, PROGRESS.md, NEXT_SESSION.md
+2. ✅ Git init (main) + .gitignore + tags v0.1.0, v0.2.0, v0.2.1
+3. ✅ Estructura FastAPI + modelos ORM + schemas Pydantic
+4. ✅ Docker Compose dev: PostgreSQL 16+pgvector (:5434), Redis (:6379), MinIO (:9000)
+5. ✅ Migración inicial: 5 tablas (users, messages, assets, events, reminders) con pgvector
+6. ✅ API corriendo: health check + webhook de Telegram (POST /telegram/webhook)
+7. ✅ Webhook recibe texto, photo, audio y extrae chat_id correctamente
 
-**Segundo bloque — estructura del proyecto:**
-- Estructura FastAPI completa: `app/main.py`, `config.py`, `database.py`
-- Modelos ORM: User, Message, Asset (JSONB+GIN), Event, Reminder
-- Schemas Pydantic con discriminadores por `asset_type`
-- Router de health check (`GET /health`)
-- Docker Compose producción: PostgreSQL+pgvector, MinIO, Redis, Traefik, app
-- Dockerfile Python 3.12-slim
-- Alembic configurado con async engine + target_metadata
-- `requirements.txt`
-- Tag `v0.2.0` — FastAPI project structure, Docker Compose, ORM models
-
-**Tercer bloque — adaptación para desarrollo local:**
-- `docker-compose.dev.yml`: solo Redis + MinIO (DB externa en localhost:5433, sin Traefik)
-- `.env` configurado con credenciales reales: PostgreSQL `localhost:5433`, `lucho`, `postgres:1234abcd`
-- `.env.example` actualizado con patrón de desarrollo
-- Confirmado: **Traefik NO es necesario en desarrollo** — solo en producción para SSL/dominio
-- Tag `v0.2.1` — Dev environment: docker-compose.dev.yml, local DB config
+**Entorno corriendo:**
+| Servicio | Puerto | Estado |
+|----------|--------|--------|
+| PostgreSQL 16 + pgvector | 5434 | ✅ |
+| Redis 7 | 6379 | ✅ |
+| MinIO | 9000 (API) / 9001 (consola) | ✅ |
+| FastAPI (uvicorn --reload) | 8000 | ✅ |
 
 ---
 
 ## Próxima sesión
 
-**Objetivo:** Levantar entorno, migración inicial, y webhook de Telegram
+**Objetivo:** Pipeline de extracción con IA (Haiku routing + confirmación editable)
 
 **Tareas planificadas:**
-1. Levantar Redis + MinIO: `docker compose -f docker-compose.dev.yml up -d`
-2. Instalar dependencias Python: `pip install -r requirements.txt`
-3. Generar migración inicial: `alembic revision --autogenerate -m "initial"`
-4. Ajustar la migración (tipos ENUM, GIN en assets.attributes, VECTOR(1024) en assets.embedding)
-5. Ejecutar migración: `alembic upgrade head`
-6. Levantar API: `uvicorn app.main:app --reload --port 8000`
-7. Verificar health check: `curl localhost:8000/health`
-8. Implementar webhook de Telegram (recepción + ack inmediato)
+1. Implementar servicio de Telegram: enviar mensaje de ack ("Recibido, dame un segundo")
+2. Crear/resolver usuario por chat_id en la tabla `users`
+3. Persistir mensaje crudo en `messages` (con transcription si es audio)
+4. Integrar Haiku 4.5 para router de intención (enum cerrado: asset | event | list_item | note | search | correction)
+5. Integrar Sonnet 5 para extracción estructurada de campos
+6. Flujo de confirmación editable: Lucho responde con lo que entendió, usuario corrige
 
 **Comandos rápidos:**
-
 ```bash
-# Iniciar servicios auxiliares (Redis + MinIO)
+# Iniciar todo (DB + Redis + MinIO)
 docker compose -f docker-compose.dev.yml up -d
-
-# Detener servicios auxiliares
-docker compose -f docker-compose.dev.yml down
-
-# Ejecutar migraciones
-alembic upgrade head
 
 # API con hot reload
 uvicorn app.main:app --reload --port 8000
+
+# Verificar
+curl localhost:8000/health
 ```
