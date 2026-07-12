@@ -6,15 +6,17 @@ from fastapi import FastAPI
 
 from app.config import settings
 from app.routers import health, webhook
+from app.services.scheduler import start_scheduler, stop_scheduler
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup / shutdown lifecycle."""
     # Startup
+    start_scheduler()
     yield
     # Shutdown
-    # (close DB connections, etc.)
+    stop_scheduler()
 
 
 app = FastAPI(
