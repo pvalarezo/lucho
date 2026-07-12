@@ -108,14 +108,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # ---- 1. Show typing indicator ----
     await context.bot.send_chat_action(chat_id=chat_id, action="typing")
 
-    # ---- 1.5 Dedup: skip if this message was already processed ----
-    if await _is_duplicate(session, chat_id, msg.message_id):
-        logger.debug("Skipping duplicate message %s from chat %s", msg.message_id, chat_id)
-        return
-
     # ---- 2. Process through pipeline ----
     async with async_session() as session:
         try:
+            # Dedup: skip if this message was already processed
+            if await _is_duplicate(session, chat_id, msg.message_id):
+                logger.debug("Skipping duplicate msg %s from chat %s", msg.message_id, chat_id)
+                return
+
             # Resolve/create user
             user = await user_svc.resolve_user_by_telegram(
                 session=session,
