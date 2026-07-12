@@ -163,18 +163,40 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 except Exception as exc:
                     logger.exception("Photo upload failed: %s", exc)
 
-                # No caption → ask user what this is
-                if not text and not has_voice:
-                    await msg.reply_text(
-                        "📸 *Guardé tu imagen.*\n\n"
-                        "¿De qué se trata? Por ejemplo:\n"
-                        "• _\"Mi cédula de identidad\"_\n"
-                        "• _\"Factura del supermaxi\"_\n"
-                        "• _\"SOAT de mi carro\"_\n"
-                        "• _\"Garantía de la lavadora\"_\n\n"
-                        "Respondeme con una descripción y la catalogo.",
-                        parse_mode="Markdown",
-                    )
+                # No caption → analyze with AI vision, then ask user
+                if not text and not has_voice and photo_object_key:
+                    # Try vision analysis
+                    from app.services import vision as vision_svc
+                    analysis = await vision_svc.analyze_image(bytes(photo_bytes))
+
+                    if analysis and analysis.get("suggested_action") == "guardar":
+                        doc_type = analysis.get("document_type", "documento")
+                        desc = analysis.get("description", "imagen")
+                        await msg.reply_text(
+                            f"📸 *Parece {desc}*\n\n"
+                            f"¿Querés que la guarde como *{doc_type}* en tus documentos?\n"
+                            f"Respondé _\"sí\"_ para guardar o decime qué es.",
+                            parse_mode="Markdown",
+                        )
+                    elif analysis and analysis.get("suggested_action") == "ignorar":
+                        await msg.reply_text(
+                            f"📸 *{analysis.get('description', 'Esta imagen')}*\n\n"
+                            f"No parece un documento. Si querés guardarla igual, "
+                            f"decime de qué se trata.",
+                            parse_mode="Markdown",
+                        )
+                    else:
+                        # Fallback: ask generically
+                        await msg.reply_text(
+                            "📸 *Guardé tu imagen.*\n\n"
+                            "¿De qué se trata? Por ejemplo:\n"
+                            "• _\"Mi cédula de identidad\"_\n"
+                            "• _\"Factura del supermaxi\"_\n"
+                            "• _\"SOAT de mi carro\"_\n"
+                            "• _\"Garantía de la lavadora\"_\n\n"
+                            "Respondeme con una descripción y la catalogo.",
+                            parse_mode="Markdown",
+                        )
                     # Save raw message and return — wait for user's text response
                     db_message = await message_svc.create_message(
                         session=session, user_id=user.id,
