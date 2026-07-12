@@ -105,8 +105,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         message_type = MessageType.text
 
-    # ---- 1. Send ack ----
-    await msg.reply_text("Recibido, dame un segundo ✋")
+    # ---- 1. Show typing indicator (sutil, nativo de Telegram) ----
+    await context.bot.send_chat_action(chat_id=chat_id, action="typing")
 
     # ---- 2. Process through pipeline ----
     async with async_session() as session:

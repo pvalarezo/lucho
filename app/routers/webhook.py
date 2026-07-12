@@ -80,9 +80,9 @@ async def telegram_webhook(request: Request, session: AsyncSession = Depends(get
     )
     await session.flush()
 
-    # ---- 4. Send immediate ack ----
+    # ---- 4. Send typing indicator ----
     if settings.TELEGRAM_BOT_TOKEN:
-        await telegram_svc.send_message(chat_id, "Recibido, dame un segundo ✋")
+        await telegram_svc.send_typing(chat_id)
         await message_svc.update_message_status(session, db_message, MessageStatus.acked)
 
     # ---- 5. Route intent (Haiku) ----

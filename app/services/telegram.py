@@ -35,6 +35,19 @@ async def send_message(chat_id: int, text: str) -> dict | None:
             return None
 
 
+async def send_typing(chat_id: int) -> None:
+    """Show 'typing...' indicator in Telegram chat. Non-blocking, best-effort."""
+    if not settings.TELEGRAM_BOT_TOKEN:
+        return
+
+    url = f"{BASE_URL}/sendChatAction"
+    async with httpx.AsyncClient(timeout=5) as client:
+        try:
+            await client.post(url, json={"chat_id": chat_id, "action": "typing"})
+        except httpx.HTTPError:
+            pass  # best-effort, never fail on typing indicator
+
+
 async def download_file(file_id: str) -> bytes | None:
     """Download a file (photo, audio, voice) from Telegram servers."""
     if not settings.TELEGRAM_BOT_TOKEN:

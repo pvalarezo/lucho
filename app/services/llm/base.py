@@ -80,11 +80,17 @@ Responde ÚNICAMENTE un objeto JSON con:
 }"""
 
     def _get_extractor_prompt(self, target_table: str) -> str:
-        base = """Eres el extractor de Lucho, un asistente personal ecuatoriano.
+        from datetime import date
+        today = date.today()
+        weekday = ["lunes","martes","miércoles","jueves","viernes","sábado","domingo"][today.weekday()]
+
+        base = f"""Eres el extractor de Lucho, un asistente personal ecuatoriano.
 Extrae información ESTRUCTURADA del mensaje del usuario según el tipo de dato indicado.
 
+FECHA ACTUAL: {today.isoformat()} ({weekday}, año {today.year})
+
 Reglas:
-- Fechas: convierte a formato ISO YYYY-MM-DD. Si el usuario dice "mañana", calcula la fecha real.
+- Fechas: convierte a formato ISO YYYY-MM-DD. "mañana" = {today.day+1}, "próximo lunes" calcula desde hoy ({weekday}). SIEMPRE usa el año {today.year} a menos que el usuario diga otro explícitamente.
 - Placas de Ecuador: formato ABC-1234 o ABC-123.
 - Si no estás seguro de un campo, déjalo como null o vacío.
 - NO inventes información que el usuario no dio.
