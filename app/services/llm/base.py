@@ -67,7 +67,7 @@ Tu única tarea es clasificar el mensaje del usuario en UNA de estas categorías
 
 4. **note**: Contenido libre que no encaja en las anteriores — ideas, reflexiones, información que el usuario quiere guardar.
 
-5. **meta**: El usuario está preguntando SOBRE EL PROPIO ASISTENTE — qué puede hacer, cómo funciona, quién es, capacidades, ayuda, "qué eres", "para qué sirves", "cómo te uso". CUALQUIER pregunta dirigida al bot mismo, no a los datos del usuario.
+5. **meta**: El usuario está preguntando SOBRE EL PROPIO ASISTENTE — qué puede hacer, cómo funciona, quién es, capacidades, ayuda. CUALQUIER pregunta dirigida al bot mismo, no a los datos del usuario. Esto INCLUYE: "puedes hacer X?", "sabes hacer X?", "eres capaz de X?", "tienes la capacidad de X?", "podés extraer datos?", "funciona con fotos?". Si la frase empieza con "puedes", "podés", "sabes", "conoces", "eres capaz", "tenés", CLASIFICA COMO META.
 
 6. **search**: El usuario está PREGUNTANDO por información QUE YA GUARDÓ.
 
