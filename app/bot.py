@@ -245,9 +245,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             routing = await router_svc.route_intent(content)
             target_table = routing.get("target_table", "note")
 
-            # Meta: user asking about Lucho himself → help, skip persistence
+            # Meta: user asking about Lucho himself → contextual answer via LLM
             if target_table == "meta":
-                await msg.reply_text(HELP_TEXT, parse_mode="Markdown")
+                meta_reply = await _respond_meta(content, HELP_TEXT)
+                await msg.reply_text(meta_reply, parse_mode="Markdown")
                 db_message.extraction_result = {
                     "routing": routing, "target_table": "meta",
                     "telegram_message_id": msg.message_id,
@@ -814,6 +815,44 @@ async def _handle_correction(session, user_id, extraction: dict, text: str) -> s
         return f"✅ Nota actualizada:\n  • contenido: _{old}..._ → _{corrected['content'][:50]}..._"
 
     return "No encontré algo reciente para corregir. ¿Querés ser más específico sobre qué dato modificar?"
+
+
+# ---- Tool execution ----
+
+async def _respond_meta(question: str, help_text: str) -> str:
+    """
+    Generate a contextual, natural response to a meta question.
+    """
+    from app.services.llm import get_llm_provider
+
+    provider = get_llm_provider()
+    if not provider:
+        return help_text
+
+    prompt = f"""El usuario preguntó: "{question}"
+
+Eres Lucho, un asistente personal ecuatoriano por WhatsApp/Telegram. Tus capacidades reales:
+{help_text}
+
+Responde de forma NATURAL, conversacional y BREVE (máximo 4 líneas). 
+- Contestá ESPECÍFICAMENTE lo que el usuario preguntó
+- No repitas toda la lista de capacidades
+- Usá un tono cálido y ecuatoriano
+- Si preguntan si podés hacer algo que SÍ podés, contestá que sí y cómo
+- Si preguntan si podés hacer algo que NO podés, sé honesto y ofrecé alternativas
+
+Respuesta:"""
+
+    try:
+        response = await provider.chat(
+            system_prompt="Eres Lucho, un asistente personal ecuatoriano cálido, útil y conversacional. Respondés en español natural, como si chatearas con un amigo.",
+            user_message=prompt,
+            model=provider.router_model,
+            max_tokens=250,
+        )
+        return response.strip()
+    except Exception:
+        return help_text
 
 
 # ---- Tool execution ----
