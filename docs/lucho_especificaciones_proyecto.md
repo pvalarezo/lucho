@@ -3,7 +3,7 @@
 **Empresa creadora:** AURACORE SOLUCIONES SAS
 **Desarrollador:** Patricio Valarezo
 **Contacto:** patriciovalarezo@gmail.com
-**Versión del documento:** 1.6 — Proyectos rediseñado como tablas propias autocontenidas (`projects`/`project_tasks`), sin enlaces polimórficos, por simplicidad de uso y mantenimiento
+**Versión del documento:** 1.7 — Fase 1 completada: multi-LLM (DeepSeek), sistema de tools, respuestas contextuales, bot Telegram con polling. Ver sección 14 para cambios respecto a v1.6.
 
 ---
 
@@ -414,3 +414,83 @@ Este enrutamiento por costo es lo que hace sostenible la unit economics de un pl
 - Cumplimiento LOPDP: política de privacidad clara, comunicada en el onboarding, no solo en letra chica.
 - Política de retención de datos definida y visible para el usuario.
 - Auditoría: cada recordatorio enviado guarda el mensaje generado y la respuesta del usuario, para poder reconstruir qué pasó ante cualquier reclamo.
+
+## 14. Cambios respecto a v1.6 (Decisiones de implementación — Fase 1)
+
+### 14.1 Estrategia multi-LLM (DeepSeek como default)
+
+**Cambio:** Se adoptó DeepSeek como proveedor principal de LLM, manteniendo Anthropic como alternativa configurable vía `LLM_PROVIDER` en `.env`.
+
+**Motivo:**
+- Costo ~10x menor: DeepSeek-V3 (~$0.27/MTok) vs Claude Sonnet (~$15/MTok).
+- API OpenAI-compatible: mismo formato que Whisper, mínimo cambio de código.
+- Sin restricciones geográficas en Ecuador/LatAm.
+- Español sólido por entrenamiento multilingüe.
+
+**Arquitectura:** Capa de abstracción `app/services/llm/` con providers intercambiables (AnthropicProvider, DeepSeekProvider). El router usa DeepSeek-chat para clasificación (económico) y extracción (capaz). Cambiar de proveedor es una línea en `.env`.
+
+**Riesgo mitigado:** Sin vendor lock-in. Si DeepSeek falla, se vuelve a Anthropic sin tocar código.
+
+### 14.2 Sistema de herramientas externas (API/MCP ready)
+
+**Cambio:** Se implementó un sistema de tools enchufables (`app/tools/`) que permite consultar APIs externas desde el flujo conversacional.
+
+**Motivo:**
+- El usuario ecuatoriano necesita consultar sistemas reales (multas ANT, estado SRI, puntos licencia).
+- Arquitectura preparada para MCP (Model Context Protocol) cuando esté maduro.
+
+**Funcionamiento:**
+1. Router (LLM) → identifica intención `tool` + `tool_name`
+2. Extractor (LLM) → extrae parámetros (placa, cédula, etc.)
+3. Tool executor (CÓDIGO) → llama la API externa
+4. Response formatter → resultado formateado al usuario
+
+**Principio intacto:** La IA decide QUÉ herramienta usar, pero el CÓDIGO la ejecuta. Nunca el LLM toca la API externa.
+
+**Primera herramienta:** `check_plate_fines` — consulta multas de tránsito por placa (simulada en dev, lista para API real).
+
+### 14.3 Respuestas contextuales (IA generando sobre datos del usuario)
+
+**Cambio:** Las búsquedas ahora transforman datos crudos en respuestas conversacionales mediante LLM.
+
+**Antes:** `🚗 *Tus vehículos:* • *ABC-1234* — Toyota Corolla`
+**Ahora:** _"Tenés un Toyota Corolla con placa ABC-1234. Tu pico y placa es los jueves y la matriculación vence el 31 de agosto de 2026. ¿Querés que te avise con anticipación?"_
+
+**Principio intacto:** El LLM solo formatea datos que YA están en la base. No inventa información. Si no hay datos, responde "No tengo vehículos registrados".
+
+### 14.4 Bot Telegram con polling (desarrollo)
+
+**Cambio:** Para desarrollo se usa polling (long polling) en vez de webhook. No requiere SSL, IP pública ni dominio.
+
+**Migración a producción:** Cambiar a webhook es una línea de configuración. El endpoint `POST /telegram/webhook` ya está implementado y funcional.
+
+### 14.5 Router con 9 targets (incluye meta + tool)
+
+**Cambio:** El router ahora clasifica en 9 destinos (antes 7):
+- `asset`, `event`, `list_item`, `note`, `meta`, `search`, `correction`, `shared_expense`, `tool`
+
+**Meta:** Preguntas sobre Lucho mismo ("¿qué puedes hacer?"). Sin keywords manuales — el LLM decide.
+**Tool:** Acciones externas (consultar multas, verificar trámites).
+
+### 14.6 Stack tecnológico actualizado
+
+| Componente | v1.6 (especificado) | v1.7 (implementado) |
+|------------|---------------------|---------------------|
+| LLM Router | Claude Haiku | DeepSeek-chat (configurable) |
+| LLM Extractor | Claude Sonnet | DeepSeek-chat (configurable) |
+| Mensajería dev | Webhook + SSL | Polling (sin infraestructura) |
+| Tools externas | No contemplado | Sistema de tools enchufable |
+| Respuestas | Datos crudos | Conversacionales (LLM) |
+| Embeddings | pgvector | OpenAI text-embedding-3-small (opcional) |
+
+### 14.7 Riesgos identificados y mitigaciones
+
+| # | Riesgo | Mitigación |
+|---|--------|------------|
+| R1 | DeepSeek sin embeddings nativos | Embeddings vía OpenAI (opcional, `EMBEDDING_PROVIDER=none` por defecto). Alternativa: sentence-transformers local gratuito. Búsqueda ILIKE como fallback siempre disponible. |
+| R2 | LLM puede alucinar al explicar datos | El prompt instruye "NUNCA inventes información que no está en los datos". Si alucina, la confirmación editable permite corregir. Auditoría: toda respuesta se guarda en `messages.extraction_result`. |
+| R3 | API externa falla o cambia | Cada tool tiene timeout + error handling + fallback simulado en dev. El usuario ve "Error al consultar [servicio]. Intentá más tarde." |
+| R4 | 9 targets = más clasificaciones erróneas | La confirmación editable es la red de seguridad. Métricas de precisión del router en beta (Fase 2). Iteración de prompts, no reentrenamiento. |
+| R5 | Tools rompen guardrail "solo datos del usuario" | Las tools SOLO consultan información del usuario (sus multas, su placa, su RUC). No son búsquedas abiertas. Principio: "consulta sobre tus datos en sistemas externos", no "búsqueda genérica". |
+| R6 | Costo extra por respuesta contextual | ~$0.0003 por mensaje adicional. Se usa el modelo barato (router_model) para formateo. Ajustable por feature flag. |
+| R7 | Polling → Webhook en producción | El código de webhook está listo y probado. Migrar es cambiar `run_bot.py` por configurar el webhook en Telegram + Traefik para SSL. |
