@@ -312,24 +312,39 @@ HELP_TEXT = (
 
 
 async def _is_meta_question(text: str) -> bool:
-    """Use a quick LLM call to detect if user is asking about Lucho himself."""
-    # Also check keywords as fast path (0 cost, 0 latency)
+    """Use keywords + LLM fallback to detect if user is asking about Lucho."""
     lower = text.lower().strip()
+
+    # Fast path: keyword matching (0 cost, 0 latency)
     fast_keywords = [
-        "qué puedes hacer", "qué sabes hacer", "cómo funcionas",
-        "ayuda", "help", "para qué sirves", "qué eres",
-        "cómo me ayudas", "qué haces", "cómo te uso",
+        "qué puedes", "qué puede", "que puedes", "que puede",
+        "qué sabes", "qué sabe", "cómo funcionas", "cómo funciona",
+        "ayuda", "help", "para qué sirves", "para qué sirve",
+        "qué eres", "quién eres", "cómo me ayudas", "cómo ayudas",
+        "qué haces", "qué hace", "cómo te uso", "cómo se usa",
         "cómo funciona esto", "explicame", "explicame tus",
-        "qué servicios", "capacidades",
+        "qué servicios", "capacidades", "tus funciones",
+        "qué podés", "qué podes",
     ]
     if any(kw in lower for kw in fast_keywords):
         return True
 
-    # For ambiguous cases, ask the router
-    routing = await router_svc.route_intent(text)
-    # If router says 'search' but text looks like a capabilities question,
-    # it's meta. Also detect if the user is asking about Lucho.
-    return False  # default: not meta if no keyword match
+    # LLM fallback: ask the router if this is a question about Lucho
+    # Only for ambiguous messages longer than 10 chars to save cost
+    if len(text) > 10:
+        try:
+            routing = await router_svc.route_intent(text)
+            target = routing.get("target_table", "")
+            # If it looks like a search but has no entity reference, it's probably meta
+            if target in ("search", "note"):
+                # Check if message mentions Lucho, asistente, bot, etc.
+                bot_keywords = ["lucho", "asistente", "bot", "tú", "vos", "usted", "tu"]
+                if any(kw in lower for kw in bot_keywords):
+                    return True
+        except Exception:
+            pass
+
+    return False
 
 
 # ---- Smart search: extract params first, then search ----
