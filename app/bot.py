@@ -105,8 +105,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         message_type = MessageType.text
 
-    # ---- 1. Show typing indicator (sutil, nativo de Telegram) ----
+    # ---- 1. Show typing indicator ----
     await context.bot.send_chat_action(chat_id=chat_id, action="typing")
+
+    # ---- 1.5 Dedup: skip if this message was already processed ----
+    if await _is_duplicate(session, chat_id, msg.message_id):
+        logger.debug("Skipping duplicate message %s from chat %s", msg.message_id, chat_id)
+        return
 
     # ---- 2. Process through pipeline ----
     async with async_session() as session:
@@ -175,11 +180,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if target_table != "search" and text:
                 extraction = await extractor_svc.extract_fields(text, target_table)
 
-            # Store extraction
+            # Store extraction + telegram_message_id for dedup
             db_message.extraction_result = {
                 "routing": routing,
                 "target_table": target_table,
                 "extraction": extraction,
+                "telegram_message_id": msg.message_id,
             }
             await message_svc.update_message_status(session, db_message, MessageStatus.extracted)
 
@@ -264,6 +270,23 @@ async def _persist(session, user_id, target_table, extraction, text, source_mess
             )
         case _:
             return None
+
+
+# ---- Deduplication ----
+
+async def _is_duplicate(session, chat_id: int, telegram_message_id: int) -> bool:
+    """Check if a Telegram message was already processed (by message_id + chat_id)."""
+    from sqlalchemy import select
+    from app.models.message import Message
+    from app.models.user import User
+
+    result = await session.execute(
+        select(Message.id).join(User).where(
+            User.telegram_id == str(chat_id),
+            Message.extraction_result.contains({"telegram_message_id": telegram_message_id}),
+        ).limit(1)
+    )
+    return result.scalar_one_or_none() is not None
 
 
 # ---- Meta-question detection ----
