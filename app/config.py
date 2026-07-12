@@ -49,8 +49,10 @@ class Settings(BaseSettings):
     DEEPSEEK_ROUTER_MODEL: str = "deepseek-chat"
     DEEPSEEK_EXTRACTOR_MODEL: str = "deepseek-chat"
 
-    # ---- OpenAI (Whisper) ----
+    # ---- OpenAI (Whisper + Embeddings) ----
     OPENAI_API_KEY: str = ""
+    EMBEDDING_PROVIDER: str = "none"  # "openai" | "none"
+    OPENAI_EMBEDDING_MODEL: str = "text-embedding-3-small"
 
 
 settings = Settings()
