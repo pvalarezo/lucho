@@ -145,21 +145,38 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     await session.rollback()
                     return
 
-            # Handle photo: TODO OCR
+            # Handle photo: save to MinIO, link to asset
+            photo_object_key = None
             if has_photo:
-                await msg.reply_text("📸 Recibí tu foto. La funcionalidad de leer facturas estará disponible pronto.")
-                # For now, use caption as text
-                if not text:
-                    text = "[foto sin descripción]"
+                await msg.reply_text("📸 Guardando tu documento...")
+                try:
+                    # Get the largest photo (last in array is highest resolution)
+                    largest_photo = msg.photo[-1]
+                    file = await context.bot.get_file(largest_photo.file_id)
+                    photo_bytes = await file.download_as_bytearray()
 
-            # Persist raw message
+                    # Upload to MinIO
+                    from app.services import minio as minio_svc
+                    photo_object_key = await minio_svc.upload_file(
+                        user_id=str(user.id),
+                        file_bytes=bytes(photo_bytes),
+                        filename=f"photo_{msg.message_id}.jpg",
+                        content_type="image/jpeg",
+                    )
+                    if photo_object_key:
+                        await msg.reply_text("✅ Documento guardado. Decime de qué es para catalogarlo.")
+                    else:
+                        await msg.reply_text("⚠️ No pude guardar la imagen. Pero tomé nota de tu mensaje.")
+                except Exception as exc:
+                    logger.exception("Photo upload failed: %s", exc)
+                    await msg.reply_text("⚠️ Error al guardar la foto, pero procesé tu mensaje.")
             db_message = await message_svc.create_message(
                 session=session,
                 user_id=user.id,
                 channel=MessageChannel.telegram,
                 message_type=message_type,
                 text=text,
-                file_path=f"telegram://{chat_id}/{msg.message_id}",
+                file_path=photo_object_key or f"telegram://{chat_id}/{msg.message_id}",
                 transcription=transcription,
             )
             await session.flush()
@@ -194,7 +211,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await message_svc.update_message_status(session, db_message, MessageStatus.extracted)
 
             # Persist to target table
-            await _persist(session, user.id, target_table, extraction, text, db_message.id)
+            await _persist(session, user.id, target_table, extraction, text, db_message.id, photo_object_key)
 
             # Handle corrections — update the last entity the user created
             if target_table == "correction":
@@ -239,14 +256,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ---- Persistence helper ----
 
-async def _persist(session, user_id, target_table, extraction, text, source_message_id):
+async def _persist(session, user_id, target_table, extraction, text, source_message_id, photo_key=None):
     """Write extracted data to the correct target table."""
     if not extraction:
         return None
 
     match target_table:
         case "asset":
-            return await persist_svc.persist_asset(
+            asset = await persist_svc.persist_asset(
                 session=session,
                 user_id=user_id,
                 asset_type=extraction.get("asset_type", "other"),
@@ -255,6 +272,10 @@ async def _persist(session, user_id, target_table, extraction, text, source_mess
                 notes=extraction.get("notes"),
                 source_message_id=source_message_id,
             )
+            # Link MinIO photo key to asset attributes
+            if photo_key and "minio://" not in str(photo_key):
+                asset.attributes = {**asset.attributes, "photo_key": photo_key}
+            return asset
         case "event":
             return await persist_svc.persist_event(
                 session=session,
@@ -326,6 +347,13 @@ HELP_TEXT = (
 
 # ---- Smart search: extract params first, then search ----
 
+# Document keywords for photo retrieval
+DOCUMENT_PHOTO_KEYWORDS = [
+    "pásame", "pasame", "envíame", "mándame", "mandame",
+    "mostrame", "mostrame", "dame", "enseñame", "enseniame",
+    "muéstrame", "muestrame", "quiero ver", "foto", "imagen",
+]
+
 async def _handle_search(session, user_id, text: str) -> str | None:
     """
     Smart search: extract search parameters from the user's question,
@@ -339,8 +367,11 @@ async def _handle_search(session, user_id, text: str) -> str | None:
     search_type = search_params.get("search_type", "general")
 
     # 2. Route to the right query based on search_type
-    if search_type in ("vehicle", "vehículo", "carro", "placa"):
-        raw = await _search_vehicles(session, user_id)
+    if search_type in ("vehicle", "vehículo", "carro", "placa", "documento", "cédula", "cedula", "pasaporte", "licencia"):
+        raw = await _search_vehicles_and_documents(session, user_id)
+        # If user asked for the actual file, send it
+        if any(kw in text.lower() for kw in ("pásame", "pasame", "envíame", "mándame", "mandame", "dame", "mostrame", "mostrame")):
+            await _send_document_photos(user_id, session, msg, context)
         return await _respond_conversationally(raw, text) if (raw and settings.CONTEXTUAL_RESPONSES) else raw
 
     elif search_type in ("list", "lista", "compras", "pendientes", "pending"):
@@ -449,7 +480,79 @@ async def _extract_search_params(text: str) -> dict:
     return extraction
 
 
-async def _search_vehicles(session, user_id) -> str | None:
+async def _search_vehicles_and_documents(session, user_id) -> str:
+    """List all user vehicles AND documents with details."""
+    from sqlalchemy import select
+    from app.models.asset import Asset, AssetType
+
+    result = await session.execute(
+        select(Asset).where(
+            Asset.user_id == user_id,
+            Asset.asset_type.in_([AssetType.vehicle, AssetType.document]),
+            Asset.deleted_at.is_(None),
+        )
+    )
+    items = result.scalars().all()
+
+    if not items:
+        return "No tenés vehículos ni documentos registrados."
+
+    lines = ["📋 *Tus vehículos y documentos:*"]
+    for v in items:
+        attrs = v.attributes or {}
+        if v.asset_type == AssetType.vehicle:
+            plate = attrs.get("plate", "Sin placa")
+            brand = attrs.get("brand", "")
+            model = attrs.get("model", "")
+            pyp = attrs.get("pico_y_placa_days", "")
+            desc = f"{brand} {model}".strip() or v.name
+            lines.append(f"  🚗 *{plate}* — {desc}")
+            if pyp:
+                lines.append(f"    Pico y placa: {pyp}")
+        elif v.asset_type == AssetType.document:
+            doc_type = attrs.get("document_type", "documento")
+            expiry = attrs.get("expiry_date", attrs.get("expiration_date", ""))
+            has_photo = "📸" if attrs.get("photo_key") else ""
+            lines.append(f"  📄 *{v.name}* ({doc_type}){has_photo}")
+            if expiry:
+                lines.append(f"    Vence: {expiry}")
+
+    return "\n".join(lines)
+
+
+async def _send_document_photos(user_id, session, msg, context):
+    """Send actual document photos from MinIO back to the user."""
+    from sqlalchemy import select
+    from app.models.asset import Asset, AssetType
+    from app.services import minio as minio_svc
+
+    result = await session.execute(
+        select(Asset).where(
+            Asset.user_id == user_id,
+            Asset.asset_type == AssetType.document,
+            Asset.deleted_at.is_(None),
+        )
+    )
+    documents = result.scalars().all()
+
+    for doc in documents:
+        attrs = doc.attributes or {}
+        photo_key = attrs.get("photo_key")
+        if not photo_key:
+            continue
+
+        # Download from MinIO
+        photo_bytes = await minio_svc.download_file(photo_key)
+        if photo_bytes:
+            caption = f"📄 {doc.name}"
+            expiry = attrs.get("expiry_date", attrs.get("expiration_date", ""))
+            if expiry:
+                caption += f"\nVence: {expiry}"
+            await msg.reply_photo(
+                photo=photo_bytes,
+                caption=caption,
+            )
+            logger.info("Sent document photo: %s", doc.name)
     """List all user vehicles with details."""
     from sqlalchemy import select
     from app.models.asset import Asset, AssetType
