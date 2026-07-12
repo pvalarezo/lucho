@@ -213,6 +213,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await session.commit()
                 return
 
+            # Handle tool execution — call external API
+            if target_table == "tool":
+                tool_reply = await _execute_tool(extraction, user.id)
+                if tool_reply:
+                    await msg.reply_text(tool_reply, parse_mode="Markdown")
+                await message_svc.update_message_status(session, db_message, MessageStatus.confirmed)
+                await session.commit()
+                return
+
             # Build and send confirmation
             confirmation = _build_confirmation(target_table, extraction, text)
             if confirmation:
@@ -330,19 +339,57 @@ async def _handle_search(session, user_id, text: str) -> str | None:
 
     # 2. Route to the right query based on search_type
     if search_type in ("vehicle", "vehículo", "carro", "placa"):
-        return await _search_vehicles(session, user_id)
+        raw = await _search_vehicles(session, user_id)
+        return await _respond_conversationally(raw, text) if raw else raw
 
     elif search_type in ("list", "lista", "compras", "pendientes", "pending"):
-        return await _search_pending(session, user_id)
+        raw = await _search_pending(session, user_id)
+        return await _respond_conversationally(raw, text) if raw else raw
 
     elif search_type in ("deadline", "vencimiento", "cuándo", "próximo", "fechas"):
-        return await _search_deadlines(session, user_id)
+        raw = await _search_deadlines(session, user_id)
+        return await _respond_conversationally(raw, text) if raw else raw
 
     elif search_type in ("note", "nota", "idea", "tema"):
-        return await _search_notes(session, user_id)
+        raw = await _search_notes(session, user_id)
+        return await _respond_conversationally(raw, text) if raw else raw
 
     # 3. Fallback: search everything and return best match
     return await _search_all(session, user_id, text)
+
+
+async def _respond_conversationally(raw_data: str, question: str) -> str:
+    """Use LLM to turn raw search results into a natural, contextual response."""
+    from app.services.llm import get_llm_provider
+
+    provider = get_llm_provider()
+    if not provider:
+        return raw_data
+
+    prompt = f"""Eres Lucho, un asistente personal ecuatoriano. El usuario preguntó: "{question}"
+
+Tienes estos datos del usuario:
+{raw_data}
+
+Responde de forma NATURAL y conversacional, como si estuvieras chateando. 
+- Sé breve y útil
+- No repitas los datos en crudo, explícalos
+- Usa emojis con moderación
+- Si no hay datos relevantes, dilo honestamente
+- NUNCA inventes información que no está en los datos
+
+Respuesta:"""
+
+    try:
+        response = await provider.chat(
+            system_prompt="Eres Lucho, un asistente personal cálido y eficiente. Respondes en español ecuatoriano natural.",
+            user_message=prompt,
+            model=provider.router_model,  # use cheap model for formatting
+            max_tokens=300,
+        )
+        return response.strip()
+    except Exception:
+        return raw_data
 
 
 async def _extract_search_params(text: str) -> dict:
@@ -554,6 +601,33 @@ async def _handle_correction(session, user_id, extraction: dict, text: str) -> s
         return f"✅ Nota actualizada:\n  • contenido: _{old}..._ → _{corrected['content'][:50]}..._"
 
     return "No encontré algo reciente para corregir. ¿Querés ser más específico sobre qué dato modificar?"
+
+
+# ---- Tool execution ----
+
+async def _execute_tool(extraction: dict, user_id) -> str | None:
+    """Execute a registered tool with extracted parameters."""
+    from app.tools import get_tool
+
+    tool_name = extraction.get("tool_name", "")
+    params = extraction.get("params", {})
+
+    if not tool_name:
+        return "No entendí qué querés consultar. ¿Podés ser más específico?"
+
+    tool = get_tool(tool_name)
+    if not tool:
+        return f"La herramienta *{tool_name}* no está disponible todavía."
+
+    logger.info("Executing tool: %s with params: %s", tool_name, params)
+    result = await tool.execute(params, user_id=str(user_id))
+
+    if result.success and result.rendered:
+        return result.rendered
+    elif result.success:
+        return f"✅ Consulta a *{tool_name}* completada."
+    else:
+        return f"❌ Error al consultar *{tool_name}*: {result.error or 'desconocido'}"
 
 
 # ---- Application factory ----

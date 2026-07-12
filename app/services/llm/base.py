@@ -75,9 +75,12 @@ Tu única tarea es clasificar el mensaje del usuario en UNA de estas categorías
 
 8. **shared_expense**: El usuario está registrando un gasto compartido entre varias personas.
 
+9. **tool**: El usuario quiere EJECUTAR una acción externa — consultar multas de tránsito, verificar estado de un trámite, etc. NO es una búsqueda de datos guardados, es una consulta a un sistema externo.
+
 Responde ÚNICAMENTE un objeto JSON con:
 {
-  "target_table": "asset|event|list_item|note|meta|search|correction|shared_expense",
+  "target_table": "asset|event|list_item|note|meta|search|correction|shared_expense|tool",
+  "tool_name": "nombre de la herramienta (solo si target_table=tool)",
   "reasoning": "una frase corta explicando por qué"
 }"""
 
@@ -108,6 +111,7 @@ Responde ÚNICAMENTE un objeto JSON."""
             "shared_expense": 'Extrae: {"description": "descripción", "amount": 0.0, "currency": "USD", "participants": ["nombre1"], "split_type": "equal|custom", "date": "YYYY-MM-DD o null"}.',
             "search": 'Extrae: {"search_type": "vehicle|list|deadline|note|pending|general", "entity_name": "nombre de lo que busca (ej: carro, compras, SOAT)", "specific_field": "campo específico o null"}. Usa search_type=vehicle si pregunta por carro, vehículo, placa, SOAT, matriculación. Usa list/pending si pregunta por compras, pendientes, tareas. Usa deadline si pregunta por fechas, vencimientos. Usa note si pregunta por ideas, notas, temas.',
             "meta": 'Extrae: {"response_type": "help"}.',
+            "tool": 'Extrae: {"tool_name": "check_plate_fines", "params": {"plate": "ABC-1234"}}. Determina qué herramienta usar y sus parámetros.',
         }
 
         return base + "\n\n" + table_prompts.get(target_table, table_prompts["note"])
