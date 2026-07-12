@@ -54,5 +54,8 @@ class Settings(BaseSettings):
     EMBEDDING_PROVIDER: str = "none"  # "openai" | "none"
     OPENAI_EMBEDDING_MODEL: str = "text-embedding-3-small"
 
+    # ---- Feature Flags ----
+    CONTEXTUAL_RESPONSES: bool = True  # LLM-powered conversational answers
+
 
 settings = Settings()

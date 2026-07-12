@@ -29,6 +29,7 @@ from app.services import router as router_svc
 from app.services import extractor as extractor_svc
 from app.services import persistence as persist_svc
 from app.services import whisper as whisper_svc
+from app.config import settings
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -340,27 +341,38 @@ async def _handle_search(session, user_id, text: str) -> str | None:
     # 2. Route to the right query based on search_type
     if search_type in ("vehicle", "vehículo", "carro", "placa"):
         raw = await _search_vehicles(session, user_id)
-        return await _respond_conversationally(raw, text) if raw else raw
+        return await _respond_conversationally(raw, text) if (raw and settings.CONTEXTUAL_RESPONSES) else raw
 
     elif search_type in ("list", "lista", "compras", "pendientes", "pending"):
         raw = await _search_pending(session, user_id)
-        return await _respond_conversationally(raw, text) if raw else raw
+        return await _respond_conversationally(raw, text) if (raw and settings.CONTEXTUAL_RESPONSES) else raw
 
     elif search_type in ("deadline", "vencimiento", "cuándo", "próximo", "fechas"):
         raw = await _search_deadlines(session, user_id)
-        return await _respond_conversationally(raw, text) if raw else raw
+        return await _respond_conversationally(raw, text) if (raw and settings.CONTEXTUAL_RESPONSES) else raw
 
     elif search_type in ("note", "nota", "idea", "tema"):
         raw = await _search_notes(session, user_id)
-        return await _respond_conversationally(raw, text) if raw else raw
+        return await _respond_conversationally(raw, text) if (raw and settings.CONTEXTUAL_RESPONSES) else raw
 
     # 3. Fallback: search everything and return best match
     return await _search_all(session, user_id, text)
 
 
 async def _respond_conversationally(raw_data: str, question: str) -> str:
-    """Use LLM to turn raw search results into a natural, contextual response."""
+    """Use LLM to turn raw search results into a natural, contextual response.
+    
+    Falls back to raw data if:
+    - CONTEXTUAL_RESPONSES feature flag is off (checked before calling)
+    - LLM provider is not available
+    - LLM call fails
+    """
     from app.services.llm import get_llm_provider
+
+    # For simple queries, use safe templates (no LLM, no hallucination risk)
+    simple = _try_simple_template(raw_data, question)
+    if simple:
+        return simple
 
     provider = get_llm_provider()
     if not provider:
@@ -390,6 +402,43 @@ Respuesta:"""
         return response.strip()
     except Exception:
         return raw_data
+
+
+def _try_simple_template(raw_data: str, question: str) -> str | None:
+    """
+    Try to answer with a safe template for common questions.
+    Returns None if no template matches — caller falls back to LLM.
+    
+    This eliminates hallucination risk for predictable queries.
+    """
+    lower = question.lower()
+
+    # Vehicle questions → deterministic template
+    if any(kw in lower for kw in ("vehículo", "carro", "placa", "vehiculo")):
+        if "No tenés vehículos" in raw_data or "No tenés" in raw_data:
+            return "No tengo vehículos registrados. Mandame tu placa y lo guardo. 🚗"
+        return raw_data  # the raw vehicle list is already well-formatted
+
+    # Pending items → deterministic template
+    if any(kw in lower for kw in ("pendiente", "compras", "comprar", "lista", "tareas")):
+        if "No tenés nada pendiente" in raw_data:
+            return "No tenés nada pendiente. ¡Bien ahí! ✅"
+        return raw_data  # already well-formatted
+
+    # Deadlines → deterministic template
+    if any(kw in lower for kw in ("vence", "vencimiento", "fecha", "próximo", "proximo", "cuándo")):
+        if "No tenés vencimientos" in raw_data:
+            return "No tenés vencimientos próximos. ✅"
+        return raw_data
+
+    # Notes → deterministic template
+    if any(kw in lower for kw in ("nota", "idea", "tema")):
+        if "No tenés notas" in raw_data:
+            return "No tenés notas guardadas. Mandame una idea y la guardo. 💡"
+        return raw_data
+
+    # No template match → let LLM handle it
+    return None
 
 
 async def _extract_search_params(text: str) -> dict:
@@ -606,8 +655,8 @@ async def _handle_correction(session, user_id, extraction: dict, text: str) -> s
 # ---- Tool execution ----
 
 async def _execute_tool(extraction: dict, user_id) -> str | None:
-    """Execute a registered tool with extracted parameters."""
-    from app.tools import get_tool
+    """Execute a registered tool with extracted parameters. Auto-retries once."""
+    from app.tools import get_tool, list_tools
 
     tool_name = extraction.get("tool_name", "")
     params = extraction.get("params", {})
@@ -617,17 +666,30 @@ async def _execute_tool(extraction: dict, user_id) -> str | None:
 
     tool = get_tool(tool_name)
     if not tool:
-        return f"La herramienta *{tool_name}* no está disponible todavía."
+        return (
+            f"La herramienta *{tool_name}* no está disponible todavía.\n"
+            f"Por ahora puedo consultar: {', '.join(list_tools())}."
+        )
 
     logger.info("Executing tool: %s with params: %s", tool_name, params)
     result = await tool.execute(params, user_id=str(user_id))
+
+    # Auto-retry once on failure
+    if not result.success:
+        logger.warning("Tool %s failed, retrying...", tool_name)
+        import asyncio
+        await asyncio.sleep(2)
+        result = await tool.execute(params, user_id=str(user_id))
 
     if result.success and result.rendered:
         return result.rendered
     elif result.success:
         return f"✅ Consulta a *{tool_name}* completada."
     else:
-        return f"❌ Error al consultar *{tool_name}*: {result.error or 'desconocido'}"
+        return (
+            f"❌ El servicio de *{tool_name}* no está disponible ahora.\n"
+            f"¿Querés que lo intente de nuevo en un rato?"
+        )
 
 
 # ---- Application factory ----

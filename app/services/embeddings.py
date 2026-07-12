@@ -32,6 +32,9 @@ async def generate_embedding(text: str) -> list[float] | None:
 
     if provider == "openai":
         return await _openai_embed(text)
+    elif provider == "local":
+        from app.services import local_embeddings
+        return await local_embeddings.generate_embedding(text)
     elif provider == "none":
         return None
     else:
