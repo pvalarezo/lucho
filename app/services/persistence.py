@@ -163,6 +163,12 @@ async def persist_list_items(
         session.add(item)
         created.append(item)
 
+        # Generate embedding
+        from app.services import embeddings as embed_svc
+        embedding = await embed_svc.generate_embedding(item_text.strip())
+        if embedding:
+            item.embedding = embedding
+
     await session.flush()
     logger.info("Added %d items to list '%s'", len(created), list_name)
     return created
@@ -205,6 +211,13 @@ async def persist_note(
     )
     session.add(note)
     await session.flush()
+
+    # Generate embedding asynchronously (non-blocking)
+    from app.services import embeddings as embed_svc
+    embedding = await embed_svc.generate_embedding(content)
+    if embedding:
+        note.embedding = embedding
+        await session.flush()
     logger.info("Created note %s in topic '%s'", note.id, topic_name)
     return note
 

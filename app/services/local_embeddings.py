@@ -57,7 +57,11 @@ async def generate_embedding(text: str) -> list[float] | None:
         embedding = await asyncio.to_thread(
             model.encode, text[:8000], normalize_embeddings=True
         )
-        return embedding.tolist()
+        vec = embedding.tolist()
+        # Pad to 1024 dimensions to match pgvector VECTOR(1024)
+        if len(vec) < 1024:
+            vec.extend([0.0] * (1024 - len(vec)))
+        return vec
     except Exception as exc:
         logger.error("Local embedding generation failed: %s", exc)
         return None
