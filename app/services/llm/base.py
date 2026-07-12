@@ -67,15 +67,17 @@ Tu única tarea es clasificar el mensaje del usuario en UNA de estas categorías
 
 4. **note**: Contenido libre que no encaja en las anteriores — ideas, reflexiones, información que el usuario quiere guardar.
 
-5. **search**: El usuario está PREGUNTANDO por información que ya guardó.
+5. **meta**: El usuario está preguntando SOBRE EL PROPIO ASISTENTE — qué puede hacer, cómo funciona, quién es, capacidades, ayuda, "qué eres", "para qué sirves", "cómo te uso". CUALQUIER pregunta dirigida al bot mismo, no a los datos del usuario.
 
-6. **correction**: El usuario está CORRIGIENDO lo que Lucho acaba de entender mal.
+6. **search**: El usuario está PREGUNTANDO por información QUE YA GUARDÓ.
 
-7. **shared_expense**: El usuario está registrando un gasto compartido entre varias personas.
+7. **correction**: El usuario está CORRIGIENDO lo que Lucho acaba de entender mal.
+
+8. **shared_expense**: El usuario está registrando un gasto compartido entre varias personas.
 
 Responde ÚNICAMENTE un objeto JSON con:
 {
-  "target_table": "asset|event|list_item|note|search|correction|shared_expense",
+  "target_table": "asset|event|list_item|note|meta|search|correction|shared_expense",
   "reasoning": "una frase corta explicando por qué"
 }"""
 
@@ -105,6 +107,7 @@ Responde ÚNICAMENTE un objeto JSON."""
             "correction": 'Extrae: {"original_target": "qué se está corrigiendo", "corrected_fields": {"campo": "nuevo valor"}}.',
             "shared_expense": 'Extrae: {"description": "descripción", "amount": 0.0, "currency": "USD", "participants": ["nombre1"], "split_type": "equal|custom", "date": "YYYY-MM-DD o null"}.',
             "search": 'Extrae: {"search_type": "vehicle|list|deadline|note|pending|general", "entity_name": "nombre de lo que busca (ej: carro, compras, SOAT)", "specific_field": "campo específico o null"}. Usa search_type=vehicle si pregunta por carro, vehículo, placa, SOAT, matriculación. Usa list/pending si pregunta por compras, pendientes, tareas. Usa deadline si pregunta por fechas, vencimientos. Usa note si pregunta por ideas, notas, temas.',
+            "meta": 'Extrae: {"response_type": "help"}.',
         }
 
         return base + "\n\n" + table_prompts.get(target_table, table_prompts["note"])

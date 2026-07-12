@@ -165,15 +165,18 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             # Route intent
             content = text or "[audio/photo message]"
-
-            # Quick meta-check: user asking about Lucho's capabilities?
-            if await _is_meta_question(content):
-                await msg.reply_text(HELP_TEXT, parse_mode="Markdown")
-                await session.commit()
-                return
-
             routing = await router_svc.route_intent(content)
             target_table = routing.get("target_table", "note")
+
+            # Meta: user asking about Lucho himself → help, skip persistence
+            if target_table == "meta":
+                await msg.reply_text(HELP_TEXT, parse_mode="Markdown")
+                db_message.extraction_result = {
+                    "routing": routing, "target_table": "meta",
+                    "telegram_message_id": msg.message_id,
+                }
+                await session.commit()
+                return
 
             # Extract fields
             extraction = {}
@@ -309,42 +312,6 @@ HELP_TEXT = (
     "Mandame *fotos* de facturas y *notas de voz*.\n"
     "Escribime lo que necesites, sin comandos. 😊"
 )
-
-
-async def _is_meta_question(text: str) -> bool:
-    """Use keywords + LLM fallback to detect if user is asking about Lucho."""
-    lower = text.lower().strip()
-
-    # Fast path: keyword matching (0 cost, 0 latency)
-    fast_keywords = [
-        "qué puedes", "qué puede", "que puedes", "que puede",
-        "qué sabes", "qué sabe", "cómo funcionas", "cómo funciona",
-        "ayuda", "help", "para qué sirves", "para qué sirve",
-        "qué eres", "quién eres", "cómo me ayudas", "cómo ayudas",
-        "qué haces", "qué hace", "cómo te uso", "cómo se usa",
-        "cómo funciona esto", "explicame", "explicame tus",
-        "qué servicios", "capacidades", "tus funciones",
-        "qué podés", "qué podes",
-    ]
-    if any(kw in lower for kw in fast_keywords):
-        return True
-
-    # LLM fallback: ask the router if this is a question about Lucho
-    # Only for ambiguous messages longer than 10 chars to save cost
-    if len(text) > 10:
-        try:
-            routing = await router_svc.route_intent(text)
-            target = routing.get("target_table", "")
-            # If it looks like a search but has no entity reference, it's probably meta
-            if target in ("search", "note"):
-                # Check if message mentions Lucho, asistente, bot, etc.
-                bot_keywords = ["lucho", "asistente", "bot", "tú", "vos", "usted", "tu"]
-                if any(kw in lower for kw in bot_keywords):
-                    return True
-        except Exception:
-            pass
-
-    return False
 
 
 # ---- Smart search: extract params first, then search ----
