@@ -478,6 +478,28 @@ TOOL_CHECK_VEHICLE_INFO = {
     },
 }
 
+TOOL_SEND_PHOTO = {
+    "type": "function",
+    "function": {
+        "name": "send_photo",
+        "description": "Enviar una foto o documento adjunto al usuario. Usar cuando el usuario pide ver algo: 'pasame mi cédula', 'mostrame el SOAT', 'enseñame la factura', 'quiero ver el documento'. El photo_key viene de los resultados de búsqueda o de los atributos del documento guardado.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "photo_key": {
+                    "type": "string",
+                    "description": "Clave del archivo en MinIO. Viene de los resultados de búsqueda como 'photo_key'. Ej: 'user_id/photo_123.jpg'.",
+                },
+                "caption": {
+                    "type": "string",
+                    "description": "Texto descriptivo para acompañar la foto. Ej: 'Tu cédula de identidad', 'SOAT del PBC-1234'.",
+                },
+            },
+            "required": ["photo_key"],
+        },
+    },
+}
+
 # All available tools (exported for the agent loop)
 ALL_TOOLS = [
     TOOL_SAVE_VEHICLE,
@@ -497,6 +519,7 @@ ALL_TOOLS = [
     TOOL_SAVE_CONTACT,
     TOOL_LIST_CONTACTS,
     TOOL_CHECK_VEHICLE_INFO,
+    TOOL_SEND_PHOTO,
 ]
 
 # Map tool names to their schemas for quick lookup
@@ -772,13 +795,48 @@ async def handle_search_data(session, user_id: str, args: dict) -> dict:
                 plate = attrs.get("plate", "?")
                 pyp = attrs.get("pico_y_placa_days", "")
                 matric = attrs.get("next_matriculation", "")
+                photo_key = attrs.get("photo_key", "")
                 lines = [f"🚗 {plate} — {v.name}"]
                 if pyp:
                     lines.append(f"   Pico y placa: {pyp}")
                 if matric:
                     lines.append(f"   Matriculación: {matric}")
+                if photo_key:
+                    lines.append(f"   📸 foto: {photo_key}")
                 results_parts.append("\n".join(lines))
-                found_items.append({"type": "vehicle", "plate": plate, "name": v.name})
+                item = {"type": "vehicle", "plate": plate, "name": v.name}
+                if photo_key:
+                    item["photo_key"] = photo_key
+                found_items.append(item)
+
+    # ---- Documents ----
+    if search_type in ("all",):
+        from sqlalchemy import select
+        from app.models.asset import Asset
+        result = await session.execute(
+            select(Asset).where(
+                Asset.user_id == uid,
+                Asset.asset_type.in_([AssetType.document, AssetType.insurance, AssetType.tax, AssetType.warranty]),
+                Asset.deleted_at.is_(None),
+            )
+        )
+        docs = result.scalars().all()
+        if docs:
+            for d in docs:
+                attrs = d.attributes or {}
+                doc_type = attrs.get("document_type", d.asset_type.value)
+                expiry_date = attrs.get("expiry_date", "")
+                photo_key = attrs.get("photo_key", "")
+                lines = [f"📄 {d.name} ({doc_type})"]
+                if expiry_date:
+                    lines.append(f"   Vence: {expiry_date}")
+                if photo_key:
+                    lines.append(f"   📸 foto: {photo_key}")
+                results_parts.append("\n".join(lines))
+                item = {"type": "document", "document_type": doc_type, "name": d.name}
+                if photo_key:
+                    item["photo_key"] = photo_key
+                found_items.append(item)
 
     # ---- Pending items ----
     if search_type in ("pending", "all"):
@@ -1085,6 +1143,7 @@ async def handle_analyze_image(session, user_id: str, args: dict) -> dict:
         "document_type": doc_type,
         "extracted": extracted,
         "photo_key": photo_key,
+        "_save_hint": f"AHORA llamá a save_document con document_type='{doc_type}', name='{extracted.get('title', doc_type)}', y photo_key='{photo_key}'. Incluí los datos extraídos en los parámetros que correspondan (expiry_date, entity_name, notes).",
     }
 
 
@@ -1325,6 +1384,38 @@ async def handle_list_contacts(session, user_id: str, args: dict) -> dict:
 # TOOL DISPATCHER — maps tool name to handler function
 # =============================================================================
 
+
+async def handle_send_photo(session, user_id: str, args: dict) -> dict:
+    """Validate photo exists in MinIO and return info so caller can send it."""
+    from app.services import minio as minio_svc
+
+    photo_key = (args.get("photo_key") or "").strip()
+    if not photo_key:
+        return {"success": False, "message": "No encuentro esa foto. ¿Cuál querés ver?"}
+
+    # Extract filename from key
+    filename = photo_key.split("/")[-1] if "/" in photo_key else photo_key
+    caption = (args.get("caption") or "").strip()
+
+    # Validate file exists in MinIO
+    try:
+        file_bytes = await minio_svc.download_file(photo_key)
+        if not file_bytes:
+            return {"success": False, "message": f"No encontré el archivo '{filename}'. ¿Seguro que está guardado?"}
+    except Exception as exc:
+        logger.exception("MinIO check failed for send_photo: %s", exc)
+        return {"success": False, "message": "No pude acceder al archivo."}
+
+    return {
+        "success": True,
+        "message": f"Listo, aquí está: {caption or filename}",
+        "photo_key": photo_key,
+        "filename": filename,
+        "caption": caption,
+        "_action": "send_photo",
+    }
+
+
 TOOL_HANDLERS: dict[str, Any] = {
     "save_vehicle": handle_save_vehicle,
     "save_document": handle_save_document,
@@ -1343,6 +1434,7 @@ TOOL_HANDLERS: dict[str, Any] = {
     "complete_project_task": handle_complete_project_task,
     "save_contact": handle_save_contact,
     "list_contacts": handle_list_contacts,
+    "send_photo": handle_send_photo,
 }
 
 

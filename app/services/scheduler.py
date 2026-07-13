@@ -478,11 +478,12 @@ async def _build_digest(session, user, today, weekday):
     parts.append("\nEscribí el saludo de buenos días con el resumen. Sé breve, cálido, ecuatoriano.")
 
     try:
-        return await process_message(
+        result = await process_message(
             session=session,
             user_id=str(user.id),
             user_message="\n".join(parts),
         )
+        return result.get("text", "") if isinstance(result, dict) else result
     except Exception as exc:
         logger.error("Digest agent failed: %s", exc)
         return None

@@ -80,15 +80,46 @@ async def telegram_webhook(request: Request, session: AsyncSession = Depends(get
 
     # ---- 5. Call the Lucho Agent ----
     content = text or "[audio/photo message]"
-    response_text = await process_message(
+    response = await process_message(
         session=session,
         user_id=str(user.id),
         user_message=content,
     )
 
-    # ---- 6. Send response ----
+    response_text = response.get("text", "") if isinstance(response, dict) else response
+    photos = response.get("photos", []) if isinstance(response, dict) else []
+
+    # ---- 6. Send photos first (if any) ----
+    from app.services import minio as minio_svc
+    for photo_info in photos:
+        photo_key = photo_info.get("photo_key", "")
+        caption = photo_info.get("caption", "")
+        if not photo_key:
+            continue
+        try:
+            file_bytes = await minio_svc.download_file(photo_key)
+            if file_bytes:
+                filename = photo_info.get("filename", photo_key.split("/")[-1])
+                await telegram_svc.send_photo(
+                    chat_id=chat_id,
+                    photo_bytes=file_bytes,
+                    caption=caption if caption else None,
+                    filename=filename,
+                )
+        except Exception as exc:
+            logger.exception("Webhook photo send failed '%s': %s", photo_key, exc)
+
+    # ---- 7. Send text response ----
     if settings.TELEGRAM_BOT_TOKEN and response_text:
-        await telegram_svc.send_message(chat_id, response_text)
+        skip_text = (
+            photos
+            and len(response_text) < 80
+            and any(phrase in response_text.lower() for phrase in [
+                "aquí está", "aquí tenés", "listo", "acá está"
+            ])
+        )
+        if not skip_text:
+            await telegram_svc.send_message(chat_id, response_text)
 
     await message_svc.update_message_status(session, db_message, MessageStatus.confirmed)
     await session.commit()

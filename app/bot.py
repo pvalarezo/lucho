@@ -212,22 +212,67 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             content = text or "[audio/photo message]"
 
             # THE AGENT CALL — this replaces ALL the old pipeline code
-            response_text = await process_message(
+            response = await process_message(
                 session=session,
                 user_id=str(user.id),
                 user_message=content,
             )
 
-            # ---- Send response ----
+            response_text = response.get("text", "") if isinstance(response, dict) else response
+            photos = response.get("photos", []) if isinstance(response, dict) else []
+
+            # ---- Send photos first (if any) ----
+            from app.services import minio as minio_svc
+            for photo_info in photos:
+                photo_key = photo_info.get("photo_key", "")
+                caption = photo_info.get("caption", "")
+                if not photo_key:
+                    continue
+                try:
+                    file_bytes = await minio_svc.download_file(photo_key)
+                    if file_bytes:
+                        # Detect if image or document by extension
+                        filename = photo_info.get("filename", photo_key.split("/")[-1])
+                        is_image = filename.lower().endswith((".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"))
+                        if is_image:
+                            await msg.reply_photo(
+                                photo=file_bytes,
+                                caption=caption if caption else None,
+                            )
+                        else:
+                            await msg.reply_document(
+                                document=file_bytes,
+                                filename=filename,
+                                caption=caption if caption else None,
+                            )
+                        logger.info("Sent %s to user via Telegram", filename)
+                    else:
+                        logger.warning("Photo not found in MinIO: %s", photo_key)
+                except Exception as exc:
+                    logger.exception("Failed to send photo '%s': %s", photo_key, exc)
+
+            # ---- Send text response ----
+            # If there are photos and the response text is just a confirmation,
+            # skip it to avoid redundant messages (the photo caption already says it)
             if response_text:
-                await msg.reply_text(
-                    response_text,
-                    parse_mode="Markdown",
+                # Skip redundant text when photo was sent successfully
+                skip_text = (
+                    photos
+                    and len(response_text) < 80
+                    and any(phrase in response_text.lower() for phrase in [
+                        "aquí está", "aquí tenés", "listo", "acá está"
+                    ])
                 )
+                if not skip_text:
+                    await msg.reply_text(
+                        response_text,
+                        parse_mode="Markdown",
+                    )
 
             # Update message status
             db_message.extraction_result = {
                 "agent_response": response_text,
+                "photos_sent": len(photos),
                 "telegram_message_id": msg.message_id,
             }
             await message_svc.update_message_status(session, db_message, MessageStatus.confirmed)

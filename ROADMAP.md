@@ -12,8 +12,8 @@ Plan general del proyecto, fases, hitos y funcionalidades por ola.
 
 ## Fase 1 — MVP Técnico ✅ COMPLETADA — 2026-07-12
 
-**Versión:** v2.2.0 | **Tools:** 17 | **Funcionalidades:** 15/15 completadas
-**Pendientes menores:** envío de fotos, skills SRI, tests
+**Versión:** v2.3.0 | **Tools:** 18 | **Funcionalidades:** 16/16 completadas
+**Pendientes menores:** skills SRI, tests
 
 ### Pendientes para Fase 2:
 
@@ -27,9 +27,9 @@ Plan general del proyecto, fases, hitos y funcionalidades por ola.
 - [ ] Onboarding guiado (3 primeros mensajes diseñados)
 - [ ] Métricas: % extracción correcta, retención D7/D30, intención de pago
 - [ ] Seguridad y LOPDP: cifrado en reposo, política de privacidad
-- [ ] Proyectos y Tareas (completar tool pendiente de Fase 1)
-- [ ] Contactos (completar tool pendiente de Fase 1)
-- [ ] Envío de fotos al usuario (completar pendiente de Fase 1)
+- [x] Proyectos y Tareas (completar tool pendiente de Fase 1)
+- [x] Contactos (completar tool pendiente de Fase 1)
+- [x] Envío de fotos al usuario (completar pendiente de Fase 1)
 - [ ] Funcionalidades Ola 2:
   - Fechas especiales (cumpleaños, aniversarios)
   - Vacunas (hijos, mascotas)
