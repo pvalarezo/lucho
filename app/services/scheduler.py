@@ -23,6 +23,8 @@ from app.database import async_session
 from app.models.asset import Asset, AssetType
 from app.models.event import Event, EventStatus
 from app.models.reminder import Reminder, ReminderChannel, ReminderStatus
+from app.models.user import User
+from app.models.list import ListItem, ItemStatus
 from app.services import vehicle_rules as vr
 from app.services import telegram as telegram_svc
 from app.config import settings
@@ -218,8 +220,130 @@ async def _create_reminder(
     return reminder
 
 
+async def run_daily_digest():
+    """
+    Send a daily summary to users who have active data.
+    Includes: today's date, pico y placa, upcoming deadlines, pending items.
+    Called by APScheduler every morning.
+    """
+    logger.info("Starting daily digest...")
+    today = date.today()
+    weekday = ["lunes","martes","miércoles","jueves","viernes","sábado","domingo"][today.weekday()]
+
+    async with async_session() as session:
+        try:
+            # Get all active users with telegram_id
+            result = await session.execute(
+                select(User).where(User.telegram_id.isnot(None), User.is_active == True)
+            )
+            users = result.scalars().all()
+
+            for user in users:
+                digest = await _build_user_digest(session, user, today, weekday)
+                if digest:
+                    try:
+                        chat_id = int(user.telegram_id)
+                        await telegram_svc.send_message(chat_id, digest)
+                        logger.info("Digest sent to user %s", user.telegram_id)
+                    except Exception as exc:
+                        logger.warning("Failed to send digest to %s: %s", user.telegram_id, exc)
+
+            await session.commit()
+            logger.info("Daily digest complete.")
+
+        except Exception as exc:
+            logger.exception("Daily digest failed: %s", exc)
+            await session.rollback()
+
+
+async def _build_user_digest(session: AsyncSession, user: User, today: date, weekday: str) -> str | None:
+    """Build a natural-language digest for one user. Uses the agent for a warm message."""
+    from app.agent import process_message
+
+    # ---- Gather data ----
+    # Vehicles
+    result = await session.execute(
+        select(Asset).where(
+            Asset.user_id == user.id,
+            Asset.asset_type == AssetType.vehicle,
+            Asset.deleted_at.is_(None),
+        )
+    )
+    vehicles = result.scalars().all()
+
+    # Pending items
+    result = await session.execute(
+        select(ListItem).join(ListItem.list).where(
+            ListItem.list.has(user_id=user.id),
+            ListItem.status == ItemStatus.pending,
+        ).order_by(ListItem.created_at).limit(10)
+    )
+    pending = result.scalars().all()
+
+    # Upcoming deadlines (next 7 days)
+    until = today + timedelta(days=7)
+    result = await session.execute(
+        select(Event).where(
+            Event.user_id == user.id,
+            Event.status == EventStatus.upcoming,
+            Event.target_date >= today,
+            Event.target_date <= until,
+        ).order_by(Event.target_date)
+    )
+    deadlines = result.scalars().all()
+
+    # If nothing to report, skip
+    if not vehicles and not pending and not deadlines:
+        return None
+
+    # ---- Build context for the agent ----
+    context_parts = [
+        f"Hoy es {weekday} {today.strftime('%d de %B de %Y')}.",
+        "Generá un resumen matutino para el usuario con sus datos del día. Sé breve y cálido.",
+    ]
+
+    if vehicles:
+        context_parts.append("\n🚗 Vehículos:")
+        for v in vehicles:
+            attrs = v.attributes or {}
+            plate = attrs.get("plate", "?")
+            pyp = attrs.get("pico_y_placa_days", "")
+            context_parts.append(f"  • {plate}: pico y placa {pyp}" if pyp else f"  • {plate}")
+            if pyp and weekday.capitalize() in pyp:
+                context_parts.append(f"    ⚠️ HOY tiene pico y placa")
+
+    if deadlines:
+        context_parts.append("\n📅 Próximos 7 días:")
+        for d in deadlines:
+            days_left = (d.target_date - today).days
+            emoji = "🔴" if days_left == 0 else "🟡" if days_left <= 3 else "🟢"
+            ds = "HOY" if days_left == 0 else f"{d.target_date} ({days_left} días)"
+            context_parts.append(f"  {emoji} {d.title}: {ds}")
+
+    if pending:
+        context_parts.append("\n📝 Pendientes:")
+        for p in pending[:8]:
+            context_parts.append(f"  • {p.content}")
+
+    context_parts.append("\nEscribí un saludo de buenos días y el resumen en español ecuatoriano, cálido y breve. Usá emojis con moderación.")
+
+    prompt = "\n".join(context_parts)
+
+    try:
+        # Use the agent to generate a natural digest
+        response = await process_message(
+            session=session,
+            user_id=str(user.id),
+            user_message=prompt,
+        )
+        return response
+    except Exception as exc:
+        logger.error("Agent digest failed for user %s: %s", user.id, exc)
+        return None
+
+
 def start_scheduler():
-    """Start the APScheduler with daily rules evaluation."""
+    """Start the APScheduler with daily rules evaluation and digest."""
     scheduler.add_job(
         run_daily_rules,
         trigger=CronTrigger(hour=8, minute=0),  # 8:00 AM daily
@@ -227,8 +351,15 @@ def start_scheduler():
         name="Daily deterministic rules evaluation",
         replace_existing=True,
     )
+    scheduler.add_job(
+        run_daily_digest,
+        trigger=CronTrigger(hour=8, minute=0),  # 8:00 AM daily
+        id="daily_digest",
+        name="Daily user digest",
+        replace_existing=True,
+    )
     scheduler.start()
-    logger.info("Scheduler started: daily rules at 08:00 AM")
+    logger.info("Scheduler started: daily rules + digest at 08:00 AM")
 
 
 def stop_scheduler():

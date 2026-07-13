@@ -13,81 +13,49 @@ Plan general del proyecto, fases, hitos y funcionalidades por ola.
 ## Fase 1 — MVP Técnico (Telegram primero) ✅ COMPLETADA — 2026-07-11
 
 **Canal:** Telegram Bot API (polling para dev, webhook listo para prod)
-**LLM:** DeepSeek (router + extractor), configurable a Anthropic
-**Resultado test suite:** 41/41 (100%) — ver `tests/suite.py`
+**Arquitectura:** Agente unificado con 12 tools (DeepSeek function calling)
+**Visión/OCR:** Anthropic Claude Vision para documentos
+**Versión:** v2.1.0
 
 ### Entregables completados:
 
 #### Infraestructura y proyecto
 - [x] Estructura del proyecto FastAPI
 - [x] Docker Compose (PostgreSQL+pgvector, MinIO, Redis, Traefik)
-- [x] Docker Compose desarrollo (DB :5434, Redis :6379, MinIO :9000)
 - [x] Alembic con async engine + migraciones
-- [x] Abstracción multi-LLM (DeepSeek + Anthropic)
-- [x] Sistema de tools enchufables (API/MCP ready)
-- [x] Feature flags (CONTEXTUAL_RESPONSES)
-- [x] Suite de tests (41 casos, 9 categorías)
+- [x] Multi-LLM (DeepSeek para chat, Anthropic para visión, OpenAI para Whisper)
+- [x] Sistema de tools enchufables (12 tools con function calling)
+- [x] Agente unificado: system prompt + tools + conversation memory
+- [x] Skills Ecuador (modismos, matriculación, pico y placa)
+- [x] OCR de documentos (Anthropic Claude Vision)
+- [x] Resumen diario automático (8:00 AM)
+- [x] API vehicular externa (ANT/SRI/multas)
 - [ ] CI/CD básico
 
 #### Base de datos
-- [x] Esquema `users`, `messages`
-- [x] Esquema `assets` (JSONB + GIN + pgvector)
-- [x] Esquema `events`, `reminders`
-- [x] Esquema `topics`, `notes` (pgvector + HNSW)
-- [x] Esquema `lists`, `list_items` (ENUMs, pgvector)
-- [ ] Esquema `projects`, `project_tasks`
-- [ ] Esquema contactos, gastos, suscripción
-- [ ] Vista `searchable_content`
+- [x] 18 tablas: users, messages, assets, events, reminders, topics, notes, lists, list_items, projects, project_tasks, contacts, caregiver_links, shared_expenses, shared_expense_participants, subscriptions, payments, subscription_invoices
+- [x] pgvector + HNSW + GIN indexes, ENUMs, JSONB
 
 #### Bot de Telegram
-- [x] Webhook recepción mensajes (texto, photo, audio)
-- [x] Polling para desarrollo (sin SSL/IP pública)
-- [x] Typing indicator (nativo de Telegram)
-- [x] Resolver/crear usuario por telegram_id
-- [x] Persistir mensaje crudo con tracking por etapa
-- [x] Confirmación editable por tipo de dato
-- [x] Deduplicación de mensajes
+- [x] Polling para desarrollo + webhook listo para prod
+- [x] Texto, fotos, voz, audio, documentos (PDF)
+- [x] Typing indicator, deduplicación
+- [x] Memoria de conversación multi-turno
 
-#### Pipeline de IA
-- [x] Router DeepSeek: 9 targets (asset, event, list_item, note, meta, search, correction, shared_expense, tool)
-- [x] Extractor DeepSeek: schemas por target_table
-- [x] Respuestas contextuales (LLM sobre datos del usuario)
-- [x] Templates híbridos para preguntas comunes
-- [x] Guardrails: rechaza cultura general, clima, tareas escolares
-- [x] Meta-detección vía router (sin keywords)
-- [x] Tool execution: consulta multas por placa
-
-#### Integraciones
-- [x] Whisper: transcripción de audio (OpenAI)
-- [x] Embeddings: OpenAI + local (sentence-transformers)
-- [ ] OCR/visión de facturas
-
-#### Motor de Reglas (determinista)
-- [x] Regla matriculación por placa (ANT Ecuador)
-- [x] Pico y placa semanal (Quito/Cuenca)
-- [x] APScheduler cron diario (8:00 AM)
-- [x] Recordatorios escalonados (15/7/3/0 días)
-- [x] SOAT / RTV (mismo mes que matriculación)
-
-#### Núcleo Transversal
-- [x] Captura libre de texto, audio, foto
-- [x] Múltiples instrucciones por mensaje
-- [x] Recurrencias complejas
-- [x] Búsqueda conversacional (pgvector + ILIKE)
-- [x] Listas simples (compras, pendientes)
-- [x] Resumen diario/semanal opt-in (vía búsqueda)
-
-#### "Lucho piensa" (mínimo)
-- [x] Cálculos sobre datos del usuario (deadlines, pending)
-- [x] Explicaciones contextuales (LLM sobre datos)
-- [x] Detección de patrones (pico y placa, vencimientos)
-- [x] Preparación de acciones (resumen, avisos)
-
-#### Seguridad y mitigaciones
-- [x] None-safety en todas las funciones de persistencia
-- [x] Valores por defecto para campos NOT NULL
-- [x] Mensajes ultra-cortos manejados sin LLM
-- [x] Tool auto-retry con mensajes amigables
+#### Funcionalidades
+- [x] Vehículos: guardar, consultar ANT/SRI, pico y placa, matriculación
+- [x] Documentos: cédula, SOAT, garantía, factura (con OCR)
+- [x] Eventos/Recordatorios con scheduler (15/7/3/0 días)
+- [x] Listas (compras, tareas, pendientes)
+- [x] Notas por tema
+- [x] Gastos compartidos
+- [x] Búsqueda semántica + historial de chat
+- [x] Resumen diario automático
+- [x] Correcciones de datos
+- [x] Conversación natural con personalidad ecuatoriana
+- [ ] Proyectos y Tareas
+- [ ] Contactos
+- [ ] Envío de fotos al usuario
 
 ---
 
@@ -99,15 +67,15 @@ Plan general del proyecto, fases, hitos y funcionalidades por ola.
 - [ ] Onboarding guiado (3 primeros mensajes diseñados)
 - [ ] Métricas: % extracción correcta, retención D7/D30, intención de pago
 - [ ] Seguridad y LOPDP: cifrado en reposo, política de privacidad
+- [ ] Proyectos y Tareas (completar tool pendiente de Fase 1)
+- [ ] Contactos (completar tool pendiente de Fase 1)
+- [ ] Envío de fotos al usuario (completar pendiente de Fase 1)
 - [ ] Funcionalidades Ola 2:
-  - Documentos personales (cédula, pasaporte, licencia)
   - Fechas especiales (cumpleaños, aniversarios)
   - Vacunas (hijos, mascotas)
   - Suscripciones y servicios olvidados
-  - Garantías de electrodomésticos
-- [ ] Integración OCR/visión de facturas
-- [ ] Esquemas `projects`, `project_tasks`, contactos, gastos, suscripción
-- [ ] Vista `searchable_content`
+  - Control de gastos personales (tracking + ingresos)
+- [ ] Skills Ecuador adicionales (SRI facturación, IESS, legal)
 
 ---
 

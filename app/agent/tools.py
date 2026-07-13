@@ -111,7 +111,7 @@ TOOL_SAVE_EVENT = {
     "type": "function",
     "function": {
         "name": "save_event",
-        "description": "Guardar un evento, cita, reunión, o recordatorio con fecha. El usuario será notificado automáticamente unos días antes.",
+        "description": "Guardar un evento, cita, reunión, o recordatorio con fecha. El usuario será notificado automáticamente unos días antes. Si el usuario adjuntó una foto (receta médica, invitación, captura), pasá el photo_key para vincularla.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -130,6 +130,10 @@ TOOL_SAVE_EVENT = {
                 "recurrence": {
                     "type": "string",
                     "description": "Si el evento se repite. Opciones: 'none', 'daily', 'weekly', 'monthly', 'yearly'.",
+                },
+                "photo_key": {
+                    "type": "string",
+                    "description": "Clave de foto en MinIO si el usuario adjuntó una imagen. Formato: 'user_id/photo_123.jpg'.",
                 },
             },
             "required": ["title", "target_date"],
@@ -168,7 +172,7 @@ TOOL_SAVE_NOTE = {
     "type": "function",
     "function": {
         "name": "save_note",
-        "description": "Guardar una nota, idea, reflexión o información libre del usuario, organizada por tema.",
+        "description": "Guardar una nota, idea, reflexión o información libre del usuario, organizada por tema. Si el usuario adjuntó una foto, pasá el photo_key para vincularla a la nota.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -179,6 +183,10 @@ TOOL_SAVE_NOTE = {
                 "content": {
                     "type": "string",
                     "description": "Contenido completo de la nota.",
+                },
+                "photo_key": {
+                    "type": "string",
+                    "description": "Clave de foto en MinIO si el usuario adjuntó una imagen. Formato: 'user_id/photo_123.jpg'.",
                 },
             },
             "required": ["topic", "content"],
@@ -248,6 +256,28 @@ TOOL_GET_SUMMARY = {
             "type": "object",
             "properties": {},
             "required": [],
+        },
+    },
+}
+
+TOOL_ANALYZE_IMAGE = {
+    "type": "function",
+    "function": {
+        "name": "analyze_image",
+        "description": "Analizar una imagen o documento que el usuario envió y extraer datos estructurados. Usar cuando el usuario envía una foto de un documento (SOAT, factura, cédula, licencia, garantía, matrícula) y quiere que Lucho extraiga la información. El parámetro photo_key viene del contexto del mensaje.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "photo_key": {
+                    "type": "string",
+                    "description": "Clave del archivo en MinIO (viene en el mensaje del usuario como 'minio://...').",
+                },
+                "hint": {
+                    "type": "string",
+                    "description": "Pista del usuario sobre qué tipo de documento es. Ej: 'factura del súper', 'mi SOAT', 'la garantía de la lavadora'.",
+                },
+            },
+            "required": ["photo_key"],
         },
     },
 }
@@ -328,6 +358,7 @@ ALL_TOOLS = [
     TOOL_SAVE_EXPENSE,
     TOOL_SEARCH_DATA,
     TOOL_SEARCH_CONVERSATION,
+    TOOL_ANALYZE_IMAGE,
     TOOL_GET_SUMMARY,
     TOOL_UPDATE_LAST,
     TOOL_CHECK_VEHICLE_INFO,
@@ -413,6 +444,8 @@ async def handle_save_document(session, user_id: str, args: dict) -> dict:
         attrs["expiry_date"] = args["expiry_date"]
     if args.get("entity_name"):
         attrs["entity_name"] = args["entity_name"]
+    if args.get("photo_key"):
+        attrs["photo_key"] = args["photo_key"]
 
     try:
         await persist_asset(
@@ -424,9 +457,11 @@ async def handle_save_document(session, user_id: str, args: dict) -> dict:
             notes=args.get("notes"),
         )
         expiry_msg = f", vence {attrs['expiry_date']}" if "expiry_date" in attrs else ""
+        has_photo = " (con foto)" if "photo_key" in attrs else ""
         return {
             "success": True,
-            "message": f"Documento '{name}' guardado{expiry_msg}.",
+            "message": f"Documento '{name}' guardado{expiry_msg}{has_photo}.",
+            "photo_key": attrs.get("photo_key"),
         }
     except Exception as exc:
         logger.exception("Failed to save document: %s", exc)
@@ -440,6 +475,7 @@ async def handle_save_event(session, user_id: str, args: dict) -> dict:
     title = (args.get("title") or "evento").strip()
     target_date = args.get("target_date", "")
     recurrence = args.get("recurrence", "none")
+    photo_key = args.get("photo_key", "")
 
     if not target_date:
         return {"success": False, "message": "Necesito saber la fecha del evento."}
@@ -448,22 +484,28 @@ async def handle_save_event(session, user_id: str, args: dict) -> dict:
     if recurrence and recurrence != "none":
         recurrence_rule = {"freq": recurrence, "interval": 1}
 
+    description = args.get("description") or ""
+    if photo_key:
+        description = f"{description}\n[📸 foto: {photo_key}]".strip()
+
     try:
         event = await persist_event(
             session=session,
             user_id=uuid.UUID(user_id),
             title=title,
             target_date=target_date,
-            description=args.get("description"),
+            description=description,
             certainty="certain",
             recurrence_rule=recurrence_rule,
         )
         recur_msg = f", se repite {recurrence}" if recurrence_rule else ""
+        photo_msg = " (con foto adjunta)" if photo_key else ""
         return {
             "success": True,
-            "message": f"Evento '{title}' agendado para {target_date}{recur_msg}. Te recordaré antes.",
+            "message": f"Evento '{title}' agendado para {target_date}{recur_msg}{photo_msg}. Te recordaré antes.",
             "event_id": str(event.id),
             "target_date": target_date,
+            "photo_key": photo_key if photo_key else None,
         }
     except Exception as exc:
         logger.exception("Failed to save event: %s", exc)
@@ -871,6 +913,46 @@ async def handle_search_conversation(session, user_id: str, args: dict) -> dict:
     }
 
 
+async def handle_analyze_image(session, user_id: str, args: dict) -> dict:
+    """Download image from MinIO and extract structured data with DeepSeek Vision."""
+    from app.services import minio as minio_svc
+    from app.services.vision import extract_document_data
+
+    photo_key = (args.get("photo_key") or "").strip()
+    hint = (args.get("hint") or "").strip()
+
+    if not photo_key:
+        return {"success": False, "message": "No encuentro la foto. ¿Podés reenviarla?"}
+
+    # Download from MinIO
+    try:
+        image_bytes = await minio_svc.download_file(photo_key)
+        if not image_bytes:
+            return {"success": False, "message": "No pude acceder a la imagen. ¿Está bien guardada?"}
+    except Exception as exc:
+        logger.exception("MinIO download failed: %s", exc)
+        return {"success": False, "message": "No pude descargar la imagen."}
+
+    # Extract with DeepSeek Vision
+    try:
+        extracted = await extract_document_data(image_bytes)
+    except Exception as exc:
+        logger.exception("OCR extraction failed: %s", exc)
+        return {"success": False, "message": "No pude leer el documento. ¿Está bien enfocado?"}
+
+    if not extracted:
+        return {"success": False, "message": "No pude extraer información de la imagen. ¿Podés describirla?"}
+
+    doc_type = extracted.get("document_type", "documento")
+
+    return {
+        "success": True,
+        "document_type": doc_type,
+        "extracted": extracted,
+        "photo_key": photo_key,
+    }
+
+
 # =============================================================================
 # TOOL DISPATCHER — maps tool name to handler function
 # =============================================================================
@@ -887,6 +969,7 @@ TOOL_HANDLERS: dict[str, Any] = {
     "update_last": handle_update_last,
     "check_vehicle_info": handle_check_vehicle_info,
     "search_conversation": handle_search_conversation,
+    "analyze_image": handle_analyze_image,
 }
 
 

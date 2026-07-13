@@ -98,11 +98,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     has_photo = bool(msg.photo)
     has_voice = bool(msg.voice)
     has_audio = bool(msg.audio)
+    has_document = bool(msg.document)
 
     if has_photo:
         message_type = MessageType.photo
     elif has_voice or has_audio:
         message_type = MessageType.audio
+    elif has_document:
+        message_type = MessageType.photo  # treat documents like photos (store in MinIO)
     else:
         message_type = MessageType.text
 
@@ -147,7 +150,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     await session.rollback()
                     return
 
-            # ---- Photo: upload to MinIO, analyze with vision ----
+            # ---- Photo: upload to MinIO, let agent handle analysis ----
             photo_object_key = None
             if has_photo:
                 try:
@@ -164,50 +167,34 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 except Exception as exc:
                     logger.exception("Photo upload failed: %s", exc)
 
-                # No caption → analyze and ask user
-                if not text and not has_voice and photo_object_key:
-                    from app.services import vision as vision_svc
-                    analysis = await vision_svc.analyze_image(bytes(photo_bytes))
+                # If no caption, add photo context to the message for the agent
+                if not text and photo_object_key:
+                    text = f"[foto: {photo_object_key}]"
 
-                    if analysis and analysis.get("suggested_action") == "guardar":
-                        doc_type = analysis.get("document_type", "documento")
-                        desc = analysis.get("description", "imagen")
-                        await msg.reply_text(
-                            f"📸 *Parece {desc}*\n\n"
-                            f"¿Querés que la guarde como *{doc_type}* en tus documentos?\n"
-                            f"Respondé _\"sí\"_ para guardar o decime qué es.",
-                            parse_mode="Markdown",
-                        )
-                    elif analysis and analysis.get("suggested_action") == "ignorar":
-                        await msg.reply_text(
-                            f"📸 *{analysis.get('description', 'Esta imagen')}*\n\n"
-                            f"No parece un documento. Si querés guardarla igual, "
-                            f"decime de qué se trata.",
-                            parse_mode="Markdown",
-                        )
-                    else:
-                        await msg.reply_text(
-                            "📸 *Guardé tu imagen.*\n\n"
-                            "¿De qué se trata? Por ejemplo:\n"
-                            "• _\"Mi cédula de identidad\"_\n"
-                            "• _\"Factura del supermaxi\"_\n"
-                            "• _\"SOAT de mi carro\"_\n"
-                            "• _\"Garantía de la lavadora\"_\n\n"
-                            "Respondeme con una descripción y la catalogo.",
-                            parse_mode="Markdown",
-                        )
-
-                    # Save raw message and return — wait for user's text response
-                    db_message = await message_svc.create_message(
-                        session=session,
-                        user_id=user.id,
-                        channel=MessageChannel.telegram,
-                        message_type=MessageType.photo,
-                        text="[foto sin descripción]",
-                        file_path=photo_object_key,
+            # ---- Document (PDF, DOC, etc.): upload to MinIO ----
+            doc_object_key = None
+            if has_document and not has_photo:
+                doc = msg.document
+                doc_name = doc.file_name or "documento"
+                try:
+                    file = await context.bot.get_file(doc.file_id)
+                    doc_bytes = await file.download_as_bytearray()
+                    from app.services import minio as minio_svc
+                    doc_object_key = await minio_svc.upload_file(
+                        user_id=str(user.id),
+                        file_bytes=bytes(doc_bytes),
+                        filename=f"doc_{msg.message_id}_{doc_name}",
+                        content_type=doc.mime_type or "application/octet-stream",
                     )
-                    await session.commit()
-                    return
+                    if not text:
+                        text = f"[documento: {doc_name} → {doc_object_key}]"
+                    else:
+                        text = f"{text}\n[documento adjunto: {doc_name} → {doc_object_key}]"
+                    await msg.reply_text(f"📄 Guardé tu archivo *{doc_name}*.", parse_mode="Markdown")
+                except Exception as exc:
+                    logger.exception("Document upload failed: %s", exc)
+
+            file_path = photo_object_key or doc_object_key or f"telegram://{chat_id}/{msg.message_id}"
 
             # ---- Save raw message ----
             db_message = await message_svc.create_message(
@@ -216,31 +203,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 channel=MessageChannel.telegram,
                 message_type=message_type,
                 text=text,
-                file_path=photo_object_key or f"telegram://{chat_id}/{msg.message_id}",
+                file_path=file_path,
                 transcription=transcription,
             )
             await session.flush()
 
-            # ---- Call the AGENT (the new unified pipeline) ----
+            # ---- Call the AGENT ----
             content = text or "[audio/photo message]"
-
-            # If photo was linked from a previous photo-without-caption, attach the key
-            if message_type == MessageType.text and not has_photo:
-                from sqlalchemy import select, desc
-                from app.models.message import Message
-                last_msg_result = await session.execute(
-                    select(Message).where(
-                        Message.user_id == user.id,
-                        Message.message_type == MessageType.photo,
-                        Message.text == "[foto sin descripción]",
-                    ).order_by(desc(Message.received_at)).limit(1)
-                )
-                last_photo = last_msg_result.scalar_one_or_none()
-                if last_photo and last_photo.file_path:
-                    # Enrich the message with photo context
-                    content = f"[foto adjunta: {last_photo.file_path}] {content}"
-                    last_photo.text = text
-                    logger.info("Linked text response to photo: %s", last_photo.file_path)
 
             # THE AGENT CALL — this replaces ALL the old pipeline code
             response_text = await process_message(
@@ -308,7 +277,7 @@ def build_app() -> Application:
     # Messages (text, photo, voice, audio)
     app.add_handler(
         MessageHandler(
-            filters.TEXT | filters.PHOTO | filters.VOICE | filters.AUDIO,
+            filters.TEXT | filters.PHOTO | filters.VOICE | filters.AUDIO | filters.Document.ALL,
             handle_message,
         )
     )
