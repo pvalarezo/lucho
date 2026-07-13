@@ -1,13 +1,15 @@
-"""Daily scheduler — evaluates deterministic rules and creates reminders.
+"""Daily scheduler — unified reminder engine.
 
-Runs once per day (configurable time). For each user:
-1. Fetches all vehicle assets
-2. Evaluates matriculación, SOAT, RTV deadlines
-3. Checks for upcoming events (today + N days)
-4. Creates/updates reminders with escalated lead times (15, 7, 3 days before)
-5. Sends notifications via Telegram (if token configured)
+Evaluates all entities with dates and sends reminders through
+the notification service (channel-agnostic: Telegram, WhatsApp, etc.).
 
-This is DETERMINISTIC code — no LLM involved in any decision.
+Entity types and their reminder windows:
+- Documents (SOAT, cédula, pasaporte): 30, 15, 7 days — critical
+- Events (citas, reuniones): 15, 7, 3, 0 days — personal planning
+- Project tasks: 7, 3, 1 days — operational
+- Vehicle assets: auto-creates events → handled by event reminders
+
+ALL deterministic — no LLM involved in any decision.
 """
 
 import asyncio
@@ -26,39 +28,46 @@ from app.models.reminder import Reminder, ReminderChannel, ReminderStatus
 from app.models.user import User
 from app.models.list import ListItem, ItemStatus
 from app.services import vehicle_rules as vr
+from app.services.notifications import send_notification, NotificationChannel, resolve_user_contact
 from app.services import telegram as telegram_svc
 from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-# Escalated reminder windows: days before target_date
-REMINDER_WINDOWS = [15, 7, 3, 0]  # 15, 7, 3 days before, and day of
+# ---- Reminder windows by entity type ----
+# (days before target_date when reminders are sent)
+
+EVENT_WINDOWS = [15, 7, 3, 0]
+DOCUMENT_WINDOWS = [30, 15, 7]
+PROJECT_WINDOWS = [7, 3, 1]
 
 scheduler = AsyncIOScheduler()
 
 
+# =============================================================================
+# MAIN DAILY JOB
+# =============================================================================
+
 async def run_daily_rules():
-    """
-    Daily cron job: evaluate all rules and create/send reminders.
-    Called by APScheduler every day at the configured hour.
-    """
-    logger.info("Starting daily rules evaluation...")
+    """Daily cron: evaluate all entities and send reminders."""
+    logger.info("Starting daily reminder evaluation...")
 
     async with async_session() as session:
         try:
-            # ---- 1. Vehicle rules ----
             await _evaluate_vehicle_assets(session)
-
-            # ---- 2. Upcoming events ----
-            await _evaluate_upcoming_events(session)
-
+            await _evaluate_events(session)
+            await _evaluate_documents(session)
+            await _evaluate_project_tasks(session)
             await session.commit()
-            logger.info("Daily rules evaluation complete.")
-
+            logger.info("Daily reminder evaluation complete.")
         except Exception as exc:
-            logger.exception("Daily rules evaluation failed: %s", exc)
+            logger.exception("Daily reminder evaluation failed: %s", exc)
             await session.rollback()
 
+
+# =============================================================================
+# VEHICLE ASSETS — auto-create matriculación events
+# =============================================================================
 
 async def _evaluate_vehicle_assets(session: AsyncSession):
     """Evaluate matriculación, SOAT, RTV for all vehicle assets."""
@@ -81,25 +90,12 @@ async def _evaluate_vehicle_assets(session: AsyncSession):
             continue
 
         rules = vr.evaluate_vehicle_rules(plate, last_digit, today)
-
-        # Update asset attributes with computed values
-        vehicle.attributes = {
-            **attrs,
+        vehicle.attributes = {**attrs, **{
             "last_digit": rules["last_digit"],
             "pico_y_placa_days": rules["pico_y_placa_days"],
             "next_matriculation": rules["next_matriculation"],
-        }
+        }}
 
-        logger.info(
-            "Vehicle %s (%s): matriculación %s (%d days), pico y placa: %s",
-            plate,
-            vehicle.name,
-            rules["next_matriculation"],
-            rules["days_until_matriculation"],
-            rules["pico_y_placa_days"],
-        )
-
-        # Create matriculación event if not exists
         matric_date = date.fromisoformat(rules["next_matriculation"])
         await _ensure_event(
             session=session,
@@ -107,15 +103,17 @@ async def _evaluate_vehicle_assets(session: AsyncSession):
             asset_id=vehicle.id,
             title=f"Matriculación {plate}",
             target_date=matric_date,
-            certainty="certain",
         )
 
 
-async def _evaluate_upcoming_events(session: AsyncSession):
-    """Check events due within the reminder window and create reminders."""
+# =============================================================================
+# EVENTS — reminders via reminders table
+# =============================================================================
+
+async def _evaluate_events(session: AsyncSession):
+    """Check events due within reminder window and create reminders."""
     today = date.today()
-    max_window = max(REMINDER_WINDOWS)
-    window_end = today + timedelta(days=max_window)
+    window_end = today + timedelta(days=max(EVENT_WINDOWS))
 
     result = await session.execute(
         select(Event).where(
@@ -128,24 +126,197 @@ async def _evaluate_upcoming_events(session: AsyncSession):
 
     for event in events:
         days_until = (event.target_date - today).days
-
-        for window in REMINDER_WINDOWS:
+        for window in EVENT_WINDOWS:
             if days_until == window:
-                await _create_reminder(
-                    session=session,
-                    event=event,
-                    days_before=window,
-                )
+                await _create_reminder(session, event, days_before=window)
 
 
-async def _ensure_event(
+async def _create_reminder(session: AsyncSession, event: Event, days_before: int):
+    """Create a reminder for an event if not already scheduled."""
+    result = await session.execute(
+        select(Reminder).where(
+            Reminder.event_id == event.id,
+            Reminder.days_before == days_before,
+        )
+    )
+    if result.scalar_one_or_none():
+        return
+
+    reminder = Reminder(
+        event_id=event.id,
+        days_before=days_before,
+        channel=ReminderChannel.telegram,
+        status=ReminderStatus.pending,
+        scheduled_for=datetime.combine(
+            event.target_date, datetime.min.time(), tzinfo=timezone.utc
+        ) - timedelta(days=days_before),
+    )
+    session.add(reminder)
+
+
+# =============================================================================
+# DOCUMENTS — expiry date reminders
+# =============================================================================
+
+async def _evaluate_documents(session: AsyncSession):
+    """
+    Check documents with expiry_date and send reminders.
+    Documents: SOAT, cédula, pasaporte, licencia, garantía.
+    Reminder windows: 30, 15, 7 days before expiry.
+    """
+    today = date.today()
+    window_end = today + timedelta(days=max(DOCUMENT_WINDOWS))
+
+    # Get all document-type assets
+    result = await session.execute(
+        select(Asset).where(
+            Asset.asset_type == AssetType.document,
+            Asset.deleted_at.is_(None),
+        )
+    )
+    docs = result.scalars().all()
+
+    for doc in docs:
+        attrs = doc.attributes or {}
+        expiry_str = attrs.get("expiry_date") or attrs.get("expiration_date")
+        if not expiry_str:
+            continue
+
+        try:
+            expiry_date = date.fromisoformat(expiry_str)
+        except (ValueError, TypeError):
+            continue
+
+        days_until = (expiry_date - today).days
+
+        for window in DOCUMENT_WINDOWS:
+            if days_until == window:
+                await _send_document_reminder(session, doc, attrs, expiry_date, days_until)
+                break  # one reminder per document per day
+
+
+async def _send_document_reminder(
     session: AsyncSession,
-    user_id,
-    asset_id,
-    title: str,
-    target_date: date,
-    certainty: str = "certain",
+    doc: Asset,
+    attrs: dict,
+    expiry_date: date,
+    days_until: int,
 ):
+    """Send a document expiry reminder to the user."""
+    user_result = await session.execute(
+        select(User).where(User.id == doc.user_id)
+    )
+    user = user_result.scalar_one_or_none()
+    if not user:
+        return
+
+    contact_id, channel = await resolve_user_contact(user)
+    if not contact_id:
+        return
+
+    doc_type = attrs.get("document_type", "documento")
+    doc_name = doc.name
+    emoji = "🔴" if days_until <= 7 else "🟡" if days_until <= 15 else "🟢"
+    ds = "HOY" if days_until == 0 else f"mañana" if days_until == 1 else f"en {days_until} días"
+
+    msg = (
+        f"{emoji} *Recordatorio de documento*\n\n"
+        f"📄 *{doc_name}* ({doc_type})\n"
+        f"📅 Vence: {ds} ({expiry_date})\n\n"
+        f"Si ya lo renovaste, decime 'ya renové {doc_name}' y lo actualizo."
+    )
+
+    sent = await send_notification(
+        user_id=str(doc.user_id),
+        contact_id=contact_id,
+        message=msg,
+        channel=channel,
+    )
+    if sent:
+        logger.info("Document reminder sent: %s (%d days)", doc_name, days_until)
+
+
+# =============================================================================
+# PROJECT TASKS — due date reminders
+# =============================================================================
+
+async def _evaluate_project_tasks(session: AsyncSession):
+    """Check project tasks with due dates and send reminders."""
+    from app.models.project import ProjectTask, TaskStatus, Project
+
+    today = date.today()
+    window_end = today + timedelta(days=max(PROJECT_WINDOWS))
+
+    result = await session.execute(
+        select(ProjectTask, Project).join(
+            Project, ProjectTask.project_id == Project.id
+        ).where(
+            ProjectTask.status == TaskStatus.pending,
+            ProjectTask.due_date.isnot(None),
+            ProjectTask.due_date >= today,
+            ProjectTask.due_date <= window_end,
+            ProjectTask.reminder_sent == False,
+        )
+    )
+    tasks = result.all()
+
+    for task, project in tasks:
+        days_until = (task.due_date - today).days
+
+        for window in PROJECT_WINDOWS:
+            if days_until == window:
+                await _send_project_reminder(session, project, task, days_until)
+                break
+
+        # Mark reminded on due date
+        if days_until == 0:
+            task.reminder_sent = True
+
+
+async def _send_project_reminder(
+    session: AsyncSession,
+    project,
+    task,
+    days_until: int,
+):
+    """Send a project task reminder to the user."""
+    user_result = await session.execute(
+        select(User).where(User.id == project.user_id)
+    )
+    user = user_result.scalar_one_or_none()
+    if not user:
+        return
+
+    contact_id, channel = await resolve_user_contact(user)
+    if not contact_id:
+        return
+
+    emoji = "🔴" if days_until <= 1 else "🟡" if days_until <= 3 else "🟢"
+    ds = "HOY" if days_until == 0 else f"mañana" if days_until == 1 else f"en {days_until} días"
+
+    msg = (
+        f"{emoji} *Recordatorio de proyecto*\n\n"
+        f"📋 Proyecto: *{project.name}*\n"
+        f"📝 Tarea: {task.content}\n"
+        f"📅 Vence: {ds} ({task.due_date})\n\n"
+        f"Cuando la termines, decime 'completé {task.content[:40]}'."
+    )
+
+    sent = await send_notification(
+        user_id=str(project.user_id),
+        contact_id=contact_id,
+        message=msg,
+        channel=channel,
+    )
+    if sent:
+        logger.info("Project reminder sent: %s (%d days)", task.content[:50], days_until)
+
+
+# =============================================================================
+# HELPERS
+# =============================================================================
+
+async def _ensure_event(session, user_id, asset_id, title, target_date, certainty="certain"):
     """Create an event if one doesn't already exist for this title + date."""
     result = await session.execute(
         select(Event).where(
@@ -156,9 +327,8 @@ async def _ensure_event(
             Event.status == EventStatus.upcoming,
         )
     )
-    existing = result.scalar_one_or_none()
-    if existing:
-        return existing
+    if result.scalar_one_or_none():
+        return
 
     from app.models.event import EventCertainty
     try:
@@ -176,91 +346,44 @@ async def _ensure_event(
     )
     session.add(event)
     await session.flush()
-    logger.info("Auto-created event: %s on %s", title, target_date)
     return event
 
 
-async def _create_reminder(
-    session: AsyncSession,
-    event: Event,
-    days_before: int,
-):
-    """Create a reminder for an event if not already scheduled."""
-    # Check if reminder already exists
-    result = await session.execute(
-        select(Reminder).where(
-            Reminder.event_id == event.id,
-            Reminder.days_before == days_before,
-        )
-    )
-    existing = result.scalar_one_or_none()
-    if existing:
-        return existing
-
-    now = datetime.now(timezone.utc)
-    scheduled_for = datetime.combine(
-        event.target_date, datetime.min.time(), tzinfo=timezone.utc
-    ) - timedelta(days=days_before)
-
-    reminder = Reminder(
-        event_id=event.id,
-        days_before=days_before,
-        channel=ReminderChannel.telegram,
-        status=ReminderStatus.pending,
-        scheduled_for=scheduled_for,
-    )
-    session.add(reminder)
-    await session.flush()
-    logger.info(
-        "Created reminder for event '%s': %d days before (%s)",
-        event.title,
-        days_before,
-        scheduled_for.date().isoformat(),
-    )
-    return reminder
-
+# =============================================================================
+# DAILY DIGEST
+# =============================================================================
 
 async def run_daily_digest():
-    """
-    Send a daily summary to users who have active data.
-    Includes: today's date, pico y placa, upcoming deadlines, pending items.
-    Called by APScheduler every morning.
-    """
+    """Send a morning summary to users with active data."""
     logger.info("Starting daily digest...")
     today = date.today()
     weekday = ["lunes","martes","miércoles","jueves","viernes","sábado","domingo"][today.weekday()]
 
     async with async_session() as session:
         try:
-            # Get all active users with telegram_id
             result = await session.execute(
                 select(User).where(User.telegram_id.isnot(None), User.is_active == True)
             )
             users = result.scalars().all()
 
             for user in users:
-                digest = await _build_user_digest(session, user, today, weekday)
+                digest = await _build_digest(session, user, today, weekday)
                 if digest:
                     try:
-                        chat_id = int(user.telegram_id)
-                        await telegram_svc.send_message(chat_id, digest)
-                        logger.info("Digest sent to user %s", user.telegram_id)
+                        await telegram_svc.send_message(int(user.telegram_id), digest)
                     except Exception as exc:
-                        logger.warning("Failed to send digest to %s: %s", user.telegram_id, exc)
+                        logger.warning("Digest failed for %s: %s", user.telegram_id, exc)
 
             await session.commit()
-            logger.info("Daily digest complete.")
-
         except Exception as exc:
             logger.exception("Daily digest failed: %s", exc)
             await session.rollback()
 
 
-async def _build_user_digest(session: AsyncSession, user: User, today: date, weekday: str) -> str | None:
-    """Build a natural-language digest for one user. Uses the agent for a warm message."""
+async def _build_digest(session, user, today, weekday):
+    """Build a natural-language morning digest using the agent."""
     from app.agent import process_message
 
-    # ---- Gather data ----
     # Vehicles
     result = await session.execute(
         select(Asset).where(
@@ -280,7 +403,7 @@ async def _build_user_digest(session: AsyncSession, user: User, today: date, wee
     )
     pending = result.scalars().all()
 
-    # Upcoming deadlines (next 7 days)
+    # Deadlines next 7 days
     until = today + timedelta(days=7)
     result = await session.execute(
         select(Event).where(
@@ -292,74 +415,101 @@ async def _build_user_digest(session: AsyncSession, user: User, today: date, wee
     )
     deadlines = result.scalars().all()
 
-    # If nothing to report, skip
-    if not vehicles and not pending and not deadlines:
+    # Document expiries next 30 days
+    doc_until = today + timedelta(days=30)
+    result = await session.execute(
+        select(Asset).where(
+            Asset.user_id == user.id,
+            Asset.asset_type == AssetType.document,
+            Asset.deleted_at.is_(None),
+        )
+    )
+    docs = result.scalars().all()
+
+    if not vehicles and not pending and not deadlines and not docs:
         return None
 
-    # ---- Build context for the agent ----
-    context_parts = [
+    parts = [
         f"Hoy es {weekday} {today.strftime('%d de %B de %Y')}.",
-        "Generá un resumen matutino para el usuario con sus datos del día. Sé breve y cálido.",
+        "Generá un resumen matutino breve y cálido en español ecuatoriano.",
     ]
 
     if vehicles:
-        context_parts.append("\n🚗 Vehículos:")
+        parts.append("\n🚗 Vehículos:")
         for v in vehicles:
             attrs = v.attributes or {}
             plate = attrs.get("plate", "?")
             pyp = attrs.get("pico_y_placa_days", "")
-            context_parts.append(f"  • {plate}: pico y placa {pyp}" if pyp else f"  • {plate}")
-            if pyp and weekday.capitalize() in pyp:
-                context_parts.append(f"    ⚠️ HOY tiene pico y placa")
+            if pyp:
+                parts.append(f"  • {plate}: pico y placa {pyp}")
+                if weekday.capitalize() in pyp:
+                    parts.append("    ⚠️ HOY tiene pico y placa")
 
     if deadlines:
-        context_parts.append("\n📅 Próximos 7 días:")
+        parts.append("\n📅 Próximos 7 días:")
         for d in deadlines:
             days_left = (d.target_date - today).days
             emoji = "🔴" if days_left == 0 else "🟡" if days_left <= 3 else "🟢"
             ds = "HOY" if days_left == 0 else f"{d.target_date} ({days_left} días)"
-            context_parts.append(f"  {emoji} {d.title}: {ds}")
+            parts.append(f"  {emoji} {d.title}: {ds}")
+
+    if docs:
+        doc_warnings = []
+        for d in docs:
+            attrs = d.attributes or {}
+            exp = attrs.get("expiry_date") or attrs.get("expiration_date")
+            if exp:
+                try:
+                    exp_date = date.fromisoformat(exp)
+                    days_left = (exp_date - today).days
+                    if days_left <= 30:
+                        doc_warnings.append(f"  📄 {d.name}: vence {exp_date} ({days_left} días)")
+                except (ValueError, TypeError):
+                    pass
+        if doc_warnings:
+            parts.append("\n📄 Documentos por vencer:")
+            parts.extend(doc_warnings[:5])
 
     if pending:
-        context_parts.append("\n📝 Pendientes:")
+        parts.append("\n📝 Pendientes:")
         for p in pending[:8]:
-            context_parts.append(f"  • {p.content}")
+            parts.append(f"  • {p.content}")
 
-    context_parts.append("\nEscribí un saludo de buenos días y el resumen en español ecuatoriano, cálido y breve. Usá emojis con moderación.")
-
-    prompt = "\n".join(context_parts)
+    parts.append("\nEscribí el saludo de buenos días con el resumen. Sé breve, cálido, ecuatoriano.")
 
     try:
-        # Use the agent to generate a natural digest
-        response = await process_message(
+        return await process_message(
             session=session,
             user_id=str(user.id),
-            user_message=prompt,
+            user_message="\n".join(parts),
         )
-        return response
     except Exception as exc:
-        logger.error("Agent digest failed for user %s: %s", user.id, exc)
+        logger.error("Digest agent failed: %s", exc)
         return None
 
 
+# =============================================================================
+# SCHEDULER LIFECYCLE
+# =============================================================================
+
 def start_scheduler():
-    """Start the APScheduler with daily rules evaluation and digest."""
+    """Start APScheduler with daily reminder evaluation and digest."""
     scheduler.add_job(
         run_daily_rules,
-        trigger=CronTrigger(hour=8, minute=0),  # 8:00 AM daily
+        trigger=CronTrigger(hour=8, minute=0),
         id="daily_rules",
-        name="Daily deterministic rules evaluation",
+        name="Daily reminder evaluation (all entities)",
         replace_existing=True,
     )
     scheduler.add_job(
         run_daily_digest,
-        trigger=CronTrigger(hour=8, minute=0),  # 8:00 AM daily
+        trigger=CronTrigger(hour=8, minute=0),
         id="daily_digest",
-        name="Daily user digest",
+        name="Daily morning digest",
         replace_existing=True,
     )
     scheduler.start()
-    logger.info("Scheduler started: daily rules + digest at 08:00 AM")
+    logger.info("Scheduler started: unified reminders + digest at 08:00 AM")
 
 
 def stop_scheduler():

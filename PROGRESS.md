@@ -58,9 +58,10 @@ Rediseño de arquitectura a agente completado el 2026-07-12.
 | 12 | Skills Ecuador | 3 MD + loader | ✅ |
 
 ### Motor de Reglas — ✅ 100%
+- Recordatorios unificados: eventos 15/7/3/0, documentos 30/15/7, proyectos 7/3/1
+- Canal de notificaciones agnóstico: Telegram (hoy), WhatsApp/email/SMS (placeholders)
 - Matriculación por placa (ANT Ecuador), pico y placa (Quito/Cuenca)
 - APScheduler: daily_rules + daily_digest (8:00 AM)
-- Recordatorios escalonados (15/7/3/0 días)
 
 ### Pendientes reales
 

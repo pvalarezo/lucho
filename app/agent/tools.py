@@ -304,6 +304,76 @@ TOOL_SEARCH_CONVERSATION = {
     },
 }
 
+TOOL_SAVE_PROJECT_TASK = {
+    "type": "function",
+    "function": {
+        "name": "save_project_task",
+        "description": "Guardar una tarea en un proyecto. Si el proyecto no existe, se crea automáticamente. Usar cuando el usuario menciona un proyecto y una tarea: 'para el proyecto X necesito hacer Y', 'agrega esto a mi proyecto Z'.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "project_name": {
+                    "type": "string",
+                    "description": "Nombre del proyecto. Ej: 'casa nueva', 'tesis', 'evento boda'.",
+                },
+                "content": {
+                    "type": "string",
+                    "description": "Descripción de la tarea. Ej: 'contratar albañil', 'revisar catering'.",
+                },
+                "due_date": {
+                    "type": "string",
+                    "description": "Fecha límite en formato YYYY-MM-DD, si aplica.",
+                },
+            },
+            "required": ["project_name", "content"],
+        },
+    },
+}
+
+TOOL_LIST_PROJECT_TASKS = {
+    "type": "function",
+    "function": {
+        "name": "list_project_tasks",
+        "description": "Listar las tareas de un proyecto o de todos los proyectos del usuario. Usar cuando el usuario pregunta '¿cómo va mi proyecto X?', '¿qué tengo pendiente del proyecto Y?', 'muéstrame mis proyectos'.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "project_name": {
+                    "type": "string",
+                    "description": "Nombre del proyecto a consultar. Si no se especifica, lista todos los proyectos.",
+                },
+                "status": {
+                    "type": "string",
+                    "description": "Filtrar por estado: 'pending', 'done', o 'all'. Default: 'all'.",
+                },
+            },
+            "required": [],
+        },
+    },
+}
+
+TOOL_COMPLETE_PROJECT_TASK = {
+    "type": "function",
+    "function": {
+        "name": "complete_project_task",
+        "description": "Marcar una tarea de proyecto como completada. Usar cuando el usuario dice 'ya terminé X del proyecto Y', 'marca como hecho Z'.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "project_name": {
+                    "type": "string",
+                    "description": "Nombre del proyecto.",
+                },
+                "task_content": {
+                    "type": "string",
+                    "description": "Contenido de la tarea a marcar como completada (o parte del contenido para buscarla).",
+                },
+            },
+            "required": ["project_name", "task_content"],
+        },
+    },
+}
+
 TOOL_UPDATE_LAST = {
     "type": "function",
     "function": {
@@ -360,6 +430,9 @@ ALL_TOOLS = [
     TOOL_SEARCH_CONVERSATION,
     TOOL_ANALYZE_IMAGE,
     TOOL_GET_SUMMARY,
+    TOOL_SAVE_PROJECT_TASK,
+    TOOL_LIST_PROJECT_TASKS,
+    TOOL_COMPLETE_PROJECT_TASK,
     TOOL_UPDATE_LAST,
     TOOL_CHECK_VEHICLE_INFO,
 ]
@@ -953,6 +1026,144 @@ async def handle_analyze_image(session, user_id: str, args: dict) -> dict:
     }
 
 
+async def handle_save_project_task(session, user_id: str, args: dict) -> dict:
+    """Save a task to a project."""
+    import uuid
+    from app.services.persistence import persist_project_task
+
+    project_name = (args.get("project_name") or "general").strip()
+    content = (args.get("content") or "").strip()
+
+    if not content:
+        return {"success": False, "message": "¿Qué tarea querés agregar al proyecto?"}
+
+    due_date = None
+    if args.get("due_date"):
+        try:
+            from datetime import date as dt_date
+            due_date = dt_date.fromisoformat(args["due_date"])
+        except (ValueError, TypeError):
+            pass
+
+    try:
+        task = await persist_project_task(
+            session=session,
+            user_id=uuid.UUID(user_id),
+            project_name=project_name,
+            content=content,
+            due_date=due_date,
+        )
+        due_msg = f" para {args['due_date']}" if due_date else ""
+        return {
+            "success": True,
+            "message": f"Tarea '{content[:60]}' agregada al proyecto '{project_name}'{due_msg}.",
+            "task_id": str(task.id),
+            "project_name": project_name,
+        }
+    except Exception as exc:
+        logger.exception("Failed to save project task: %s", exc)
+        return {"success": False, "message": "No pude guardar la tarea."}
+
+
+async def handle_list_project_tasks(session, user_id: str, args: dict) -> dict:
+    """List tasks for a project or all projects."""
+    import uuid
+    from sqlalchemy import select
+    from app.models.project import Project, ProjectTask, TaskStatus
+
+    uid = uuid.UUID(user_id)
+    project_name = (args.get("project_name") or "").strip()
+    status_filter = (args.get("status") or "all").strip()
+
+    # Query projects
+    query = select(Project).where(Project.user_id == uid, Project.status == "active")
+    if project_name:
+        query = query.where(Project.name == project_name)
+    result = await session.execute(query.order_by(Project.name))
+    projects = result.scalars().all()
+
+    if not projects:
+        return {"success": True, "message": "No tenés proyectos todavía. Decime 'crear proyecto X' y empezamos.", "projects": []}
+
+    output = []
+    for proj in projects:
+        task_query = select(ProjectTask).where(ProjectTask.project_id == proj.id)
+        if status_filter == "pending":
+            task_query = task_query.where(ProjectTask.status == TaskStatus.pending)
+        elif status_filter == "done":
+            task_query = task_query.where(ProjectTask.status == TaskStatus.done)
+        task_result = await session.execute(task_query.order_by(ProjectTask.created_at))
+        tasks = task_result.scalars().all()
+
+        proj_data = {
+            "project_name": proj.name,
+            "total_tasks": len(tasks),
+            "pending": sum(1 for t in tasks if t.status == TaskStatus.pending),
+            "done": sum(1 for t in tasks if t.status == TaskStatus.done),
+            "tasks": [
+                {
+                    "content": t.content,
+                    "status": t.status.value if t.status else "pending",
+                    "due_date": t.due_date.isoformat() if t.due_date else None,
+                }
+                for t in tasks
+            ],
+        }
+        output.append(proj_data)
+
+    total_pending = sum(p["pending"] for p in output)
+    return {
+        "success": True,
+        "message": f"Tenés {len(output)} proyecto(s) con {total_pending} tarea(s) pendiente(s).",
+        "projects": output,
+    }
+
+
+async def handle_complete_project_task(session, user_id: str, args: dict) -> dict:
+    """Mark a project task as completed."""
+    import uuid
+    from sqlalchemy import select
+    from datetime import datetime, timezone
+    from app.models.project import Project, ProjectTask, TaskStatus
+
+    uid = uuid.UUID(user_id)
+    project_name = (args.get("project_name") or "").strip()
+    task_content = (args.get("task_content") or "").strip()
+
+    if not project_name or not task_content:
+        return {"success": False, "message": "Necesito saber el proyecto y la tarea."}
+
+    # Find project
+    result = await session.execute(
+        select(Project).where(Project.user_id == uid, Project.name == project_name)
+    )
+    project = result.scalar_one_or_none()
+    if not project:
+        return {"success": False, "message": f"No encontré el proyecto '{project_name}'."}
+
+    # Find task (partial match)
+    pattern = f"%{task_content}%"
+    result = await session.execute(
+        select(ProjectTask).where(
+            ProjectTask.project_id == project.id,
+            ProjectTask.status == TaskStatus.pending,
+            ProjectTask.content.ilike(pattern),
+        ).limit(1)
+    )
+    task = result.scalar_one_or_none()
+    if not task:
+        return {"success": False, "message": f"No encontré una tarea pendiente que coincida con '{task_content}' en '{project_name}'."}
+
+    task.status = TaskStatus.done
+    task.completed_at = datetime.now(timezone.utc)
+    await session.flush()
+
+    return {
+        "success": True,
+        "message": f"✅ Tarea '{task.content[:60]}' completada en '{project_name}'.",
+    }
+
+
 # =============================================================================
 # TOOL DISPATCHER — maps tool name to handler function
 # =============================================================================
@@ -970,6 +1181,9 @@ TOOL_HANDLERS: dict[str, Any] = {
     "check_vehicle_info": handle_check_vehicle_info,
     "search_conversation": handle_search_conversation,
     "analyze_image": handle_analyze_image,
+    "save_project_task": handle_save_project_task,
+    "list_project_tasks": handle_list_project_tasks,
+    "complete_project_task": handle_complete_project_task,
 }
 
 
