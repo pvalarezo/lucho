@@ -374,6 +374,66 @@ TOOL_COMPLETE_PROJECT_TASK = {
     },
 }
 
+TOOL_SAVE_CONTACT = {
+    "type": "function",
+    "function": {
+        "name": "save_contact",
+        "description": "Guardar un contacto personal: nombre, teléfono, email, WhatsApp, relación (amigo, familia, colega). Usar cuando el usuario quiere guardar información de contacto de alguien.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "Nombre completo del contacto.",
+                },
+                "phone_number": {
+                    "type": "string",
+                    "description": "Número de teléfono. Formato internacional o local.",
+                },
+                "email": {
+                    "type": "string",
+                    "description": "Dirección de correo electrónico.",
+                },
+                "whatsapp_id": {
+                    "type": "string",
+                    "description": "Número de WhatsApp (si es distinto del teléfono).",
+                },
+                "relationship": {
+                    "type": "string",
+                    "description": "Tipo de relación: 'amigo', 'familia', 'colega', 'cliente', 'proveedor', etc.",
+                },
+                "notes": {
+                    "type": "string",
+                    "description": "Notas adicionales: cumpleaños, dirección, empresa, etc.",
+                },
+            },
+            "required": ["name"],
+        },
+    },
+}
+
+TOOL_LIST_CONTACTS = {
+    "type": "function",
+    "function": {
+        "name": "list_contacts",
+        "description": "Listar los contactos guardados. Usar cuando el usuario pregunta '¿qué contactos tengo?', 'buscame el teléfono de X', 'mis contactos'.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "search": {
+                    "type": "string",
+                    "description": "Buscar por nombre o relación. Si no se especifica, lista todos.",
+                },
+                "relationship": {
+                    "type": "string",
+                    "description": "Filtrar por relación: 'amigo', 'familia', 'colega'.",
+                },
+            },
+            "required": [],
+        },
+    },
+}
+
 TOOL_UPDATE_LAST = {
     "type": "function",
     "function": {
@@ -434,6 +494,8 @@ ALL_TOOLS = [
     TOOL_LIST_PROJECT_TASKS,
     TOOL_COMPLETE_PROJECT_TASK,
     TOOL_UPDATE_LAST,
+    TOOL_SAVE_CONTACT,
+    TOOL_LIST_CONTACTS,
     TOOL_CHECK_VEHICLE_INFO,
 ]
 
@@ -1164,6 +1226,101 @@ async def handle_complete_project_task(session, user_id: str, args: dict) -> dic
     }
 
 
+
+async def handle_save_contact(session, user_id: str, args: dict) -> dict:
+    """Save a contact."""
+    import uuid
+    from sqlalchemy import select
+    from app.models.contact import Contact
+
+    name = (args.get("name") or "").strip()
+    if not name:
+        return {"success": False, "message": "Necesito el nombre del contacto."}
+
+    uid = uuid.UUID(user_id)
+    result = await session.execute(
+        select(Contact).where(Contact.user_id == uid, Contact.name == name)
+    )
+    existing = result.scalar_one_or_none()
+
+    if existing:
+        if args.get("phone_number"):
+            existing.phone_number = args["phone_number"]
+        if args.get("email"):
+            existing.email = args["email"]
+        if args.get("whatsapp_id"):
+            existing.whatsapp_id = args["whatsapp_id"]
+        if args.get("relationship"):
+            existing.relationship = args["relationship"]
+        if args.get("notes"):
+            existing.contact_notes = args["notes"]
+        await session.flush()
+        return {"success": True, "message": f"Contacto '{name}' actualizado."}
+
+    contact = Contact(
+        user_id=uid, name=name,
+        phone_number=args.get("phone_number"),
+        email=args.get("email"),
+        whatsapp_id=args.get("whatsapp_id"),
+        relationship=args.get("relationship"),
+        contact_notes=args.get("notes"),
+    )
+    session.add(contact)
+    await session.flush()
+    rel_msg = f" ({args['relationship']})" if args.get("relationship") else ""
+    return {"success": True, "message": f"Contacto '{name}'{rel_msg} guardado."}
+
+
+async def handle_list_contacts(session, user_id: str, args: dict) -> dict:
+    """List contacts, optionally filtered."""
+    import uuid
+    from sqlalchemy import select
+    from app.models.contact import Contact
+
+    uid = uuid.UUID(user_id)
+    search = (args.get("search") or "").strip()
+    relationship = (args.get("relationship") or "").strip()
+
+    query = select(Contact).where(Contact.user_id == uid)
+    if relationship:
+        query = query.where(Contact.relationship == relationship)
+    if search:
+        query = query.where(Contact.name.ilike(f"%{search}%"))
+    query = query.order_by(Contact.name)
+
+    result = await session.execute(query)
+    contacts = result.scalars().all()
+
+    if not contacts:
+        return {"success": True, "message": "No tenés contactos guardados. Decime 'guardá el contacto X' y empiezo.", "contacts": []}
+
+    contact_list = []
+    for c in contacts:
+        info_parts = []
+        if c.phone_number:
+            info_parts.append(f"📱 {c.phone_number}")
+        if c.email:
+            info_parts.append(f"✉️ {c.email}")
+        if c.whatsapp_id:
+            info_parts.append(f"💬 WA: {c.whatsapp_id}")
+        if c.relationship:
+            info_parts.append(f"👥 {c.relationship}")
+        contact_list.append({
+            "name": c.name,
+            "info": " | ".join(info_parts) if info_parts else "sin datos",
+            "phone": c.phone_number,
+            "email": c.email,
+            "relationship": c.relationship,
+            "notes": c.contact_notes,
+        })
+
+    return {
+        "success": True,
+        "message": f"Tenés {len(contacts)} contacto(s).",
+        "contacts": contact_list,
+    }
+
+
 # =============================================================================
 # TOOL DISPATCHER — maps tool name to handler function
 # =============================================================================
@@ -1184,6 +1341,8 @@ TOOL_HANDLERS: dict[str, Any] = {
     "save_project_task": handle_save_project_task,
     "list_project_tasks": handle_list_project_tasks,
     "complete_project_task": handle_complete_project_task,
+    "save_contact": handle_save_contact,
+    "list_contacts": handle_list_contacts,
 }
 
 

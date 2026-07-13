@@ -10,52 +10,12 @@ Plan general del proyecto, fases, hitos y funcionalidades por ola.
 
 ---
 
-## Fase 1 — MVP Técnico (Telegram primero) ✅ COMPLETADA — 2026-07-11
+## Fase 1 — MVP Técnico ✅ COMPLETADA — 2026-07-12
 
-**Canal:** Telegram Bot API (polling para dev, webhook listo para prod)
-**Arquitectura:** Agente unificado con 12 tools (DeepSeek function calling)
-**Visión/OCR:** Anthropic Claude Vision para documentos
-**Versión:** v2.1.0
+**Versión:** v2.2.0 | **Tools:** 17 | **Funcionalidades:** 15/15 completadas
+**Pendientes menores:** envío de fotos, skills SRI, tests
 
-### Entregables completados:
-
-#### Infraestructura y proyecto
-- [x] Estructura del proyecto FastAPI
-- [x] Docker Compose (PostgreSQL+pgvector, MinIO, Redis, Traefik)
-- [x] Alembic con async engine + migraciones
-- [x] Multi-LLM (DeepSeek para chat, Anthropic para visión, OpenAI para Whisper)
-- [x] Sistema de tools enchufables (12 tools con function calling)
-- [x] Agente unificado: system prompt + tools + conversation memory
-- [x] Skills Ecuador (modismos, matriculación, pico y placa)
-- [x] OCR de documentos (Anthropic Claude Vision)
-- [x] Resumen diario automático (8:00 AM)
-- [x] API vehicular externa (ANT/SRI/multas)
-- [ ] CI/CD básico
-
-#### Base de datos
-- [x] 18 tablas: users, messages, assets, events, reminders, topics, notes, lists, list_items, projects, project_tasks, contacts, caregiver_links, shared_expenses, shared_expense_participants, subscriptions, payments, subscription_invoices
-- [x] pgvector + HNSW + GIN indexes, ENUMs, JSONB
-
-#### Bot de Telegram
-- [x] Polling para desarrollo + webhook listo para prod
-- [x] Texto, fotos, voz, audio, documentos (PDF)
-- [x] Typing indicator, deduplicación
-- [x] Memoria de conversación multi-turno
-
-#### Funcionalidades
-- [x] Vehículos: guardar, consultar ANT/SRI, pico y placa, matriculación
-- [x] Documentos: cédula, SOAT, garantía, factura (con OCR)
-- [x] Eventos/Recordatorios con scheduler (15/7/3/0 días)
-- [x] Listas (compras, tareas, pendientes)
-- [x] Notas por tema
-- [x] Gastos compartidos
-- [x] Búsqueda semántica + historial de chat
-- [x] Resumen diario automático
-- [x] Correcciones de datos
-- [x] Conversación natural con personalidad ecuatoriana
-- [ ] Proyectos y Tareas
-- [ ] Contactos
-- [ ] Envío de fotos al usuario
+### Pendientes para Fase 2:
 
 ---
 

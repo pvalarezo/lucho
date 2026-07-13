@@ -1,94 +1,67 @@
 # PROGRESS.md — Lucho
 
-Estado actual de cada fase, módulo y entregable. Fase 1 completada el 2026-07-11.
-Rediseño de arquitectura a agente completado el 2026-07-12.
+Estado actual de cada fase, módulo y entregable. Fase 1 completada con rediseño a agente.
 
 ---
 
 ## Fase 0 — Validación ✅ COMPLETADA
+## Fase 1 — MVP Técnico ✅ COMPLETADA
 
-## Fase 1 — MVP Técnico ✅ COMPLETADA (2026-07-11)
-## Fase 1.5 — Rediseño a Agente ✅ COMPLETADA (2026-07-12)
-## Fase 1.6 — OCR, Documentos, Digest ✅ COMPLETADA (2026-07-12)
+### Versiones
+| Tag | Fecha | Descripción |
+|-----|-------|-------------|
+| v2.0.0 | 2026-07-12 | Rediseño a arquitectura de agente |
+| v2.1.0 | 2026-07-12 | OCR documentos, digest diario, PDFs |
+| v2.2.0 | 2026-07-12 | Proyectos/tareas, recordatorios unificados, contactos |
 
-### Arquitectura del Agente — ✅ 100%
-- System prompt unificado: `lucho_system_prompt.py` (identidad, personalidad, límites)
-- 12 tools con function calling: save_vehicle, save_document, save_event, save_list, save_note, save_expense, search_my_data, search_conversation, get_my_summary, update_last, check_vehicle_info, analyze_image
-- Agent loop con tool-calling (máx 3 rondas)
-- Memoria de conversación multi-turno (historial desde PostgreSQL)
-- Skills Ecuador: modismos, matriculación ANT, pico y placa Quito/Cuenca (3 MD + loader automático)
-- OCR de documentos: Anthropic Claude Vision extrae datos de fotos (cédula, SOAT, factura, garantía)
-- API externa: consulta vehicular ANT/SRI/multas por placa (check_vehicle_info)
-- Resumen diario automático (8:00 AM): vehículos, vencimientos, pendientes vía agente
-- Soporte para documentos/PDFs (upload a MinIO desde Telegram)
-- Fotos adjuntables a eventos, notas y documentos (photo_key cross-entity)
-- Código viejo eliminado: router.py, extractor.py
-- Webhook de producción actualizado al agente
-- Bot Telegram funcionando con agente (polling mode)
+### Arquitectura — ✅ 100%
+- Agente unificado: system prompt + 17 tools + conversation memory
+- Skills Ecuador: modismos, matriculación ANT, pico y placa Quito/Cuenca (3 MD)
+- Multi-LLM: DeepSeek (chat), Anthropic (visión/OCR), OpenAI (Whisper)
+- Canal de notificaciones agnóstico: Telegram + placeholders WhatsApp/email/SMS
 
-### Infraestructura y proyecto — ✅ 100%
-- Estructura FastAPI, Docker Compose (dev + prod), Dockerfile, Alembic
-- Multi-LLM (DeepSeek + Anthropic + OpenAI configurable), feature flags
-- `.env` configurado con DeepSeek + Anthropic + OpenAI + PostgreSQL :5434
-
-### Base de datos — ✅ 95%
-- 18 tablas: users, messages, assets, events, reminders, topics, notes, lists, list_items, projects, project_tasks, contacts, caregiver_links, shared_expenses, shared_expense_participants, subscriptions, payments, subscription_invoices
-- pgvector + HNSW indexes, GIN indexes, ENUMs, JSONB
-
-### Bot de Telegram — ✅ 100%
-- Polling mode (dev) + webhook endpoint (prod-ready, usa agente)
-- Typing indicator nativo, deduplicación
-- Texto, fotos, voz, audio, documentos (PDF, DOC, etc.)
-
-### Funcionalidades completadas
+### Funcionalidades — 15 completadas
 
 | # | Funcionalidad | Tools | Estado |
 |---|--------------|-------|--------|
-| 1 | Vehículos (guardar, consultar ANT/SRI) | save_vehicle, check_vehicle_info | ✅ |
-| 2 | Documentos (cédula, SOAT, garantía) | save_document, analyze_image | ✅ |
-| 3 | OCR/Visión de documentos | analyze_image (Anthropic Vision) | ✅ |
-| 4 | Eventos/Recordatorios | save_event + scheduler | ✅ |
-| 5 | Listas (compras, tareas) | save_list | ✅ |
-| 6 | Notas por tema | save_note | ✅ |
-| 7 | Gastos compartidos | save_expense | ✅ |
-| 8 | Búsqueda (datos + historial chat) | search_my_data, search_conversation | ✅ |
-| 9 | Resumen diario automático | daily_digest (8:00 AM) | ✅ |
-| 10 | Correcciones | update_last | ✅ |
-| 11 | Conversación natural con memoria | Agente multi-turno | ✅ |
-| 12 | Skills Ecuador | 3 MD + loader | ✅ |
+| 1 | Vehículos (guardar, ANT/SRI, pico y placa) | save_vehicle, check_vehicle_info | ✅ |
+| 2 | Documentos (cédula, SOAT, garantía, OCR) | save_document, analyze_image | ✅ |
+| 3 | Eventos/Recordatorios | save_event + scheduler | ✅ |
+| 4 | Listas (compras, tareas) | save_list | ✅ |
+| 5 | Notas por tema | save_note | ✅ |
+| 6 | Gastos compartidos | save_expense | ✅ |
+| 7 | Búsqueda (datos + historial chat) | search_my_data, search_conversation | ✅ |
+| 8 | Resumen diario automático 8 AM | daily_digest | ✅ |
+| 9 | Correcciones | update_last | ✅ |
+| 10 | Conversación natural + memoria | Agente multi-turno | ✅ |
+| 11 | Skills Ecuador | 3 MD + loader | ✅ |
+| 12 | Proyectos y Tareas | save/list/complete_project_task | ✅ |
+| 13 | Contactos (nombre, tel, email, WA) | save_contact, list_contacts | ✅ |
+| 14 | Recordatorios unificados | Scheduler: eventos 15/7/3/0, docs 30/15/7, proyectos 7/3/1 | ✅ |
+| 15 | Notificaciones multi-canal | notifications.py (Telegram + placeholders) | ✅ |
 
-### Motor de Reglas — ✅ 100%
-- Recordatorios unificados: eventos 15/7/3/0, documentos 30/15/7, proyectos 7/3/1
-- Canal de notificaciones agnóstico: Telegram (hoy), WhatsApp/email/SMS (placeholders)
-- Matriculación por placa (ANT Ecuador), pico y placa (Quito/Cuenca)
+### Pendientes
+
+| # | Tarea | Prioridad | Esfuerzo |
+|---|-------|-----------|----------|
+| 1 | Envío de fotos al usuario | 🔴 Alta | 1h |
+| 2 | Skills Ecuador SRI/legal | 🟡 Media | 30min |
+| 3 | Tests actualizados | 🟡 Media | 1h |
+| 4 | Web search tool | 🟢 Baja | 30min |
+| 5 | Dashboard métricas | 🟢 Futuro | — |
+
+### Infraestructura — ✅ 100%
+- FastAPI, Docker Compose, Alembic, 18 tablas PostgreSQL + pgvector
+- MinIO (fotos/documentos), Redis (configurado), sentence-transformers (embeddings locales)
+- Bot Telegram polling + webhook prod-ready
 - APScheduler: daily_rules + daily_digest (8:00 AM)
-
-### Pendientes reales
-
-| # | Funcionalidad | Tablas existentes | Prioridad |
-|---|--------------|-------------------|-----------|
-| 1 | **Proyectos y Tareas** | projects, project_tasks | 🔴 Alta |
-| 2 | **Contactos** | contacts | 🟡 Media |
-| 3 | **Envío de fotos al usuario** | MinIO download | 🟡 Media |
-| 4 | **Suscripción/Facturación** | subscriptions, payments | 🟢 Futuro |
-| 5 | **Cuidadores (modo familia)** | caregiver_links | 🟢 Futuro |
 
 ---
 
 ## Fase 2 — Beta Cerrada 📋 PLANEADA
-## Fase 3 — Lanzamiento con Monetización 📋 PLANEADA
+## Fase 3 — Lanzamiento 📋 PLANEADA
 ## Fase 4 — SMB 📋 FUTURO
 ## Fase 5 — Expansión 📋 FUTURO
-
----
-
-## Tags de versión
-
-| Tag | Descripción |
-|-----|-------------|
-| v0.1.0 → v1.5.2 | MVP inicial (router + extractor) |
-| v2.0.0 | Rediseño a arquitectura de agente |
-| v2.1.0 | OCR documentos, digest diario, documentos/PDFs |
 
 ---
 
@@ -96,4 +69,3 @@ Rediseño de arquitectura a agente completado el 2026-07-12.
 - ✅ Completado
 - 🔨 En progreso
 - ⬚ Pendiente
-- ❌ Cancelado

@@ -19,6 +19,7 @@ class Contact(UUIDMixin, TimestampMixin, Base):
     name: Mapped[str] = mapped_column(String(256), nullable=False)
 
     phone_number: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    email: Mapped[str | None] = mapped_column(String(256), nullable=True)
     telegram_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     whatsapp_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
