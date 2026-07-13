@@ -2,29 +2,27 @@
 
 ---
 
-## Sesión actual — 2026-07-11 (MARATÓN COMPLETADA)
+## Sesión actual — 2026-07-12 (REDISEÑO A AGENTE)
 
-**Fase 1 del MVP 100% completada en una sesión.**
+**Arquitectura de agente completada. Fase 1 cerrada con rediseño mayor.**
 
-### Entregables:
-- ✅ 19 tablas PostgreSQL + pgvector + migraciones
-- ✅ Bot Telegram con polling (funcionando)
-- ✅ Pipeline IA: DeepSeek router (9 targets) + extractor + tool system
-- ✅ Embeddings locales (sentence-transformers, gratuito)
-- ✅ AI Vision: análisis de imágenes sin caption
-- ✅ Motor vehicular: matriculación, pico y placa, cron diario
-- ✅ Búsqueda semántica + contextual + templates híbridos
-- ✅ MinIO: upload/download de documentos
-- ✅ Suite de tests: 41/41 normal + 57/57 stress + 12/12 embeddings
-- ✅ 23 tags: v0.1.0 → v1.5.2
+### Entregables de la sesión:
+- ✅ System prompt unificado: `lucho_system_prompt.py` (identidad, personalidad, límites)
+- ✅ 11 tools con function calling (DeepSeek): save_vehicle, save_document, save_event, save_list, save_note, save_expense, search_my_data, search_conversation, get_my_summary, update_last, check_vehicle_info
+- ✅ Agent loop con tool-calling (máx 3 rondas)
+- ✅ Memoria de conversación multi-turno (historial desde PostgreSQL)
+- ✅ Skills Ecuador: modismos, matriculación ANT, pico y placa Quito/Cuenca (3 MD + loader automático)
+- ✅ API externa: consulta vehicular ANT/SRI/multas por placa (check_vehicle_info)
+- ✅ Búsqueda en historial de chat (search_conversation)
+- ✅ Código viejo eliminado: router.py, extractor.py (~350 líneas menos)
+- ✅ Webhook de producción actualizado al agente
+- ✅ Bot Telegram funcionando con arquitectura de agente
+- ✅ PROGRESS.md y NEXT_SESSION.md actualizados
+- ⬚ Tests actualizados para reflejar nueva arquitectura
 
 ### Tags creados hoy:
 ```
-v0.1.0 → v0.2.0 → v0.2.1 → v0.3.0 → v0.4.0 → v0.5.0 → v0.6.0
-→ v0.7.0 → v0.8.0 → v0.9.0 → v0.9.1 → v0.9.2 → v0.10.0
-→ v0.10.1 → v0.10.2 → v0.10.3 → v0.10.4 → v0.11.0 → v0.12.0
-→ v0.13.0 → v1.0.0 → v1.1.0 → v1.2.0 → v1.3.0 → v1.3.1
-→ v1.4.0 → v1.4.1 → v1.5.0 → v1.5.1 → v1.5.2
+v2.0.0 — Rediseño a arquitectura de agente
 ```
 
 ---
@@ -33,39 +31,43 @@ v0.1.0 → v0.2.0 → v0.2.1 → v0.3.0 → v0.4.0 → v0.5.0 → v0.6.0
 
 ### 🔴 ALTA PRIORIDAD
 
-**1. Documento de sistema (System Prompt / Knowledge Base)**
-Crear un documento `SYSTEM.md` o `app/knowledge/base.py` que contenga:
-- Identidad de Lucho: quién es, personalidad, tono
-- Capacidades completas: qué puede y qué no puede hacer
-- Límites y guardrails: hasta dónde llega
-- Contexto Ecuador: regulaciones, cultura, modismos
-- Formato de respuestas: cómo debe contestar
+**1. OCR/Visión de facturas**
+Extraer datos estructurados de facturas ecuatorianas usando DeepSeek Vision:
+- RUC del emisor
+- Total, subtotal, IVA
+- Fecha de emisión
+- Ítems o descripción
+- Guardar como asset tipo "factura" con atributos JSONB
 
-Este documento se inyecta en los prompts del LLM para que TODAS las respuestas (meta, confirmaciones, búsquedas) sean naturales y contextuales, sin textos quemados en código. Es la "personalidad" de Lucho.
+**2. Actualizar tests**
+La suite de tests (tests/suite.py, tests/stress.py) referencia el pipeline viejo (router, extractor). Actualizar para probar el agente.
 
-**2. Vista `searchable_content`**
-Crear la vista SQL que unifica notes + list_items + assets para búsqueda global.
-
-**3. OCR/Visión de facturas**
-Extraer datos estructurados de facturas ecuatorianas (RUC, total, fecha, ítems) usando DeepSeek Vision.
+**3. Resumen diario/semanal programado**
+APScheduler que arme un digest con:
+- Próximos vencimientos (7 días)
+- Pendientes sin completar
+- Pico y placa del día
+- Eventos del día
+Enviar vía Telegram al usuario (opt-in).
 
 ### 🟡 MEDIA PRIORIDAD
 
-**4. Resumen diario/semanal programado**
-APScheduler que envíe un digest al usuario con: próximos vencimientos, pendientes, pico y placa del día.
+**4. Skills Ecuador adicionales**
+- `sri/facturacion.md` — IVA, RUC, retenciones, facturación electrónica
+- `legal/documentos.md` — Cédula, pasaporte, licencia, vigencia, renovación
+- `transito/multas.md` — Tipos de multas, cómo pagar, puntos licencia
 
-**5. Mejorar extracción de documentos**
-- Extraer `document_type` (cédula vs pasaporte vs licencia)
-- Alertas de vencimiento para documentos
-- Vincular eventos automáticos a documentos
+**5. Mejorar manejo de fotos**
+- Vincular fotos a documentos guardados
+- Enviar foto del documento cuando el usuario la pide ("pasame mi cédula")
 
 ### 🟢 BAJA PRIORIDAD
 
-**6. Comandos de voz mejorados**
-Mejorar el flujo de notas de voz con confirmación más natural.
+**6. Web search tool para Lucho**
+Usar DeepSeek search o DuckDuckGo para consultas de información actual ecuatoriana (feriados, cambios regulatorios).
 
 **7. Dashboard de métricas**
-Precisión del router, retención, uso por tipo de mensaje.
+Precisión del agente, retención, uso por tipo de tool.
 
 ---
 
@@ -80,7 +82,12 @@ python3 run_bot.py
 uvicorn app.main:app --port 8000
 
 # Tests
-python3 tests/suite.py      # 41 casos
-python3 tests/stress.py     # 57 casos (ortografía, contexto)
+python3 tests/suite.py      # 41 casos (necesita actualización)
+python3 tests/stress.py     # 57 casos (necesita actualización)
 python3 tests/embeddings.py # 12 casos (semántica)
+
+# Git
+git add -A && git commit -m "mensaje"
+git tag v2.0.0 -m "Arquitectura de agente"
+git push --tags
 ```

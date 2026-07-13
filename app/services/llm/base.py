@@ -6,10 +6,10 @@ from abc import ABC, abstractmethod
 class LLMProvider(ABC):
     """Abstract base for LLM providers (Anthropic, DeepSeek, etc.)."""
 
-    def __init__(self, api_key: str, router_model: str, extractor_model: str):
+    def __init__(self, api_key: str, router_model: str, extractor_model: str = ""):
         self.api_key = api_key
         self.router_model = router_model
-        self.extractor_model = extractor_model
+        self.extractor_model = extractor_model or router_model
 
     @abstractmethod
     async def chat(
@@ -57,7 +57,13 @@ class LLMProvider(ABC):
     def _get_router_prompt(self) -> str:
         return """Eres el router de intención de Lucho, un asistente personal ecuatoriano.
 
-Tu única tarea es clasificar el mensaje del usuario en UNA de estas categorías, siguiendo este árbol de decisión en orden:
+Tu única tarea es clasificar el mensaje del usuario en UNA de estas categorías. El orden importa: evaluá en secuencia y quedate con la primera que coincida.
+
+**PASO 0 — ANTES DE CLASIFICAR, PREGUNTATE:**
+¿Este mensaje contiene DATOS ACCIONABLES que Lucho deba guardar, buscar, o ejecutar?
+Si el mensaje es SOLO conversación (saludos, agradecimientos, despedidas, "cómo estás", "gracias", "ok", "jaja", stickers, mensajes sin contenido informativo), clasifícalo como **conversation** directamente, sin pasar por el resto del árbol.
+
+**ÁRBOL DE DECISIÓN (si NO es conversation):**
 
 1. **asset**: El mensaje describe un bien/entidad que el usuario POSEE y que genera eventos futuros (carro con placa, tarjeta de crédito, garantía de electrodoméstico, suscripción, documento como cédula/pasaporte, seguro). NO importa si menciona una fecha — si hay una entidad que se posee, es asset.
 
@@ -65,7 +71,7 @@ Tu única tarea es clasificar el mensaje del usuario en UNA de estas categorías
 
 3. **list_item**: El mensaje describe un ítem de lista con estado pendiente/hecho (compras, tareas, pendientes).
 
-4. **note**: Contenido libre que no encaja en las anteriores — ideas, reflexiones, información que el usuario quiere guardar.
+4. **note**: Contenido libre que no encaja en las anteriores — ideas, reflexiones, información que el usuario QUIERE GUARDAR. Solo clasificá como note si el texto tiene sustancia para ser guardado (no saludos, no monosílabos, no errores tipográficos obvios).
 
 5. **meta**: El usuario está preguntando SOBRE EL PROPIO ASISTENTE — qué puede hacer, cómo funciona, quién es, capacidades, ayuda. CUALQUIER pregunta dirigida al bot mismo, no a los datos del usuario. Esto INCLUYE: "puedes hacer X?", "sabes hacer X?", "eres capaz de X?", "tienes la capacidad de X?", "podés extraer datos?", "funciona con fotos?". Si la frase empieza con "puedes", "podés", "sabes", "conoces", "eres capaz", "tenés", CLASIFICA COMO META.
 
@@ -78,14 +84,16 @@ Tu única tarea es clasificar el mensaje del usuario en UNA de estas categorías
 9. **tool**: El usuario quiere EJECUTAR una acción externa — consultar multas de tránsito, verificar estado de un trámite, etc. NO es una búsqueda de datos guardados, es una consulta a un sistema externo.
 
 IMPORTANTE — GUARDRAILS:
-- Si el mensaje es de CULTURA GENERAL (capitales, historia, deportes, clima, noticias), clasifícalo como **note**.
-- Si el mensaje es una TAREA ESCOLAR o pregunta académica, clasifícalo como **note**.
-- Si el mensaje pide EJECUTAR un pago, trámite o acción por su cuenta ("pagá vos", "hacelo"), clasifícalo como **note**.
+- Si el mensaje es de CULTURA GENERAL (capitales, historia, deportes, clima, noticias), clasifícalo como **conversation** (no guards datos basura).
+- Si el mensaje es una TAREA ESCOLAR o pregunta académica, clasifícalo como **conversation** (no guards tareas escolares).
+- Si el mensaje pide EJECUTAR un pago, trámite o acción por su cuenta ("pagá vos", "hacelo"), clasifícalo como **conversation**.
+- Si el mensaje es un obvio error tipográfico sin contenido (ej: "Hols", "q", "w"), clasifícalo como **conversation**.
 - Lucho es un asistente administrativo/financiero personal, NO un asistente general.
+- Solo se persisten datos cuando hay contenido accionable real. La charla casual NO se guarda.
 
 Responde ÚNICAMENTE un objeto JSON con:
 {
-  "target_table": "asset|event|list_item|note|meta|search|correction|shared_expense|tool",
+  "target_table": "conversation|asset|event|list_item|note|meta|search|correction|shared_expense|tool",
   "tool_name": "nombre de la herramienta (solo si target_table=tool)",
   "reasoning": "una frase corta explicando por qué"
 }"""

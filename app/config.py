@@ -54,6 +54,10 @@ class Settings(BaseSettings):
     EMBEDDING_PROVIDER: str = "none"  # "openai" | "local" | "none"
     OPENAI_EMBEDDING_MODEL: str = "text-embedding-3-small"
 
+    # ---- External APIs ----
+    VEHICLE_INFO_API_URL: str = "http://131.161.221.131:2356/v1/info/all/vehicle/"
+    VEHICLE_INFO_API_TOKEN: str = ""
+
     # ---- Feature Flags ----
     CONTEXTUAL_RESPONSES: bool = True  # LLM-powered conversational answers
 

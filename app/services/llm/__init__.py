@@ -34,7 +34,6 @@ def get_llm_provider() -> LLMProvider | None:
             _provider = AnthropicProvider(
                 api_key=settings.ANTHROPIC_API_KEY,
                 router_model=settings.ANTHROPIC_HAIKU_MODEL,
-                extractor_model=settings.ANTHROPIC_SONNET_MODEL,
             )
 
         case "deepseek":
@@ -46,7 +45,6 @@ def get_llm_provider() -> LLMProvider | None:
             _provider = DeepSeekProvider(
                 api_key=settings.DEEPSEEK_API_KEY,
                 router_model=settings.DEEPSEEK_ROUTER_MODEL,
-                extractor_model=settings.DEEPSEEK_EXTRACTOR_MODEL,
             )
 
         case _:
