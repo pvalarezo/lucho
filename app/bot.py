@@ -105,7 +105,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif has_voice or has_audio:
         message_type = MessageType.audio
     elif has_document:
-        message_type = MessageType.photo  # treat documents like photos (store in MinIO)
+        message_type = MessageType.photo  # treat documents like files (store in MinIO)
     else:
         message_type = MessageType.text
 
@@ -151,14 +151,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     return
 
             # ---- Photo: upload to MinIO, let agent handle analysis ----
-            photo_object_key = None
+            file_object_key = None
             if has_photo:
                 try:
                     largest_photo = msg.photo[-1]
                     file = await context.bot.get_file(largest_photo.file_id)
                     photo_bytes = await file.download_as_bytearray()
                     from app.services import minio as minio_svc
-                    photo_object_key = await minio_svc.upload_file(
+                    file_object_key = await minio_svc.upload_file(
                         user_id=str(user.id),
                         file_bytes=bytes(photo_bytes),
                         filename=f"photo_{msg.message_id}.jpg",
@@ -167,9 +167,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 except Exception as exc:
                     logger.exception("Photo upload failed: %s", exc)
 
-                # If no caption, add photo context to the message for the agent
-                if not text and photo_object_key:
-                    text = f"[foto: {photo_object_key}]"
+                # Include file_key context for the agent (always, with or without caption)
+                if not text and file_object_key:
+                    text = f"[foto: {file_object_key}]"
+                elif text and file_object_key:
+                    text = f"[foto: {file_object_key}] {text}"
 
             # ---- Document (PDF, DOC, etc.): upload to MinIO ----
             doc_object_key = None
@@ -190,11 +192,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         text = f"[documento: {doc_name} → {doc_object_key}]"
                     else:
                         text = f"{text}\n[documento adjunto: {doc_name} → {doc_object_key}]"
-                    await msg.reply_text(f"📄 Guardé tu archivo *{doc_name}*.", parse_mode="Markdown")
                 except Exception as exc:
                     logger.exception("Document upload failed: %s", exc)
 
-            file_path = photo_object_key or doc_object_key or f"telegram://{chat_id}/{msg.message_id}"
+            file_path = file_object_key or doc_object_key or f"telegram://{chat_id}/{msg.message_id}"
 
             # ---- Save raw message ----
             db_message = await message_svc.create_message(
@@ -219,20 +220,20 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
 
             response_text = response.get("text", "") if isinstance(response, dict) else response
-            photos = response.get("photos", []) if isinstance(response, dict) else []
+            files = response.get("files", []) if isinstance(response, dict) else []
 
-            # ---- Send photos first (if any) ----
+            # ---- Send files first (if any) ----
             from app.services import minio as minio_svc
-            for photo_info in photos:
-                photo_key = photo_info.get("photo_key", "")
-                caption = photo_info.get("caption", "")
-                if not photo_key:
+            for file_info in files:
+                file_key = file_info.get("file_key", "")
+                caption = file_info.get("caption", "")
+                if not file_key:
                     continue
                 try:
-                    file_bytes = await minio_svc.download_file(photo_key)
+                    file_bytes = await minio_svc.download_file(file_key)
                     if file_bytes:
                         # Detect if image or document by extension
-                        filename = photo_info.get("filename", photo_key.split("/")[-1])
+                        filename = file_info.get("filename", file_key.split("/")[-1])
                         is_image = filename.lower().endswith((".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"))
                         if is_image:
                             await msg.reply_photo(
@@ -247,32 +248,29 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             )
                         logger.info("Sent %s to user via Telegram", filename)
                     else:
-                        logger.warning("Photo not found in MinIO: %s", photo_key)
+                        logger.warning("Photo not found in MinIO: %s", file_key)
                 except Exception as exc:
-                    logger.exception("Failed to send photo '%s': %s", photo_key, exc)
+                    logger.exception("Failed to send photo '%s': %s", file_key, exc)
 
             # ---- Send text response ----
-            # If there are photos and the response text is just a confirmation,
+            # If there are files and the response text is just a confirmation,
             # skip it to avoid redundant messages (the photo caption already says it)
             if response_text:
                 # Skip redundant text when photo was sent successfully
                 skip_text = (
-                    photos
+                    files
                     and len(response_text) < 80
                     and any(phrase in response_text.lower() for phrase in [
                         "aquí está", "aquí tenés", "listo", "acá está"
                     ])
                 )
                 if not skip_text:
-                    await msg.reply_text(
-                        response_text,
-                        parse_mode="Markdown",
-                    )
+                    await msg.reply_text(response_text)
 
             # Update message status
             db_message.extraction_result = {
                 "agent_response": response_text,
-                "photos_sent": len(photos),
+                "files_sent": len(files),
                 "telegram_message_id": msg.message_id,
             }
             await message_svc.update_message_status(session, db_message, MessageStatus.confirmed)

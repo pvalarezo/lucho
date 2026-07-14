@@ -77,7 +77,7 @@ TOOL_SAVE_DOCUMENT = {
     "type": "function",
     "function": {
         "name": "save_document",
-        "description": "Guardar un documento personal del usuario: cédula de identidad, pasaporte, licencia de conducir, SOAT, garantía, factura, o cualquier documento con fecha de vencimiento.",
+        "description": "Guardar un documento personal del usuario: cédula de identidad, pasaporte, licencia de conducir, SOAT, garantía, factura, o cualquier documento con fecha de vencimiento. SIEMPRE pasá el file_key si viene de analyze_image o de un archivo adjunto.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -101,6 +101,10 @@ TOOL_SAVE_DOCUMENT = {
                     "type": "string",
                     "description": "Notas adicionales.",
                 },
+                "file_key": {
+                    "type": "string",
+                    "description": "Clave del archivo en MinIO. Viene del resultado de analyze_image o del mensaje [foto: X]. Formato: 'user_id/photo_123.jpg'. SIEMPRE incluir este campo si el usuario envió una foto.",
+                },
             },
             "required": ["document_type", "name"],
         },
@@ -111,7 +115,7 @@ TOOL_SAVE_EVENT = {
     "type": "function",
     "function": {
         "name": "save_event",
-        "description": "Guardar un evento, cita, reunión, o recordatorio con fecha. El usuario será notificado automáticamente unos días antes. Si el usuario adjuntó una foto (receta médica, invitación, captura), pasá el photo_key para vincularla.",
+        "description": "Guardar un evento, cita, reunión, o recordatorio con fecha. El usuario será notificado automáticamente unos días antes. Si el usuario adjuntó una foto (receta médica, invitación, captura), pasá el file_key para vincularla.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -131,7 +135,7 @@ TOOL_SAVE_EVENT = {
                     "type": "string",
                     "description": "Si el evento se repite. Opciones: 'none', 'daily', 'weekly', 'monthly', 'yearly'.",
                 },
-                "photo_key": {
+                "file_key": {
                     "type": "string",
                     "description": "Clave de foto en MinIO si el usuario adjuntó una imagen. Formato: 'user_id/photo_123.jpg'.",
                 },
@@ -172,7 +176,7 @@ TOOL_SAVE_NOTE = {
     "type": "function",
     "function": {
         "name": "save_note",
-        "description": "Guardar una nota, idea, reflexión o información libre del usuario, organizada por tema. Si el usuario adjuntó una foto, pasá el photo_key para vincularla a la nota.",
+        "description": "Guardar una nota, idea, reflexión o información libre del usuario, organizada por tema. Si el usuario adjuntó una foto, pasá el file_key para vincularla a la nota.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -184,7 +188,7 @@ TOOL_SAVE_NOTE = {
                     "type": "string",
                     "description": "Contenido completo de la nota.",
                 },
-                "photo_key": {
+                "file_key": {
                     "type": "string",
                     "description": "Clave de foto en MinIO si el usuario adjuntó una imagen. Formato: 'user_id/photo_123.jpg'.",
                 },
@@ -264,11 +268,11 @@ TOOL_ANALYZE_IMAGE = {
     "type": "function",
     "function": {
         "name": "analyze_image",
-        "description": "Analizar una imagen o documento que el usuario envió y extraer datos estructurados. Usar cuando el usuario envía una foto de un documento (SOAT, factura, cédula, licencia, garantía, matrícula) y quiere que Lucho extraiga la información. El parámetro photo_key viene del contexto del mensaje.",
+        "description": "Analizar una imagen o documento que el usuario envió y extraer datos estructurados. Usar cuando el usuario envía una foto de un documento (SOAT, factura, cédula, licencia, garantía, matrícula) y quiere que Lucho extraiga la información. El parámetro file_key viene del contexto del mensaje.",
         "parameters": {
             "type": "object",
             "properties": {
-                "photo_key": {
+                "file_key": {
                     "type": "string",
                     "description": "Clave del archivo en MinIO (viene en el mensaje del usuario como 'minio://...').",
                 },
@@ -277,7 +281,7 @@ TOOL_ANALYZE_IMAGE = {
                     "description": "Pista del usuario sobre qué tipo de documento es. Ej: 'factura del súper', 'mi SOAT', 'la garantía de la lavadora'.",
                 },
             },
-            "required": ["photo_key"],
+            "required": ["file_key"],
         },
     },
 }
@@ -482,20 +486,20 @@ TOOL_SEND_PHOTO = {
     "type": "function",
     "function": {
         "name": "send_photo",
-        "description": "Enviar una foto o documento adjunto al usuario. Usar cuando el usuario pide ver algo: 'pasame mi cédula', 'mostrame el SOAT', 'enseñame la factura', 'quiero ver el documento'. El photo_key viene de los resultados de búsqueda o de los atributos del documento guardado.",
+        "description": "Enviar una foto O documento (PDF, DOC) al usuario. Funciona para cualquier tipo de archivo guardado. Usar cuando el usuario pide ver, descargar o recibir algo: 'pasame mi cédula', 'mostrame el SOAT', 'enseñame la factura', 'descargar el PDF', 'quiero ver el documento', 'mandame el archivo'. El file_key viene de los resultados de búsqueda.",
         "parameters": {
             "type": "object",
             "properties": {
-                "photo_key": {
+                "file_key": {
                     "type": "string",
-                    "description": "Clave del archivo en MinIO. Viene de los resultados de búsqueda como 'photo_key'. Ej: 'user_id/photo_123.jpg'.",
+                    "description": "Clave del archivo en MinIO (aplica a fotos JPG/PNG Y documentos PDF/DOC). Viene de los resultados de búsqueda como 'file_key'. Ej: 'user_id/photo_123.jpg' o 'user_id/doc_456_factura.pdf'.",
                 },
                 "caption": {
                     "type": "string",
                     "description": "Texto descriptivo para acompañar la foto. Ej: 'Tu cédula de identidad', 'SOAT del PBC-1234'.",
                 },
             },
-            "required": ["photo_key"],
+            "required": ["file_key"],
         },
     },
 }
@@ -602,8 +606,8 @@ async def handle_save_document(session, user_id: str, args: dict) -> dict:
         attrs["expiry_date"] = args["expiry_date"]
     if args.get("entity_name"):
         attrs["entity_name"] = args["entity_name"]
-    if args.get("photo_key"):
-        attrs["photo_key"] = args["photo_key"]
+    if args.get("file_key"):
+        attrs["file_key"] = args["file_key"]
 
     try:
         await persist_asset(
@@ -615,11 +619,11 @@ async def handle_save_document(session, user_id: str, args: dict) -> dict:
             notes=args.get("notes"),
         )
         expiry_msg = f", vence {attrs['expiry_date']}" if "expiry_date" in attrs else ""
-        has_photo = " (con foto)" if "photo_key" in attrs else ""
+        has_photo = " (con foto)" if "file_key" in attrs else ""
         return {
             "success": True,
             "message": f"Documento '{name}' guardado{expiry_msg}{has_photo}.",
-            "photo_key": attrs.get("photo_key"),
+            "file_key": attrs.get("file_key"),
         }
     except Exception as exc:
         logger.exception("Failed to save document: %s", exc)
@@ -633,7 +637,7 @@ async def handle_save_event(session, user_id: str, args: dict) -> dict:
     title = (args.get("title") or "evento").strip()
     target_date = args.get("target_date", "")
     recurrence = args.get("recurrence", "none")
-    photo_key = args.get("photo_key", "")
+    file_key = args.get("file_key", "")
 
     if not target_date:
         return {"success": False, "message": "Necesito saber la fecha del evento."}
@@ -643,8 +647,8 @@ async def handle_save_event(session, user_id: str, args: dict) -> dict:
         recurrence_rule = {"freq": recurrence, "interval": 1}
 
     description = args.get("description") or ""
-    if photo_key:
-        description = f"{description}\n[📸 foto: {photo_key}]".strip()
+    if file_key:
+        description = f"{description}\n[📸 foto: {file_key}]".strip()
 
     try:
         event = await persist_event(
@@ -657,13 +661,13 @@ async def handle_save_event(session, user_id: str, args: dict) -> dict:
             recurrence_rule=recurrence_rule,
         )
         recur_msg = f", se repite {recurrence}" if recurrence_rule else ""
-        photo_msg = " (con foto adjunta)" if photo_key else ""
+        photo_msg = " (con foto adjunta)" if file_key else ""
         return {
             "success": True,
             "message": f"Evento '{title}' agendado para {target_date}{recur_msg}{photo_msg}. Te recordaré antes.",
             "event_id": str(event.id),
             "target_date": target_date,
-            "photo_key": photo_key if photo_key else None,
+            "file_key": file_key if file_key else None,
         }
     except Exception as exc:
         logger.exception("Failed to save event: %s", exc)
@@ -795,18 +799,18 @@ async def handle_search_data(session, user_id: str, args: dict) -> dict:
                 plate = attrs.get("plate", "?")
                 pyp = attrs.get("pico_y_placa_days", "")
                 matric = attrs.get("next_matriculation", "")
-                photo_key = attrs.get("photo_key", "")
+                file_key = attrs.get("file_key", "")
                 lines = [f"🚗 {plate} — {v.name}"]
                 if pyp:
                     lines.append(f"   Pico y placa: {pyp}")
                 if matric:
                     lines.append(f"   Matriculación: {matric}")
-                if photo_key:
-                    lines.append(f"   📸 foto: {photo_key}")
+                if file_key:
+                    lines.append(f"   📸 foto: {file_key}")
                 results_parts.append("\n".join(lines))
                 item = {"type": "vehicle", "plate": plate, "name": v.name}
-                if photo_key:
-                    item["photo_key"] = photo_key
+                if file_key:
+                    item["file_key"] = file_key
                 found_items.append(item)
 
     # ---- Documents ----
@@ -826,16 +830,16 @@ async def handle_search_data(session, user_id: str, args: dict) -> dict:
                 attrs = d.attributes or {}
                 doc_type = attrs.get("document_type", d.asset_type.value)
                 expiry_date = attrs.get("expiry_date", "")
-                photo_key = attrs.get("photo_key", "")
+                file_key = attrs.get("file_key", "")
                 lines = [f"📄 {d.name} ({doc_type})"]
                 if expiry_date:
                     lines.append(f"   Vence: {expiry_date}")
-                if photo_key:
-                    lines.append(f"   📸 foto: {photo_key}")
+                if file_key:
+                    lines.append(f"   📸 foto: {file_key}")
                 results_parts.append("\n".join(lines))
                 item = {"type": "document", "document_type": doc_type, "name": d.name}
-                if photo_key:
-                    item["photo_key"] = photo_key
+                if file_key:
+                    item["file_key"] = file_key
                 found_items.append(item)
 
     # ---- Pending items ----
@@ -1111,15 +1115,15 @@ async def handle_analyze_image(session, user_id: str, args: dict) -> dict:
     from app.services import minio as minio_svc
     from app.services.vision import extract_document_data
 
-    photo_key = (args.get("photo_key") or "").strip()
+    file_key = (args.get("file_key") or "").strip()
     hint = (args.get("hint") or "").strip()
 
-    if not photo_key:
+    if not file_key:
         return {"success": False, "message": "No encuentro la foto. ¿Podés reenviarla?"}
 
     # Download from MinIO
     try:
-        image_bytes = await minio_svc.download_file(photo_key)
+        image_bytes = await minio_svc.download_file(file_key)
         if not image_bytes:
             return {"success": False, "message": "No pude acceder a la imagen. ¿Está bien guardada?"}
     except Exception as exc:
@@ -1142,8 +1146,8 @@ async def handle_analyze_image(session, user_id: str, args: dict) -> dict:
         "success": True,
         "document_type": doc_type,
         "extracted": extracted,
-        "photo_key": photo_key,
-        "_save_hint": f"AHORA llamá a save_document con document_type='{doc_type}', name='{extracted.get('title', doc_type)}', y photo_key='{photo_key}'. Incluí los datos extraídos en los parámetros que correspondan (expiry_date, entity_name, notes).",
+        "file_key": file_key,
+        "_save_hint": f"AHORA preguntale al usuario si quiere guardar este documento como '{doc_type}'. NO lo guardes sin confirmación. Si el usuario confirma, llamá a save_document con document_type='{doc_type}', name='{extracted.get('title', doc_type)}', file_key='{file_key}', y los datos extraídos.",
     }
 
 
@@ -1389,17 +1393,17 @@ async def handle_send_photo(session, user_id: str, args: dict) -> dict:
     """Validate photo exists in MinIO and return info so caller can send it."""
     from app.services import minio as minio_svc
 
-    photo_key = (args.get("photo_key") or "").strip()
-    if not photo_key:
+    file_key = (args.get("file_key") or "").strip()
+    if not file_key:
         return {"success": False, "message": "No encuentro esa foto. ¿Cuál querés ver?"}
 
     # Extract filename from key
-    filename = photo_key.split("/")[-1] if "/" in photo_key else photo_key
+    filename = file_key.split("/")[-1] if "/" in file_key else file_key
     caption = (args.get("caption") or "").strip()
 
     # Validate file exists in MinIO
     try:
-        file_bytes = await minio_svc.download_file(photo_key)
+        file_bytes = await minio_svc.download_file(file_key)
         if not file_bytes:
             return {"success": False, "message": f"No encontré el archivo '{filename}'. ¿Seguro que está guardado?"}
     except Exception as exc:
@@ -1409,7 +1413,7 @@ async def handle_send_photo(session, user_id: str, args: dict) -> dict:
     return {
         "success": True,
         "message": f"Listo, aquí está: {caption or filename}",
-        "photo_key": photo_key,
+        "file_key": file_key,
         "filename": filename,
         "caption": caption,
         "_action": "send_photo",

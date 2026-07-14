@@ -10,16 +10,22 @@ Estado actual de cada fase, módulo y entregable. Fase 1 completada con rediseñ
 ### Versiones
 | Tag | Fecha | Descripción |
 |-----|-------|-------------|
+| v2.6.0 | 2026-07-13 | Refactor file_key, flujo archivos sin auto-save, regla #0 NUNCA MIENTAS, sin Markdown |
+| v2.5.0 | 2026-07-13 | Tests actualizados: 267 unit offline (100%), suite + stress para agente |
+| v2.4.0 | 2026-07-13 | Skills Ecuador: documentos, SRI facturación, gastronomía, feriados (7 skills total) |
 | v2.3.0 | 2026-07-13 | Envío de fotos/docs: tool send_photo, búsqueda documentos, respuesta dict |
 | v2.2.0 | 2026-07-12 | Proyectos/tareas, recordatorios unificados, contactos |
 | v2.1.0 | 2026-07-12 | OCR documentos, digest diario, PDFs |
 | v2.0.0 | 2026-07-12 | Rediseño a arquitectura de agente |
 
 ### Arquitectura — ✅ 100%
-- Agente unificado: system prompt + 17 tools + conversation memory
-- Skills Ecuador: modismos, matriculación ANT, pico y placa Quito/Cuenca (3 MD)
+- Agente unificado: system prompt + 18 tools + conversation memory
+- Skills Ecuador: 7 skills en 4 dominios (culture, transit, legal, tax)
+- Estructura de skills en inglés (cumple AGENTS.md 2.1)
 - Multi-LLM: DeepSeek (chat), Anthropic (visión/OCR), OpenAI (Whisper)
 - Canal de notificaciones agnóstico: Telegram + placeholders WhatsApp/email/SMS
+- file_key como clave universal de almacenamiento (fotos y documentos)
+- MAX_TOOL_ROUNDS=5 para evitar mensajes "me enredé"
 
 ### Funcionalidades — 16 completadas
 
@@ -35,27 +41,37 @@ Estado actual de cada fase, módulo y entregable. Fase 1 completada con rediseñ
 | 8 | Resumen diario automático 8 AM | daily_digest | ✅ |
 | 9 | Correcciones | update_last | ✅ |
 | 10 | Conversación natural + memoria | Agente multi-turno | ✅ |
-| 11 | Skills Ecuador | 3 MD + loader | ✅ |
+| 11 | Skills Ecuador | 7 MD + loader | ✅ |
 | 12 | Proyectos y Tareas | save/list/complete_project_task | ✅ |
 | 13 | Contactos (nombre, tel, email, WA) | save_contact, list_contacts | ✅ |
 | 14 | Recordatorios unificados | Scheduler: eventos 15/7/3/0, docs 30/15/7, proyectos 7/3/1 | ✅ |
 | 15 | Notificaciones multi-canal | notifications.py (Telegram + placeholders) | ✅ |
 | 16 | Envío de fotos/docs al usuario | send_photo (detecta imagen vs documento, MinIO → Telegram) | ✅ |
 
+### Flujo de archivos — ✅ Refinado
+
+| Escenario | Comportamiento |
+|-----------|---------------|
+| Archivo sin instrucción | Sube a MinIO, LLM pregunta qué hacer |
+| Archivo con caption | Procesa según instrucción del usuario |
+| Mensaje previo + archivo | Usa historial de conversación como contexto |
+| Pedir archivo guardado | search_my_data → send_photo → envía el archivo |
+| Regla #0 | NUNCA decir "guardé"/"envié" sin haber ejecutado la tool |
+
 ### Pendientes
 
 | # | Tarea | Prioridad | Esfuerzo |
 |---|-------|-----------|----------|
-| 1 | Skills Ecuador SRI/legal | 🟡 Media | 30min |
-| 2 | Tests actualizados | 🟡 Media | 1h |
-| 3 | Web search tool | 🟢 Baja | 30min |
-| 4 | Dashboard métricas | 🟢 Futuro | — |
+| 1 | Web search tool | 🟢 Baja | 30min |
+| 2 | Dashboard métricas | 🟢 Futuro | — |
+| 3 | Skills adicionales (transporte, servicios básicos) | 🟢 Opcional | 40min |
 
 ### Infraestructura — ✅ 100%
 - FastAPI, Docker Compose, Alembic, 18 tablas PostgreSQL + pgvector
 - MinIO (fotos/documentos), Redis (configurado), sentence-transformers (embeddings locales)
-- Bot Telegram polling + webhook prod-ready
+- Bot Telegram polling + webhook prod-ready (ambos canales con upload a MinIO)
 - APScheduler: daily_rules + daily_digest (8:00 AM)
+- Tests: 267 unit offline + suite/stress integración
 
 ---
 

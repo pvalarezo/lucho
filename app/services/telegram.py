@@ -21,7 +21,6 @@ async def send_message(chat_id: int, text: str) -> dict | None:
     payload = {
         "chat_id": chat_id,
         "text": text,
-        "parse_mode": "Markdown",
     }
     async with httpx.AsyncClient(timeout=10) as client:
         try:

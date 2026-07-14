@@ -35,7 +35,7 @@ from app.services.llm import get_llm_provider
 logger = logging.getLogger(__name__)
 
 # Maximum tool call rounds to prevent infinite loops
-MAX_TOOL_ROUNDS = 3
+MAX_TOOL_ROUNDS = 5
 
 
 async def process_message(
@@ -52,12 +52,12 @@ async def process_message(
         user_message: Raw text from the user
 
     Returns:
-        Dict with 'text' (str) and optional 'photos' (list of photo info dicts).
-        Photos dicts: {'photo_key': str, 'filename': str, 'caption': str}
+        Dict with 'text' (str) and optional 'files' (list of file info dicts).
+        File dicts: {'file_key': str, 'filename': str, 'caption': str}
     """
     provider = get_llm_provider()
     if not provider:
-        return {"text": "Estoy teniendo problemas para pensar. ¿Intentamos en un momento?", "photos": []}
+        return {"text": "Estoy teniendo problemas para pensar. ¿Intentamos en un momento?", "files": []}
 
     # Load recent conversation history (last 5 exchanges) for context
     history = await _load_conversation_history(session, user_id)
@@ -89,7 +89,7 @@ async def process_message(
         )
     except Exception as exc:
         logger.exception("Agent loop failed for user %s: %s", user_id[:8], exc)
-        return {"text": "Tuve un problema procesando tu mensaje. ¿Lo intentamos de nuevo?", "photos": []}
+        return {"text": "Tuve un problema procesando tu mensaje. ¿Lo intentamos de nuevo?", "files": []}
 
 
 async def _load_conversation_history(session: AsyncSession, user_id: str, limit: int = 6) -> list[dict[str, Any]]:
@@ -136,7 +136,7 @@ async def _agent_loop(
     Internal agent loop with tool calling.
 
     Sends message → gets response → if tool call: execute → repeat → final text.
-    Returns {"text": str, "photos": list[dict]}.
+    Returns {"text": str, "files": list[dict]}.
     """
     # Build the message history
     # Order: system prompt → skills context → conversation history → current message
@@ -151,7 +151,7 @@ async def _agent_loop(
     messages.append({"role": "user", "content": user_message})
 
     tool_rounds = 0
-    photos_to_send: list[dict[str, str]] = []  # accumulate photo send requests
+    files_to_send: list[dict[str, str]] = []  # accumulate file send requests
 
     while tool_rounds < MAX_TOOL_ROUNDS:
         tool_rounds += 1
@@ -166,11 +166,11 @@ async def _agent_loop(
             )
         except Exception as exc:
             logger.exception("LLM call failed in agent loop: %s", exc)
-            return {"text": "Se me fue la señal un momento. ¿Me repetís?", "photos": photos_to_send}
+            return {"text": "Se me fue la señal un momento. ¿Me repetís?", "files": files_to_send}
 
         # ---- LLM responded with plain text (no tool call) ----
         if response.get("type") == "text":
-            return {"text": response["content"], "photos": photos_to_send}
+            return {"text": response["content"], "files": files_to_send}
 
         # ---- LLM requested tool call(s) ----
         if response.get("type") == "tool_calls":
@@ -198,8 +198,8 @@ async def _agent_loop(
 
                 # If tool requested photo send, collect it
                 if tool_result.get("_action") == "send_photo":
-                    photos_to_send.append({
-                        "photo_key": tool_result["photo_key"],
+                    files_to_send.append({
+                        "file_key": tool_result["file_key"],
                         "filename": tool_result.get("filename", "file"),
                         "caption": tool_result.get("caption", ""),
                     })
@@ -226,4 +226,4 @@ async def _agent_loop(
         MAX_TOOL_ROUNDS,
         user_id[:8],
     )
-    return {"text": "Me enredé un poco. ¿Podemos empezar de nuevo?", "photos": photos_to_send}
+    return {"text": "Me enredé un poco. ¿Podemos empezar de nuevo?", "files": files_to_send}

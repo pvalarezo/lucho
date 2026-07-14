@@ -6,7 +6,7 @@ They are loaded and injected as user-message context (not system prompt)
 so the base system prompt stays short and cacheable.
 
 Loading strategy:
-- "always" skills: loaded for every message (modismos, cultura general)
+- "always" skills: loaded for every message (idioms, general culture)
 - "on-demand" skills: loaded only when the message contains trigger keywords
 """
 
@@ -19,27 +19,41 @@ SKILLS_DIR = Path(__file__).parent
 
 # Skills loaded for every message (always relevant)
 ALWAYS_SKILLS = [
-    "cultura/modismos.md",
+    "culture/idioms.md",
 ]
 
 # Skills loaded on-demand based on keyword triggers
 ON_DEMAND_SKILLS = {
-    "transito/matriculacion.md": [
+    "transit/registration.md": [
         "matriculación", "matricula", "matricular", "soat", "rtv",
         "revisión técnica", "revision tecnica", "placa", "ant",
         "renovar", "renovación",
     ],
-    "transito/pico-y-placa.md": [
+    "transit/driving-restrictions.md": [
         "pico y placa", "pico placa", "restricción", "restriccion",
         "no circula", "circulación", "quito", "cuenca", "multa",
     ],
-    "legal/documentos.md": [
+    "legal/documents.md": [
         "cédula", "cedula", "pasaporte", "licencia", "registro civil",
-        "renovar documento", "vencimiento documento",
+        "renovar documento", "vencimiento documento", "antecedentes penales",
+        "certificado de votación", "certificado de votacion", "partida",
     ],
-    "sri/facturacion.md": [
+    "tax/invoicing.md": [
         "factura", "sri", "iva", "ruc", "impuesto", "declaración",
-        "declaracion", "retención", "retencion",
+        "declaracion", "retención", "retencion", "facturación", "facturacion",
+    ],
+    "culture/cuisine.md": [
+        "comida", "receta", "plato", "gastronomía", "gastronomia",
+        "cocinar", "cocinero", "ingrediente", "encebollado", "bolón", "bolon",
+        "fanesca", "hornado", "fritada", "ceviche", "locro",
+        "colada morada", "guaguas de pan", "bebida", "postre",
+    ],
+    "culture/holidays.md": [
+        "feriado", "feriados", "puente", "descanso", "carnaval",
+        "semana santa", "año nuevo", "navidad", "difuntos",
+        "pichincha", "batalla", "grito de independencia",
+        "independencia", "fundación", "fundacion", "día festivo",
+        "día de descanso", "vacaciones", "viaje",
     ],
 }
 

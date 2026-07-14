@@ -12,8 +12,9 @@ Plan general del proyecto, fases, hitos y funcionalidades por ola.
 
 ## Fase 1 — MVP Técnico ✅ COMPLETADA — 2026-07-12
 
-**Versión:** v2.3.0 | **Tools:** 18 | **Funcionalidades:** 16/16 completadas
-**Pendientes menores:** skills SRI, tests
+**Versión:** v2.6.0 | **Tools:** 18 | **Funcionalidades:** 16/16 completadas
+**Skills Ecuador:** 7 skills en 4 dominios | **Tests:** 267 unit + suite + stress
+**Entregables Fase 1:** ✅ 100% completado
 
 ### Pendientes para Fase 2:
 
@@ -35,7 +36,9 @@ Plan general del proyecto, fases, hitos y funcionalidades por ola.
   - Vacunas (hijos, mascotas)
   - Suscripciones y servicios olvidados
   - Control de gastos personales (tracking + ingresos)
-- [ ] Skills Ecuador adicionales (SRI facturación, IESS, legal)
+- [x] Skills Ecuador (7 skills: culture, transit, legal, tax) ✅ v2.4.0
+- [x] Tests actualizados (267 unit + suite + stress) ✅ v2.5.0
+- [x] Flujo de archivos refinado (no auto-save, file_key, regla #0) ✅ v2.6.0
 
 ---
 

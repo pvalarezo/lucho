@@ -4,22 +4,38 @@
 
 ## Sesión actual — 2026-07-13
 
-**Envío de fotos al usuario (v2.3.0)**
+**v2.6.0 — Refactor file_key, flujo archivos, regla #0**
 
-### Entregables:
-- ✅ Tool `send_photo`: agente puede enviar fotos/docs guardados cuando el usuario pide
-- ✅ `handle_search_data` ahora incluye `photo_key` en resultados de vehículos y documentos
-- ✅ Nueva sección de búsqueda de documentos (cédula, SOAT, pasaporte, garantía)
-- ✅ `process_message` retorna `dict` con `text` + `photos[]` (backward-compatible)
-- ✅ `bot.py` envía fotos vía `reply_photo` / documentos vía `reply_document`
-- ✅ `webhook.py` envía fotos vía `telegram.send_photo()` (raw API)
-- ✅ `scheduler.py` adaptado al nuevo formato de respuesta
-- ✅ `telegram.py`: nueva función `send_photo()` (detecta imagen vs documento)
-- ✅ System prompt actualizado: regla #7 para `send_photo`
+### Entregables de la sesión:
 
-### Tags:
+#### v2.4.0 — Skills Ecuador (7 skills)
+- ✅ `culture/idioms.md`, `cuisine.md`, `holidays.md`
+- ✅ `legal/documents.md` — Cédula, pasaporte, licencia, partidas
+- ✅ `tax/invoicing.md` — IVA 15%, RUC, facturación electrónica, retenciones
+- ✅ `transit/registration.md`, `driving-restrictions.md`
+- ✅ Estructura migrada a inglés, loader con keywords
+
+#### v2.5.0 — Tests
+- ✅ `tests/unit.py` — 267 tests offline (100% pass)
+- ✅ `tests/suite.py` — 10 categorías para arquitectura agente
+- ✅ `tests/stress.py` — 10 categorías de estrés
+
+#### v2.6.0 — Refactor mayor
+- ✅ `photo_key` → `file_key` en 6 archivos (clave universal de almacenamiento)
+- ✅ `MAX_TOOL_ROUNDS` 3 → 5 (evita "me enredé")
+- ✅ Flujo de archivos: NADA se guarda automático, siempre pregunta
+- ✅ `save_document`: agregado parámetro `file_key` al schema
+- ✅ `webhook.py`: upload de fotos/documentos a MinIO (paridad con bot.py)
+- ✅ System prompt: regla #0 "NUNCA MIENTAS", `[foto: X]` y `[documento: ...]` documentados
+- ✅ Respuestas sin Markdown (elimina errores 400 con nombres de archivo)
+- ✅ `telegram.py`: fallback si Markdown falla → plain text
+
+### Tags aplicados:
 ```
-v2.3.0 — Envío de fotos: tool send_photo, búsqueda docs, respuesta dict con photos[]
+v2.6.0 — file_key rename, no auto-save, regla #0 NUNCA MIENTAS, webhook parity, no Markdown
+v2.5.0 — Tests: 267 unit offline + suite + stress
+v2.4.0 — Skills Ecuador: 7 skills en 4 dominios
+v2.3.0 — Envío de fotos: tool send_photo, búsqueda docs, respuesta dict
 ```
 
 ---
@@ -28,23 +44,19 @@ v2.3.0 — Envío de fotos: tool send_photo, búsqueda docs, respuesta dict con 
 
 ### 🟡 MEDIA
 
-**1. Skills Ecuador adicionales**
-- `sri/facturacion.md` — IVA, RUC, retenciones, facturación electrónica
-- `legal/documentos.md` — Cédula, pasaporte, licencia, vigencia, renovación
-
-**2. Tests actualizados**
-La suite de tests referencia el pipeline viejo. Actualizar para probar el agente con las 18 tools.
-
-**3. Probar envío de fotos**
-- Subir una cédula/SOAT real y probar "pasame mi cédula"
-- Probar con documentos PDF
+**1. Web search tool**
+Consultar información actual ecuatoriana (feriados, cambios regulatorios) vía DuckDuckGo.
 
 ### 🟢 BAJA
 
-**4. Web search tool**
-Consultar información actual ecuatoriana (feriados, cambios regulatorios) vía DuckDuckGo.
+**2. Indexado numerado en búsquedas**
+Para evitar búsqueda frágil por nombre: presentar resultados numerados (1, 2, 3) y aceptar "el 2".
 
-**5. Dashboard de métricas**
+**3. Skills adicionales (opcional)**
+- `services/transport.md` — Metro Quito, Metrovía, Tranvía Cuenca, buses
+- `services/utilities.md` — Planilla de luz, subsidios, tarifas
+
+**4. Dashboard de métricas**
 Precisión del agente, retención, uso por tipo de tool.
 
 ---
@@ -58,5 +70,5 @@ python3 run_bot.py
 
 # Git
 git add -A && git commit -m "mensaje"
-git tag v2.3.0 -m "descripción"
+git tag v2.6.0 -m "descripción"
 ```
