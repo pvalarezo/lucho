@@ -10,7 +10,7 @@ Estado actual de cada fase, módulo y entregable. Fase 1 completada con rediseñ
 ### Versiones
 | Tag | Fecha | Descripción |
 |-----|-------|-------------|
-| v2.8.0 | 2026-07-14 | WhatsApp Cloud API: send/receive, media, webhook, real _send_whatsapp(), dev setup docs |
+| v2.8.0 | 2026-07-14 | WhatsApp Cloud API: send/receive, media, webhook, real _send_whatsapp(), dev setup docs, Cloudflare tunnel, systemd services |
 | v2.7.0 | 2026-07-14 | Web search tool: DuckDuckGo (ddgs), consultas Ecuador actuales |
 | v2.6.0 | 2026-07-13 | Refactor file_key, flujo archivos sin auto-save, regla #0 NUNCA MIENTAS, sin Markdown |
 | v2.5.0 | 2026-07-13 | Tests actualizados: 267 unit offline (100%), suite + stress para agente |
@@ -23,11 +23,9 @@ Estado actual de cada fase, módulo y entregable. Fase 1 completada con rediseñ
 ### Arquitectura — ✅ 100%
 - Agente unificado: system prompt + 19 tools + conversation memory
 - Skills Ecuador: 7 skills en 4 dominios (culture, transit, legal, tax)
-- Estructura de skills en inglés (cumple AGENTS.md 2.1)
-- Multi-LLM: DeepSeek (chat), Anthropic (visión/OCR), OpenAI (Whisper)
-- Canal de notificaciones agnóstico: Telegram + placeholders WhatsApp/email/SMS
-- file_key como clave universal de almacenamiento (fotos y documentos)
-- MAX_TOOL_ROUNDS=5 para evitar mensajes "me enredé"
+- Canales: Telegram (polling) + WhatsApp Cloud API (webhook vía Meta Cloud API)
+- Cloudflare Tunnel: https://lucho-dev.apx5.com → localhost:8000
+- Systemd user services: lucho-api, lucho-tunnel, lucho-bot (disabled at boot, manual start)
 
 ### Funcionalidades — 17 completadas
 
@@ -67,17 +65,17 @@ Estado actual de cada fase, módulo y entregable. Fase 1 completada con rediseñ
 
 | # | Tarea | Prioridad | Esfuerzo |
 |---|-------|-----------|----------|
-| ~~1~~ | ~~Web search tool~~ | ~~✅ Completado~~ | — |
-| 2 | Indexado numerado en búsquedas | 🟢 Baja | — |
-| 3 | Dashboard métricas | 🟢 Futuro | — |
-| 4 | Skills adicionales (transporte, servicios básicos) | 🟢 Opcional | 40min |
+| 1 | Indexado numerado en búsquedas | 🟢 Baja | — |
+| 2 | Dashboard métricas | 🟢 Futuro | — |
+| 3 | Skills adicionales (transporte, servicios básicos) | 🟢 Opcional | 40min |
 
 ### Infraestructura — ✅ 100%
 - FastAPI, Docker Compose, Alembic, 18 tablas PostgreSQL + pgvector
 - MinIO (fotos/documentos), Redis (configurado), sentence-transformers (embeddings locales)
-- Bot Telegram polling + webhook prod-ready (ambos canales con upload a MinIO)
-- APScheduler: daily_rules + daily_digest (8:00 AM)
-- Tests: 267 unit offline + suite/stress integración
+- Bot Telegram polling
+- WhatsApp Cloud API webhook (recibir y enviar mensajes, verificado ✅)
+- Cloudflare Tunnel para HTTPS público (lucho-dev.apx5.com)
+- Systemd user services (manual start, no auto-boot)
 
 ---
 
