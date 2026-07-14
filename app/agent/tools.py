@@ -504,6 +504,28 @@ TOOL_SEND_PHOTO = {
     },
 }
 
+TOOL_WEB_SEARCH = {
+    "type": "function",
+    "function": {
+        "name": "web_search",
+        "description": "Buscar CUALQUIER cosa en internet — sin restricciones de tema. Deportes, restaurantes, cultura, historia, trámites, noticias, LO QUE SEA. Es gratis. Usar siempre que el usuario pregunte algo que no está en sus datos personales. Respondé con los resultados en 1-2 líneas y ofrecé guardar algo relacionado.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Consulta en español. Ej: 'mejores restaurantes Cuenca Ecuador', 'capital de Francia', 'quién ganó el mundial 2026'.",
+                },
+                "max_results": {
+                    "type": "integer",
+                    "description": "Cantidad máxima de resultados. Default: 5, máximo: 8.",
+                },
+            },
+            "required": ["query"],
+        },
+    },
+}
+
 # All available tools (exported for the agent loop)
 ALL_TOOLS = [
     TOOL_SAVE_VEHICLE,
@@ -524,6 +546,7 @@ ALL_TOOLS = [
     TOOL_LIST_CONTACTS,
     TOOL_CHECK_VEHICLE_INFO,
     TOOL_SEND_PHOTO,
+    TOOL_WEB_SEARCH,
 ]
 
 # Map tool names to their schemas for quick lookup
@@ -1420,6 +1443,53 @@ async def handle_send_photo(session, user_id: str, args: dict) -> dict:
     }
 
 
+async def handle_web_search(session, user_id: str, args: dict) -> dict:
+    """Search the web for Ecuador-specific current information using DuckDuckGo."""
+    from ddgs import DDGS
+
+    query = (args.get("query") or "").strip()
+    max_results = min(int(args.get("max_results") or 5), 8)
+
+    if not query:
+        return {"success": False, "message": "¿Qué querés que busque?"}
+
+    logger.info("Web search query: %s (max %d results)", query, max_results)
+
+    try:
+        # DuckDuckGo search (runs in thread pool since DDGS is sync)
+        with DDGS() as ddgs:
+            raw_results = list(ddgs.text(query, max_results=max_results))
+
+        if not raw_results:
+            return {
+                "success": True,
+                "message": f"No encontré resultados para '{query}'.",
+                "results": [],
+            }
+
+        results = []
+        for r in raw_results:
+            results.append({
+                "title": r.get("title", ""),
+                "snippet": r.get("body", "")[:300],
+                "url": r.get("href", ""),
+            })
+
+        return {
+            "success": True,
+            "message": f"Encontré {len(results)} resultado(s) web sobre '{query}'.",
+            "results": results,
+            "query": query,
+        }
+
+    except Exception as exc:
+        logger.exception("Web search failed: %s", exc)
+        return {
+            "success": False,
+            "message": "No pude buscar en internet ahora. ¿Intentamos más tarde?",
+        }
+
+
 TOOL_HANDLERS: dict[str, Any] = {
     "save_vehicle": handle_save_vehicle,
     "save_document": handle_save_document,
@@ -1439,6 +1509,7 @@ TOOL_HANDLERS: dict[str, Any] = {
     "save_contact": handle_save_contact,
     "list_contacts": handle_list_contacts,
     "send_photo": handle_send_photo,
+    "web_search": handle_web_search,
 }
 
 

@@ -28,6 +28,9 @@ python-telegram-bot>=21.9
 # Scheduler
 apscheduler>=3.11.0
 
+# Web Search
+ddgs>=9.14.0
+
 # Utils
 python-multipart>=0.0.18
 python-dotenv>=1.0.1

@@ -10,6 +10,8 @@ Estado actual de cada fase, módulo y entregable. Fase 1 completada con rediseñ
 ### Versiones
 | Tag | Fecha | Descripción |
 |-----|-------|-------------|
+| v2.7.1 | 2026-07-14 | Web search MUNDIAL: sin restricción de temas, deportes/cultura/historia incluidos, respuesta 1-2 líneas + redirigir a guardar |
+| v2.7.0 | 2026-07-14 | Web search tool: DuckDuckGo (ddgs), consultas Ecuador actuales |
 | v2.6.0 | 2026-07-13 | Refactor file_key, flujo archivos sin auto-save, regla #0 NUNCA MIENTAS, sin Markdown |
 | v2.5.0 | 2026-07-13 | Tests actualizados: 267 unit offline (100%), suite + stress para agente |
 | v2.4.0 | 2026-07-13 | Skills Ecuador: documentos, SRI facturación, gastronomía, feriados (7 skills total) |
@@ -19,7 +21,7 @@ Estado actual de cada fase, módulo y entregable. Fase 1 completada con rediseñ
 | v2.0.0 | 2026-07-12 | Rediseño a arquitectura de agente |
 
 ### Arquitectura — ✅ 100%
-- Agente unificado: system prompt + 18 tools + conversation memory
+- Agente unificado: system prompt + 19 tools + conversation memory
 - Skills Ecuador: 7 skills en 4 dominios (culture, transit, legal, tax)
 - Estructura de skills en inglés (cumple AGENTS.md 2.1)
 - Multi-LLM: DeepSeek (chat), Anthropic (visión/OCR), OpenAI (Whisper)
@@ -27,7 +29,7 @@ Estado actual de cada fase, módulo y entregable. Fase 1 completada con rediseñ
 - file_key como clave universal de almacenamiento (fotos y documentos)
 - MAX_TOOL_ROUNDS=5 para evitar mensajes "me enredé"
 
-### Funcionalidades — 16 completadas
+### Funcionalidades — 17 completadas
 
 | # | Funcionalidad | Tools | Estado |
 |---|--------------|-------|--------|
@@ -47,6 +49,7 @@ Estado actual de cada fase, módulo y entregable. Fase 1 completada con rediseñ
 | 14 | Recordatorios unificados | Scheduler: eventos 15/7/3/0, docs 30/15/7, proyectos 7/3/1 | ✅ |
 | 15 | Notificaciones multi-canal | notifications.py (Telegram + placeholders) | ✅ |
 | 16 | Envío de fotos/docs al usuario | send_photo (detecta imagen vs documento, MinIO → Telegram) | ✅ |
+| 17 | Web search MUNDIAL | web_search (DuckDuckGo ddgs, CUALQUIER tema, sin restricción) | ✅ |
 
 ### Flujo de archivos — ✅ Refinado
 
@@ -62,9 +65,10 @@ Estado actual de cada fase, módulo y entregable. Fase 1 completada con rediseñ
 
 | # | Tarea | Prioridad | Esfuerzo |
 |---|-------|-----------|----------|
-| 1 | Web search tool | 🟢 Baja | 30min |
-| 2 | Dashboard métricas | 🟢 Futuro | — |
-| 3 | Skills adicionales (transporte, servicios básicos) | 🟢 Opcional | 40min |
+| ~~1~~ | ~~Web search tool~~ | ~~✅ Completado~~ | — |
+| 2 | Indexado numerado en búsquedas | 🟢 Baja | — |
+| 3 | Dashboard métricas | 🟢 Futuro | — |
+| 4 | Skills adicionales (transporte, servicios básicos) | 🟢 Opcional | 40min |
 
 ### Infraestructura — ✅ 100%
 - FastAPI, Docker Compose, Alembic, 18 tablas PostgreSQL + pgvector

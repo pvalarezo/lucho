@@ -2,61 +2,47 @@
 
 ---
 
-## Sesión actual — 2026-07-13
+## Sesión actual — 2026-07-14
 
-**v2.6.0 — Refactor file_key, flujo archivos, regla #0**
+**v2.7.1 — Web search MUNDIAL (sin restricción de temas)**
 
 ### Entregables de la sesión:
 
-#### v2.4.0 — Skills Ecuador (7 skills)
-- ✅ `culture/idioms.md`, `cuisine.md`, `holidays.md`
-- ✅ `legal/documents.md` — Cédula, pasaporte, licencia, partidas
-- ✅ `tax/invoicing.md` — IVA 15%, RUC, facturación electrónica, retenciones
-- ✅ `transit/registration.md`, `driving-restrictions.md`
-- ✅ Estructura migrada a inglés, loader con keywords
+#### v2.7.0 — Web Search Tool (inicial)
+- ✅ Nueva tool `web_search` en `app/agent/tools.py` (tool #19)
+- ✅ Motor: DuckDuckGo vía librería `ddgs` (sin API key, gratuito)
+- ✅ Integrado al system prompt
+- ✅ `requirements.txt` actualizado: `ddgs>=9.14.0`
 
-#### v2.5.0 — Tests
-- ✅ `tests/unit.py` — 267 tests offline (100% pass)
-- ✅ `tests/suite.py` — 10 categorías para arquitectura agente
-- ✅ `tests/stress.py` — 10 categorías de estrés
-
-#### v2.6.0 — Refactor mayor
-- ✅ `photo_key` → `file_key` en 6 archivos (clave universal de almacenamiento)
-- ✅ `MAX_TOOL_ROUNDS` 3 → 5 (evita "me enredé")
-- ✅ Flujo de archivos: NADA se guarda automático, siempre pregunta
-- ✅ `save_document`: agregado parámetro `file_key` al schema
-- ✅ `webhook.py`: upload de fotos/documentos a MinIO (paridad con bot.py)
-- ✅ System prompt: regla #0 "NUNCA MIENTAS", `[foto: X]` y `[documento: ...]` documentados
-- ✅ Respuestas sin Markdown (elimina errores 400 con nombres de archivo)
-- ✅ `telegram.py`: fallback si Markdown falla → plain text
+#### v2.7.1 — Apertura mundial
+- ✅ web_search sin restricción: deportes, cultura, historia, LO QUE SEA
+- ✅ System prompt reforzado: "usá web_search SIEMPRE para cualquier tema"
+- ✅ Eliminado bloqueo "cultura general, tareas escolares" del NUNCA
+- ✅ Tool description agresiva: "CUALQUIER cosa, sin restricciones de tema"
+- ✅ Respuesta: 1-2 líneas con resultados + siempre redirigir a guardar
+- ✅ Auto-append "Ecuador" removido (ya no necesario)
+- ✅ Verificado en producción: restaurantes Cuenca ✅, recordatorios ✅
 
 ### Tags aplicados:
 ```
-v2.6.0 — file_key rename, no auto-save, regla #0 NUNCA MIENTAS, webhook parity, no Markdown
-v2.5.0 — Tests: 267 unit offline + suite + stress
-v2.4.0 — Skills Ecuador: 7 skills en 4 dominios
-v2.3.0 — Envío de fotos: tool send_photo, búsqueda docs, respuesta dict
+v2.7.1 — Web search MUNDIAL, sin restricción de temas
+v2.7.0 — Web search tool: DuckDuckGo ddgs
 ```
 
 ---
 
 ## Próxima sesión — Prioridades
 
-### 🟡 MEDIA
-
-**1. Web search tool**
-Consultar información actual ecuatoriana (feriados, cambios regulatorios) vía DuckDuckGo.
-
 ### 🟢 BAJA
 
-**2. Indexado numerado en búsquedas**
+**1. Indexado numerado en búsquedas**
 Para evitar búsqueda frágil por nombre: presentar resultados numerados (1, 2, 3) y aceptar "el 2".
 
-**3. Skills adicionales (opcional)**
+**2. Skills adicionales (opcional)**
 - `services/transport.md` — Metro Quito, Metrovía, Tranvía Cuenca, buses
 - `services/utilities.md` — Planilla de luz, subsidios, tarifas
 
-**4. Dashboard de métricas**
+**3. Dashboard de métricas**
 Precisión del agente, retención, uso por tipo de tool.
 
 ---
@@ -66,9 +52,9 @@ Precisión del agente, retención, uso por tipo de tool.
 ```bash
 # Entorno
 docker compose -f docker-compose.dev.yml up -d
-python3 run_bot.py
+python3 run_bot.py &
 
 # Git
 git add -A && git commit -m "mensaje"
-git tag v2.6.0 -m "descripción"
+git tag v2.7.1 -m "descripción"
 ```
