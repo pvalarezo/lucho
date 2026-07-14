@@ -10,7 +10,7 @@ Estado actual de cada fase, módulo y entregable. Fase 1 completada con rediseñ
 ### Versiones
 | Tag | Fecha | Descripción |
 |-----|-------|-------------|
-| v2.7.1 | 2026-07-14 | Web search MUNDIAL: sin restricción de temas, deportes/cultura/historia incluidos, respuesta 1-2 líneas + redirigir a guardar |
+| v2.8.0 | 2026-07-14 | WhatsApp Cloud API: send/receive, media, webhook, real _send_whatsapp(), dev setup docs |
 | v2.7.0 | 2026-07-14 | Web search tool: DuckDuckGo (ddgs), consultas Ecuador actuales |
 | v2.6.0 | 2026-07-13 | Refactor file_key, flujo archivos sin auto-save, regla #0 NUNCA MIENTAS, sin Markdown |
 | v2.5.0 | 2026-07-13 | Tests actualizados: 267 unit offline (100%), suite + stress para agente |
@@ -50,6 +50,8 @@ Estado actual de cada fase, módulo y entregable. Fase 1 completada con rediseñ
 | 15 | Notificaciones multi-canal | notifications.py (Telegram + placeholders) | ✅ |
 | 16 | Envío de fotos/docs al usuario | send_photo (detecta imagen vs documento, MinIO → Telegram) | ✅ |
 | 17 | Web search MUNDIAL | web_search (DuckDuckGo ddgs, CUALQUIER tema, sin restricción) | ✅ |
+| 18 | WhatsApp Cloud API | whatsapp_webhook, send/recibir mensajes, fotos, audio, docs | ✅ |
+| 19 | Documentación dev setup | docs/development_setup.md | ✅ |
 
 ### Flujo de archivos — ✅ Refinado
 
