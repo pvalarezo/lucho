@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app.config import settings
-from app.routers import health, webhook, search
+from app.routers import health, webhook, search, whatsapp_webhook
 from app.services.scheduler import start_scheduler, stop_scheduler
 
 
@@ -29,6 +29,7 @@ app = FastAPI(
 app.include_router(health.router)
 app.include_router(webhook.router)
 app.include_router(search.router)
+app.include_router(whatsapp_webhook.router)
 
 
 @app.get("/")

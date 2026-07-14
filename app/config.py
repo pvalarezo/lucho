@@ -54,6 +54,12 @@ class Settings(BaseSettings):
     EMBEDDING_PROVIDER: str = "none"  # "openai" | "local" | "none"
     OPENAI_EMBEDDING_MODEL: str = "text-embedding-3-small"
 
+    # ---- WhatsApp Cloud API ----
+    WHATSAPP_PHONE_NUMBER_ID: str = ""
+    WHATSAPP_ACCESS_TOKEN: str = ""
+    WHATSAPP_VERIFY_TOKEN: str = ""
+    WHATSAPP_API_VERSION: str = "v22.0"
+
     # ---- External APIs ----
     VEHICLE_INFO_API_URL: str = "http://131.161.221.131:2356/v1/info/all/vehicle/"
     VEHICLE_INFO_API_TOKEN: str = ""

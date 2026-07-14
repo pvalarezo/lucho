@@ -65,14 +65,17 @@ async def _send_telegram(chat_id: str, message: str) -> bool:
         return False
 
 
-# ---- WhatsApp (placeholder for future) ----
+# ---- WhatsApp ----
 
 async def _send_whatsapp(phone: str, message: str) -> bool:
-    """Send via WhatsApp Business API (360dialog or similar). PLACEHOLDER."""
-    logger.info("WhatsApp notification not yet implemented for %s", phone)
-    # TODO: Integrate with WhatsApp Business API
-    # await whatsapp_client.send_message(phone, message)
-    return False
+    """Send via WhatsApp Cloud API (Meta)."""
+    from app.services import whatsapp as whatsapp_svc
+    try:
+        result = await whatsapp_svc.send_message(phone, message)
+        return result is not None
+    except Exception as exc:
+        logger.error("WhatsApp notification failed for %s: %s", phone, exc)
+        return False
 
 
 # ---- Email (placeholder for future) ----
