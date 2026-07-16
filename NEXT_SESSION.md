@@ -4,31 +4,30 @@
 
 ## Sesión actual — 2026-07-16
 
-**v2.9.0 — OCR/Visión migrado a DeepSeek + Meta Live verificado**
+**v2.9.1 — WhatsApp Templates documentados + OCR DeepSeek**
 
 ### Entregables de la sesión:
 
-#### OCR/Visión — Migrado a DeepSeek
-- ✅ `extract_document_data` ahora usa DeepSeek Vision como primario (antes solo Anthropic/OpenAI)
-- ✅ Nueva función `_deepseek_ocr` que reusa `_deepseek_vision` con `OCR_EXTRACTION_PROMPT`
-- ✅ Fallback: DeepSeek → Anthropic → OpenAI
-- ✅ Código muerto eliminado: bloque duplicado en `analyze_image` (estaba después de `return None`)
-- ✅ `analyze_image` (clasificación) ya funcionaba con DeepSeek, sin cambios
+#### OCR/Visión — Migrado a DeepSeek ✅
+- `extract_document_data` usa DeepSeek Vision como primario
+- Nueva función `_deepseek_ocr` que reusa `_deepseek_vision` con `OCR_EXTRACTION_PROMPT`
+- Fallback: DeepSeek → Anthropic → OpenAI
+- Código muerto eliminado en `vision.py` (bloque duplicado)
 
-#### Transcripción de audio — Confirmado OpenAI Whisper
-- ✅ DeepSeek no ofrece STT (solo chat + visión)
-- ✅ MiniMax no ofrece STT (solo TTS)
-- ✅ Kimi no ofrece STT (solo chat)
-- ✅ OpenAI Whisper se mantiene como proveedor de transcripción
+#### Transcripción de audio — Análisis completado ✅
+- DeepSeek, MiniMax, Kimi no ofrecen STT. OpenAI Whisper se mantiene.
+- Alternativa futura: Whisper local ($0 costo)
 
-#### Meta Live — Configuración verificada
-- ✅ WHATSAPP_PHONE_NUMBER_ID: 1181679805033971
-- ✅ WHATSAPP_ACCESS_TOKEN: permanente configurado
-- ✅ WHATSAPP_VERIFY_TOKEN: lucho_webhook_2026
-- ✅ Webhook URL: https://lucho-dev.apx5.com/whatsapp/webhook
-- ✅ Verificación de webhook: responde hub.challenge correctamente
-- ✅ API + Tunnel corriendo
+#### Meta Live — Configuración verificada ✅
+- WHATSAPP_PHONE_NUMBER_ID, ACCESS_TOKEN, VERIFY_TOKEN confirmados
+- Webhook verificado: responde hub.challenge correctamente
+- API + Tunnel corriendo
 - ⏳ Pendiente: aprobación de business verification por Meta
+
+#### WhatsApp Templates — Documentados ✅
+- 4 templates diseñados y documentados en `docs/whatsapp_templates.md`
+- Templates: `document_reminder`, `project_reminder`, `pico_y_placa`, `daily_digest`
+- Categoría UTILITY, pendientes de creación en Meta y aprobación (24-48h)
 
 ---
 
@@ -37,30 +36,32 @@
 ### 🔴 INMEDIATA
 
 **1. Activar app Meta en Live**
-- [ ] Esperar aprobación de business verification
-- [x] Verificación de webhook confirmada
+- [ ] Verificar estado de business verification en Meta
 - [ ] Cambiar switch Desarrollo → Activo en consola Meta
-- [ ] Probar con número real sin whitelist
+- [ ] Probar mensaje desde número real sin whitelist
+
+**2. Crear templates en Meta Business Manager**
+- [ ] Usar `docs/whatsapp_templates.md` como guía
+- [ ] Crear 4 templates en Meta Developers
+- [ ] Esperar aprobación (24-48h)
 
 ### 🟡 MEDIA
 
-**2. Notificaciones proactivas por WhatsApp**
-- Templates de mensajes para recordatorios
-- Fuera de la ventana de 24h: usar templates aprobados
+**3. Conectar templates en el scheduler**
+- Modificar `_send_document_reminder` para usar `send_template_message` en WhatsApp
+- Modificar `_send_project_reminder` para usar `send_template_message` en WhatsApp
+- Agregar envío WhatsApp al `daily_digest`
+- Agregar job de notificación pico y placa vía template
 
-**3. Lucho Bot (Telegram polling)**
-- No está corriendo actualmente (solo systemd)
+**4. Lucho Bot (Telegram polling)**
+- No está corriendo actualmente
 - Evaluar si mantener o migrar todo a webhook
 
 ### 🟢 BAJA
 
-**4. Skills adicionales**
-- Transporte, servicios básicos
-
-**5. Dashboard de métricas**
-
-**6. Whisper local**
-- Evaluar migración de OpenAI Whisper → Whisper local para reducir costos a $0
+**5. Whisper local** — transcripción sin costo de API
+**6. Skills adicionales** — transporte, servicios básicos
+**7. Dashboard de métricas**
 
 ---
 

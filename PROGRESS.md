@@ -10,6 +10,7 @@ Estado actual de cada fase, módulo y entregable. Fase 1 completada con rediseñ
 ### Versiones
 | Tag | Fecha | Descripción |
 |-----|-------|-------------|
+| v2.9.1 | 2026-07-16 | WhatsApp Templates: 4 plantillas documentadas (document_reminder, project_reminder, pico_y_placa, daily_digest) en docs/whatsapp_templates.md. Categoría UTILITY, listas para crear en Meta. |
 | v2.9.0 | 2026-07-16 | OCR/Visión migrado a DeepSeek: extract_document_data + analyze_image usan deepseek-chat como primario. Código muerto eliminado en vision.py. Meta Live: config verificada, webhook confirmado, esperando aprobación. |
 | v2.8.1 | 2026-07-15 | WhatsApp end-to-end tested: texto, foto, audio. Dedup, ack inmediato, fix PHONE_NUMBER_ID, fix OPENAI_API_KEY en .env |
 | v2.8.0 | 2026-07-14 | WhatsApp Cloud API: send/receive, media, webhook, real _send_whatsapp(), dev setup docs, Cloudflare tunnel, systemd services |
@@ -80,7 +81,8 @@ Estado actual de cada fase, módulo y entregable. Fase 1 completada con rediseñ
 | # | Tarea | Prioridad | Esfuerzo |
 |---|-------|-----------|----------|
 | 1 | Activar app Meta en Live (esperando business verification) | 🔴 Inmediata | — |
-| 2 | Notificaciones proactivas WhatsApp (templates) | 🟡 Media | 2h |
+| 2 | Crear templates en Meta Business Manager (documentados en docs/whatsapp_templates.md) | 🔴 Inmediata | 30min |
+| 3 | Conectar templates en scheduler (send_template_message) | 🟡 Media | 2h |
 | 3 | Indexado numerado en búsquedas | 🟢 Baja | — |
 | 4 | Dashboard métricas | 🟢 Futuro | — |
 | 5 | Skills adicionales (transporte, servicios básicos) | 🟢 Opcional | 40min |
