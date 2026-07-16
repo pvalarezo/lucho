@@ -1,8 +1,16 @@
 """Lucho — FastAPI application entry point."""
 
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+
+# Configure root logger so all application logs appear in journald/stdout
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
 
 from app.config import settings
 from app.routers import health, webhook, search, whatsapp_webhook

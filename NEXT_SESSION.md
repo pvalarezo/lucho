@@ -2,40 +2,33 @@
 
 ---
 
-## Sesión actual — 2026-07-14
+## Sesión actual — 2026-07-16
 
-**v2.8.0 — WhatsApp Cloud API + infraestructura de desarrollo**
+**v2.9.0 — OCR/Visión migrado a DeepSeek + Meta Live verificado**
 
 ### Entregables de la sesión:
 
-#### v2.7.0 → v2.7.1 — Web Search Tool
-- ✅ Tool `web_search` con DuckDuckGo (ddgs) — tool #19
-- ✅ Scope ampliado de Ecuador → MUNDIAL (cualquier tema)
-- ✅ System prompt reforzado: "usá web_search SIEMPRE"
+#### OCR/Visión — Migrado a DeepSeek
+- ✅ `extract_document_data` ahora usa DeepSeek Vision como primario (antes solo Anthropic/OpenAI)
+- ✅ Nueva función `_deepseek_ocr` que reusa `_deepseek_vision` con `OCR_EXTRACTION_PROMPT`
+- ✅ Fallback: DeepSeek → Anthropic → OpenAI
+- ✅ Código muerto eliminado: bloque duplicado en `analyze_image` (estaba después de `return None`)
+- ✅ `analyze_image` (clasificación) ya funcionaba con DeepSeek, sin cambios
 
-#### v2.8.0 — WhatsApp Cloud API
-- ✅ `app/services/whatsapp.py`: cliente Cloud API (send_message, send_photo, send_template, download_media, verify_webhook)
-- ✅ `app/routers/whatsapp_webhook.py`: GET (verify) + POST (receive messages)
-- ✅ `app/services/user.py`: `resolve_user_by_phone()` para usuarios WhatsApp
-- ✅ `app/services/notifications.py`: `_send_whatsapp()` real (ya no placeholder)
-- ✅ `app/config.py`: WHATSAPP_PHONE_NUMBER_ID, ACCESS_TOKEN, VERIFY_TOKEN, API_VERSION
-- ✅ `app/main.py`: router WhatsApp registrado
-- ✅ `.env`: credenciales WhatsApp configuradas
+#### Transcripción de audio — Confirmado OpenAI Whisper
+- ✅ DeepSeek no ofrece STT (solo chat + visión)
+- ✅ MiniMax no ofrece STT (solo TTS)
+- ✅ Kimi no ofrece STT (solo chat)
+- ✅ OpenAI Whisper se mantiene como proveedor de transcripción
 
-#### Infraestructura de desarrollo
-- ✅ Cloudflare Tunnel: `https://lucho-dev.apx5.com` → `localhost:8000`
-- ✅ Systemd user services: `lucho-api`, `lucho-tunnel`, `lucho-bot` (disabled at boot)
-- ✅ Webhook WhatsApp verificado ✅
-- ✅ Mensajes entrantes: recibidos, usuario creado, persistidos, agente procesa
-- ⚠️ Envío saliente: error #131030 (modo Desarrollo — falta lista blanca de recipients)
-- ✅ `docs/development_setup.md`: guía completa de desarrollo
-
-### Tags aplicados:
-```
-v2.8.0 — WhatsApp Cloud API integration + dev setup docs
-v2.7.1 — Web search MUNDIAL, sin restricción de temas
-v2.7.0 — Web search tool: DuckDuckGo ddgs
-```
+#### Meta Live — Configuración verificada
+- ✅ WHATSAPP_PHONE_NUMBER_ID: 1181679805033971
+- ✅ WHATSAPP_ACCESS_TOKEN: permanente configurado
+- ✅ WHATSAPP_VERIFY_TOKEN: lucho_webhook_2026
+- ✅ Webhook URL: https://lucho-dev.apx5.com/whatsapp/webhook
+- ✅ Verificación de webhook: responde hub.challenge correctamente
+- ✅ API + Tunnel corriendo
+- ⏳ Pendiente: aprobación de business verification por Meta
 
 ---
 
@@ -43,30 +36,31 @@ v2.7.0 — Web search tool: DuckDuckGo ddgs
 
 ### 🔴 INMEDIATA
 
-**1. Testear WhatsApp end-to-end**
-- [ ] Agregar número personal a lista blanca de recipients en Meta
-- [ ] Mandar mensaje real desde WhatsApp personal → Lucho responde
-- [ ] Probar: texto, foto, audio
-- [ ] Verificar persistencia en DB y respuestas del agente
+**1. Activar app Meta en Live**
+- [ ] Esperar aprobación de business verification
+- [x] Verificación de webhook confirmada
+- [ ] Cambiar switch Desarrollo → Activo en consola Meta
+- [ ] Probar con número real sin whitelist
 
 ### 🟡 MEDIA
 
-**2. Pasar app Meta a modo Live**
-- Verificación de negocio en Meta (business verification)
-- Cambiar webhook de test → producción
-- Testear con usuarios reales
+**2. Notificaciones proactivas por WhatsApp**
+- Templates de mensajes para recordatorios
+- Fuera de la ventana de 24h: usar templates aprobados
+
+**3. Lucho Bot (Telegram polling)**
+- No está corriendo actualmente (solo systemd)
+- Evaluar si mantener o migrar todo a webhook
 
 ### 🟢 BAJA
 
-**3. Indexado numerado en búsquedas**
-Resultados numerados (1, 2, 3) y aceptar "el 2".
-
-**4. Skills adicionales (opcional)**
-- `services/transport.md` — Metro Quito, Metrovía, Tranvía Cuenca
-- `services/utilities.md` — Planilla de luz, subsidios, tarifas
+**4. Skills adicionales**
+- Transporte, servicios básicos
 
 **5. Dashboard de métricas**
-Precisión del agente, retención, uso por tipo de tool.
+
+**6. Whisper local**
+- Evaluar migración de OpenAI Whisper → Whisper local para reducir costos a $0
 
 ---
 
@@ -74,7 +68,7 @@ Precisión del agente, retención, uso por tipo de tool.
 
 ```bash
 # Servicios
-systemctl --user start lucho-api lucho-tunnel lucho-bot
+systemctl --user start lucho-api lucho-tunnel
 
 # Logs
 journalctl --user -u lucho-api -f

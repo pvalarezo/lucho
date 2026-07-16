@@ -10,6 +10,8 @@ Estado actual de cada fase, módulo y entregable. Fase 1 completada con rediseñ
 ### Versiones
 | Tag | Fecha | Descripción |
 |-----|-------|-------------|
+| v2.9.0 | 2026-07-16 | OCR/Visión migrado a DeepSeek: extract_document_data + analyze_image usan deepseek-chat como primario. Código muerto eliminado en vision.py. Meta Live: config verificada, webhook confirmado, esperando aprobación. |
+| v2.8.1 | 2026-07-15 | WhatsApp end-to-end tested: texto, foto, audio. Dedup, ack inmediato, fix PHONE_NUMBER_ID, fix OPENAI_API_KEY en .env |
 | v2.8.0 | 2026-07-14 | WhatsApp Cloud API: send/receive, media, webhook, real _send_whatsapp(), dev setup docs, Cloudflare tunnel, systemd services |
 | v2.7.0 | 2026-07-14 | Web search tool: DuckDuckGo (ddgs), consultas Ecuador actuales |
 | v2.6.0 | 2026-07-13 | Refactor file_key, flujo archivos sin auto-save, regla #0 NUNCA MIENTAS, sin Markdown |
@@ -61,13 +63,28 @@ Estado actual de cada fase, módulo y entregable. Fase 1 completada con rediseñ
 | Pedir archivo guardado | search_my_data → send_photo → envía el archivo |
 | Regla #0 | NUNCA decir "guardé"/"envié" sin haber ejecutado la tool |
 
+### Meta Live — ⏳ Esperando aprobación
+- Business verification: documentos enviados a Meta
+- Webhook verificado: https://lucho-dev.apx5.com/whatsapp/webhook ✅
+- Token permanente configurado ✅
+- Pendiente: switch Desarrollo → Activo cuando Meta apruebe
+
+### OCR/Visión — ✅ Migrado a DeepSeek
+- `extract_document_data`: DeepSeek como primario, fallback Anthropic → OpenAI
+- `analyze_image`: DeepSeek primario, fallback Anthropic
+- Modelo: `deepseek-chat` (OpenAI-compatible vision)
+- Transcripción audio: OpenAI Whisper se mantiene (único proveedor viable con STT)
+
 ### Pendientes
 
 | # | Tarea | Prioridad | Esfuerzo |
 |---|-------|-----------|----------|
-| 1 | Indexado numerado en búsquedas | 🟢 Baja | — |
-| 2 | Dashboard métricas | 🟢 Futuro | — |
-| 3 | Skills adicionales (transporte, servicios básicos) | 🟢 Opcional | 40min |
+| 1 | Activar app Meta en Live (esperando business verification) | 🔴 Inmediata | — |
+| 2 | Notificaciones proactivas WhatsApp (templates) | 🟡 Media | 2h |
+| 3 | Indexado numerado en búsquedas | 🟢 Baja | — |
+| 4 | Dashboard métricas | 🟢 Futuro | — |
+| 5 | Skills adicionales (transporte, servicios básicos) | 🟢 Opcional | 40min |
+| 6 | Whisper local (reducir costo transcripción a $0) | 🟢 Futuro | 2h |
 
 ### Infraestructura — ✅ 100%
 - FastAPI, Docker Compose, Alembic, 18 tablas PostgreSQL + pgvector

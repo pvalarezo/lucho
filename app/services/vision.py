@@ -119,21 +119,33 @@ Reglas:
 async def extract_document_data(image_bytes: bytes) -> dict | None:
     """
     Extract structured data from a document image using OCR.
-    Uses Anthropic Claude Vision (best for document extraction).
-    Falls back to OpenAI Vision if Anthropic is not configured.
+    Uses DeepSeek Vision as primary (we have the key).
+    Falls back to Anthropic Claude Vision → OpenAI Vision.
     """
     image_b64 = base64.b64encode(image_bytes).decode("utf-8")
 
-    # Prefer Anthropic Claude Vision for document OCR
+    # Primary: DeepSeek Vision (deepseek-chat, OpenAI-compatible, key configured)
+    if settings.DEEPSEEK_API_KEY:
+        result = await _deepseek_ocr(image_b64)
+        if result:
+            return result
+
+    # Fallback 1: Anthropic Claude Vision
     if settings.ANTHROPIC_API_KEY:
         return await _anthropic_ocr(image_b64)
 
-    # Fallback to OpenAI Vision
+    # Fallback 2: OpenAI Vision
     if settings.OPENAI_API_KEY:
         return await _openai_ocr(image_b64)
 
     logger.warning("No vision-capable API key configured for OCR")
     return None
+
+
+async def _deepseek_ocr(image_b64: str) -> dict | None:
+    """Extract document data using DeepSeek Vision (deepseek-chat).
+    Uses OCR_EXTRACTION_PROMPT for structured extraction."""
+    return await _deepseek_vision(image_b64, prompt=OCR_EXTRACTION_PROMPT)
 
 
 async def _anthropic_ocr(image_b64: str) -> dict | None:
@@ -258,26 +270,6 @@ async def analyze_image(image_bytes: bytes) -> dict | None:
     if settings.LLM_PROVIDER == "deepseek" and settings.DEEPSEEK_API_KEY:
         return await _deepseek_vision(image_b64)
 
-    if settings.LLM_PROVIDER == "anthropic" and settings.ANTHROPIC_API_KEY:
-        return await _anthropic_vision(image_b64)
-
-    return None
-    """
-    Analyze an image using the LLM's vision capabilities.
-    Returns a dict with document_type, description, suggested_action, confidence.
-    Returns None on failure.
-    """
-    if not settings.DEEPSEEK_API_KEY and not settings.ANTHROPIC_API_KEY:
-        logger.warning("No vision-capable API key configured")
-        return None
-
-    image_b64 = base64.b64encode(image_bytes).decode("utf-8")
-
-    # Use DeepSeek (OpenAI-compatible vision)
-    if settings.LLM_PROVIDER == "deepseek" and settings.DEEPSEEK_API_KEY:
-        return await _deepseek_vision(image_b64)
-
-    # Use Anthropic Claude Vision
     if settings.LLM_PROVIDER == "anthropic" and settings.ANTHROPIC_API_KEY:
         return await _anthropic_vision(image_b64)
 
