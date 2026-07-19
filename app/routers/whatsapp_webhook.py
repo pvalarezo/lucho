@@ -153,6 +153,9 @@ async def _process_whatsapp_message(
         logger.info("Skipping duplicate WhatsApp message: %s", msg_id)
         return
 
+    # ---- 0.5. Send ⏳ reaction to acknowledge receipt ----
+    await whatsapp_svc.send_reaction(from_number, msg_id, "⏳")
+
     # ---- 1. Determine message type and content ----
     text = None
     file_object_key = None

@@ -213,6 +213,51 @@ async def send_typing(phone: str) -> None:
     # Keeping method signature for future API changes.
 
 
+async def send_reaction(phone: str, message_id: str, emoji: str = "⏳") -> dict | None:
+    """
+    Send a reaction emoji to a WhatsApp message.
+
+    Used to acknowledge receipt (⏳) while Lucho processes.
+
+    Args:
+        phone: Recipient phone number
+        message_id: The WhatsApp message ID to react to (wamid.xxx)
+        emoji: The emoji to send (default: ⏳ hourglass)
+
+    Returns:
+        API response dict or None on failure.
+    """
+    if not _is_configured():
+        return None
+
+    url = f"{BASE_URL}/{settings.WHATSAPP_PHONE_NUMBER_ID}/messages"
+    headers = {
+        "Authorization": f"Bearer {settings.WHATSAPP_ACCESS_TOKEN}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "messaging_product": "whatsapp",
+        "recipient_type": "individual",
+        "to": str(phone),
+        "type": "reaction",
+        "reaction": {
+            "message_id": message_id,
+            "emoji": emoji,
+        },
+    }
+
+    async with httpx.AsyncClient(timeout=10) as client:
+        try:
+            response = await client.post(url, json=payload, headers=headers)
+            response.raise_for_status()
+            data = response.json()
+            logger.debug("WhatsApp reaction %s sent to %s for msg %s", emoji, phone, message_id)
+            return data
+        except httpx.HTTPError as exc:
+            logger.error("WhatsApp reaction failed: %s", exc)
+            return None
+
+
 # =============================================================================
 # MEDIA DOWNLOAD
 # =============================================================================
