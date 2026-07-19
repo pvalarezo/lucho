@@ -367,6 +367,9 @@ async def _process_message_content(
     }
     await message_svc.update_message_status(session, db_message, MessageStatus.confirmed)
 
+    # Mark previous rapid-fire messages as acknowledged (they were used as context)
+    await _acknowledge_rapid_fire_messages(session, user.id)
+
     # Mark onboarding as complete after first successful interaction
     if not user.onboarding_complete:
         user.onboarding_complete = True
@@ -483,6 +486,37 @@ async def _save_message_for_context(
     }
     await session.commit()
     logger.debug("Saved rapid-fire msg %s for user %s", msg_id, from_number)
+
+
+async def _acknowledge_rapid_fire_messages(session: AsyncSession, user_id) -> None:
+    """
+    Mark previous rapid-fire (skipped) messages as acknowledged.
+
+    When the agent responds to a normal message, it implicitly used
+    the skipped messages as conversation context. Mark them as seen.
+    """
+    from sqlalchemy import select, update as sql_update
+
+    # Find recent skipped messages for this user that haven't been acknowledged
+    result = await session.execute(
+        select(MessageModel.id).where(
+            MessageModel.user_id == user_id,
+            MessageModel.extraction_result.contains({"rapid_fire_skipped": True}),
+            MessageModel.status == MessageStatus.received,
+        ).limit(10)
+    )
+    skipped_ids = [row[0] for row in result.fetchall()]
+
+    if skipped_ids:
+        await session.execute(
+            sql_update(MessageModel)
+            .where(MessageModel.id.in_(skipped_ids))
+            .values(
+                extraction_result={"rapid_fire_skipped": True, "acknowledged": True},
+                status=MessageStatus.confirmed,
+            )
+        )
+        logger.debug("Acknowledged %d rapid-fire messages for user %s", len(skipped_ids), user_id)
 
 
 # =============================================================================
