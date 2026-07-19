@@ -1,7 +1,8 @@
 """Subscription, Payment, and SubscriptionInvoice models — billing and SRI invoicing.
 
-Design rules (spec section 9.5):
-- subscriptions: user's plan, status, billing cycle
+Design rules:
+- subscription_plans: catalog of available plans with feature flags (JSONB)
+- subscriptions: user's active plan, status, billing cycle, payment method
 - payments: payment history with gateway reference
 - subscription_invoices: SRI-compliant invoices via AuraFac
 """
@@ -15,12 +16,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import UUID
 
 from app.models.base import UUIDMixin, TimestampMixin, Base, utcnow
-
-
-class SubscriptionPlan(str, Enum):
-    free = "free"
-    individual = "individual"
-    ruc = "ruc"
 
 
 class SubscriptionStatus(str, Enum):
@@ -37,6 +32,20 @@ class PaymentStatus(str, Enum):
     refunded = "refunded"
 
 
+class PaymentMethod(str, Enum):
+    credit_card = "credit_card"
+    debit_card = "debit_card"
+    deposit = "deposit"
+    transfer = "transfer"
+    cash = "cash"
+    other = "other"
+
+
+class RenewalType(str, Enum):
+    monthly = "monthly"
+    annual = "annual"
+
+
 class Subscription(UUIDMixin, TimestampMixin, Base):
     __tablename__ = "subscriptions"
 
@@ -44,10 +53,8 @@ class Subscription(UUIDMixin, TimestampMixin, Base):
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, unique=True, index=True
     )
 
-    plan: Mapped[SubscriptionPlan] = mapped_column(
-        SAEnum(SubscriptionPlan, name="subscription_plan"),
-        default=SubscriptionPlan.free,
-        nullable=False,
+    plan_id: Mapped[_uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("subscription_plans.id"), nullable=False, index=True
     )
 
     status: Mapped[SubscriptionStatus] = mapped_column(
@@ -60,12 +67,27 @@ class Subscription(UUIDMixin, TimestampMixin, Base):
     current_period_start: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     current_period_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    payment_method: Mapped[PaymentMethod | None] = mapped_column(
+        SAEnum(PaymentMethod, name="payment_method"), nullable=True
+    )
+    renewal_type: Mapped[RenewalType | None] = mapped_column(
+        SAEnum(RenewalType, name="renewal_type"), nullable=True
+    )
+
+    # Relationships
+    user: Mapped["User"] = relationship("User", back_populates="subscription")
+    plan_ref: Mapped["SubscriptionPlan"] = relationship("SubscriptionPlan", back_populates="subscriptions")
+    payments: Mapped[list["Payment"]] = relationship("Payment", back_populates="subscription")
+
     __table_args__ = ()
 
 
 class Payment(UUIDMixin, Base):
     __tablename__ = "payments"
 
+    user_id: Mapped[_uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True
+    )
     subscription_id: Mapped[_uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("subscriptions.id"), nullable=False, index=True
     )
@@ -73,7 +95,13 @@ class Payment(UUIDMixin, Base):
     amount: Mapped[float] = mapped_column(Float, nullable=False)
     currency: Mapped[str] = mapped_column(String(8), default="USD", nullable=False)
 
-    gateway: Mapped[str] = mapped_column(String(32), nullable=False)  # "kushki", "payphone"
+    payment_method: Mapped[PaymentMethod] = mapped_column(
+        SAEnum(PaymentMethod, name="payment_method"),
+        default=PaymentMethod.other,
+        nullable=False,
+    )
+
+    gateway: Mapped[str | None] = mapped_column(String(32), nullable=True)  # "kushki", "payphone"
     gateway_payment_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     gateway_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
@@ -87,6 +115,9 @@ class Payment(UUIDMixin, Base):
         DateTime(timezone=True), default=utcnow, nullable=False
     )
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Relationships
+    subscription: Mapped["Subscription"] = relationship("Subscription", back_populates="payments")
 
     __table_args__ = ()
 

@@ -2,6 +2,7 @@
 
 from app.models.base import Base, UUIDMixin, TimestampMixin
 from app.models.user import User
+from app.models.user_profile import UserProfile
 from app.models.message import Message, MessageChannel, MessageType, MessageStatus
 from app.models.asset import Asset, AssetType
 from app.models.event import Event, EventCertainty, EventStatus
@@ -11,13 +12,15 @@ from app.models.list import List, ListItem, ListType, ItemStatus
 from app.models.project import Project, ProjectTask, ProjectStatus, TaskStatus
 from app.models.contact import Contact, CaregiverLink
 from app.models.shared_expense import SharedExpense, SharedExpenseParticipant, SplitType, ParticipantStatus
-from app.models.subscription import Subscription, Payment, SubscriptionInvoice, SubscriptionPlan, SubscriptionStatus, PaymentStatus
+from app.models.subscription_plan import SubscriptionPlan
+from app.models.subscription import Subscription, Payment, SubscriptionInvoice, SubscriptionStatus, PaymentStatus, PaymentMethod, RenewalType
 
 __all__ = [
     "Base",
     "UUIDMixin",
     "TimestampMixin",
     "User",
+    "UserProfile",
     "Message",
     "MessageChannel",
     "MessageType",
@@ -46,10 +49,12 @@ __all__ = [
     "SharedExpenseParticipant",
     "SplitType",
     "ParticipantStatus",
+    "SubscriptionPlan",
     "Subscription",
     "Payment",
     "SubscriptionInvoice",
-    "SubscriptionPlan",
     "SubscriptionStatus",
     "PaymentStatus",
+    "PaymentMethod",
+    "RenewalType",
 ]

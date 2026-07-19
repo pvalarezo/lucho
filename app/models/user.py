@@ -1,7 +1,7 @@
 """User model — core identity for every Lucho account."""
 
 from sqlalchemy import String, Boolean
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import UUIDMixin, TimestampMixin, Base
 
@@ -24,5 +24,19 @@ class User(UUIDMixin, TimestampMixin, Base):
         String(8), default="es", nullable=False
     )
     is_active: Mapped[bool] = mapped_column(
-        Boolean, default=True, nullable=False
+        Boolean, default=False, nullable=False
+    )
+    preferred_name: Mapped[str | None] = mapped_column(
+        String(128), nullable=True
+    )
+    onboarding_complete: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False
+    )
+
+    # Relationships
+    profile: Mapped["UserProfile | None"] = relationship(
+        "UserProfile", back_populates="user", uselist=False, lazy="selectin"
+    )
+    subscription: Mapped["Subscription | None"] = relationship(
+        "Subscription", back_populates="user", uselist=False, lazy="selectin"
     )

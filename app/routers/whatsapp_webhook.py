@@ -250,7 +250,18 @@ async def _process_whatsapp_message(
     )
     await session.flush()
 
-    # Update file_object_key with real user_id if needed
+    # ---- 3. Access check (trial/active subscription required) ----
+    access = await user_svc.check_access(session, str(user.id))
+    if not access.allowed:
+        # Send reason
+        await whatsapp_svc.send_message(from_number, access.reason)
+        # Also send trial welcome if new user
+        if not user.onboarding_complete:
+            await _send_trial_welcome_whatsapp(from_number, user)
+        await session.commit()
+        return
+
+    # ---- 4. Update file_object_key with real user_id if needed ----
     file_path = file_object_key or f"whatsapp://{from_number}/{msg_id}"
 
     # ---- 3. Persist raw message ----
@@ -316,6 +327,11 @@ async def _process_whatsapp_message(
         "whatsapp_message_id": msg_id,
     }
     await message_svc.update_message_status(session, db_message, MessageStatus.confirmed)
+
+    # Mark onboarding as complete after first successful interaction
+    if not user.onboarding_complete:
+        user.onboarding_complete = True
+
     await session.commit()
 
     logger.info(
@@ -343,3 +359,24 @@ async def _is_duplicate_whatsapp(session: AsyncSession, msg_id: str) -> bool:
         ).limit(1)
     )
     return result.scalar_one_or_none() is not None
+
+
+async def _send_trial_welcome_whatsapp(phone: str, user) -> None:
+    """Send trial welcome + onboarding first message via WhatsApp."""
+    name = user.first_name or ""
+    welcome = (
+        f"👋 ¡Hola {name}! Soy *Lucho*, tu asistente personal.\n\n"
+        f"🎉 *Tenés 7 días de prueba GRATIS* con acceso a todas las funcionalidades.\n"
+        f"No necesitamos datos de pago.\n\n"
+        f"⚡ *¿Cómo querés que te llame?*\n"
+        f"(Respondeme con tu nombre y empezamos)\n\n"
+        f"Con Lucho podés:\n"
+        f"• 🚗 Guardar tu vehículo y recibir alertas de pico y placa\n"
+        f"• 📅 Crear recordatorios y eventos\n"
+        f"• 📝 Tomar notas y listas\n"
+        f"• 📄 Guardar documentos (SOAT, matrícula, facturas)\n"
+        f"• 💰 Registrar gastos compartidos\n"
+        f"• 🔍 Buscar entre todos tus datos\n\n"
+        f"Mandame un mensaje y empezamos 🚀"
+    )
+    await whatsapp_svc.send_message(phone, welcome)
