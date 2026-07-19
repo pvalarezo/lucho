@@ -523,6 +523,9 @@ async def _acknowledge_rapid_fire_messages(session: AsyncSession, user_id) -> No
 # =============================================================================
 # ONBOARDING
 # =============================================================================
+
+
+async def _send_onboarding_step0(phone: str, user) -> None:
     """
     Step 0: Send welcome messages 1 and 2.
     Message 1: Presentation of Lucho.
