@@ -193,7 +193,13 @@ async def send_template_message(phone: str, template_name: str, language_code: s
 
 
 async def send_typing(phone: str) -> None:
-    """Show 'typing...' indicator. Non-blocking, best-effort."""
+    """
+    Trigger WhatsApp 'typing...' indicator (3 dots).
+
+    WhatsApp Cloud API doesn't have a native typing endpoint like Telegram.
+    Workaround: send an invisible zero-width character that triggers
+    the typing indicator without showing a visible message.
+    """
     if not _is_configured():
         return
 
@@ -206,11 +212,14 @@ async def send_typing(phone: str) -> None:
         "messaging_product": "whatsapp",
         "to": str(phone),
         "type": "text",
-        "text": {"body": "..."},
+        "text": {"body": "\u200B"},  # zero-width space — invisible, triggers typing
     }
-    # Actually, WhatsApp doesn't have a typing indicator like Telegram.
-    # We skip this — the message itself is fast enough.
-    # Keeping method signature for future API changes.
+
+    async with httpx.AsyncClient(timeout=5) as client:
+        try:
+            await client.post(url, json=payload, headers=headers)
+        except httpx.HTTPError:
+            pass  # best-effort
 
 
 async def send_reaction(phone: str, message_id: str, emoji: str = "⏳") -> dict | None:
