@@ -29,6 +29,9 @@ Plan general del proyecto, fases, hitos y funcionalidades por ola.
 - [x] WhatsApp Cloud API integración completa ✅ v2.8.0
 - [x] WhatsApp Templates documentados (4 plantillas) ✅ v2.9.1
 - [x] Telegram webhook unificado (adios polling) ✅ v2.9.2
+- [x] Sistema de suscripción: planes, trial 7 días, control acceso ✅ v2.9.3
+- [x] Onboarding guiado: bienvenida + nombre preferido ✅ v2.9.3
+- [x] Seguridad: middleware check_access, usuarios inactivos rechazados ✅ v2.9.3
 - [x] Proyectos y Tareas ✅ v2.2.0
 - [x] Contactos ✅ v2.2.0
 - [x] Envío de fotos al usuario ✅ v2.3.0
@@ -38,9 +41,8 @@ Plan general del proyecto, fases, hitos y funcionalidades por ola.
 - [x] OCR/Visión migrado a DeepSeek ✅ v2.9.0
 - [ ] Crear templates en Meta Business Manager (documentados, falta crearlos)
 - [ ] Conectar templates en scheduler (send_template_message)
-- [ ] Onboarding guiado (3 primeros mensajes diseñados)
+- [ ] Flujo post-pago: datos adicionales + activación suscripción
 - [ ] Métricas: % extracción correcta, retención D7/D30, intención de pago
-- [ ] Seguridad y LOPDP: cifrado en reposo, política de privacidad
 - [ ] Funcionalidades Ola 2:
   - Fechas especiales (cumpleaños, aniversarios)
   - Vacunas (hijos, mascotas)

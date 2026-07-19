@@ -10,6 +10,7 @@ Estado actual de cada fase, módulo y entregable. Fase 1 completada con rediseñ
 ### Versiones
 | Tag | Fecha | Descripción |
 |-----|-------|-------------|
+| v2.9.3 | 2026-07-18 | Sistema de suscripción: subscription_plans, trial 7 días, control de acceso en webhooks, onboarding guiado con bienvenida. Tablas nuevas: subscription_plans + user_profiles. Scripts: seed_subscription_plans.py, manage_users.py. |
 | v2.9.2 | 2026-07-16 | Telegram polling eliminado: migrado a webhook unificado. app/bot.py + run_bot.py + lucho-bot.service eliminados. Telegram y WhatsApp usan mismo patrón webhook vía lucho-api. Script setup_telegram_webhook.py para configurar. |
 | v2.9.1 | 2026-07-16 | WhatsApp Templates: 4 plantillas documentadas (document_reminder, project_reminder, pico_y_placa, daily_digest) en docs/whatsapp_templates.md. Categoría UTILITY, listas para crear en Meta. |
 | v2.9.0 | 2026-07-16 | OCR/Visión migrado a DeepSeek: extract_document_data + analyze_image usan deepseek-chat como primario. Código muerto eliminado en vision.py. Meta Live: config verificada, webhook confirmado, esperando aprobación. |
@@ -85,19 +86,28 @@ Estado actual de cada fase, módulo y entregable. Fase 1 completada con rediseñ
 | 1 | Activar app Meta en Live ✅ (cuenta WhatsApp lista) | ✅ Lista | — |
 | 2 | Crear templates en Meta Business Manager (documentados en docs/whatsapp_templates.md) | 🔴 Inmediata | 30min |
 | 3 | Eliminar Telegram polling → migrar a webhook unificado | ✅ Hecho v2.9.2 | — |
-| 4 | Conectar templates en scheduler (send_template_message) | 🟡 Media | 2h |
-| 5 | Indexado numerado en búsquedas | 🟢 Baja | — |
-| 6 | Dashboard métricas | 🟢 Futuro | — |
-| 7 | Skills adicionales (transporte, servicios básicos) | 🟢 Opcional | 40min |
-| 8 | Whisper local (reducir costo transcripción a $0) | 🟢 Futuro | 2h |
+| 4 | Sistema de suscripción: planes, trial, control de acceso, onboarding | ✅ Hecho v2.9.3 | — |
+| 5 | Conectar templates en scheduler (send_template_message) | 🟡 Media | 2h |
+| 6 | Indexado numerado en búsquedas | 🟢 Baja | — |
+| 7 | Dashboard métricas | 🟢 Futuro | — |
+| 8 | Skills adicionales (transporte, servicios básicos) | 🟢 Opcional | 40min |
+| 9 | Whisper local (reducir costo transcripción a $0) | 🟢 Futuro | 2h |
 
 ### Infraestructura — ✅ 100%
-- FastAPI, Docker Compose, Alembic, 18 tablas PostgreSQL + pgvector
+- FastAPI, Docker Compose, Alembic, 20 tablas PostgreSQL + pgvector
 - MinIO (fotos/documentos), Redis (configurado), sentence-transformers (embeddings locales)
 - Telegram webhook (recibir y enviar mensajes)
 - WhatsApp Cloud API webhook (recibir y enviar mensajes, verificado ✅)
 - Cloudflare Tunnel para HTTPS público (lucho-dev.apx5.com)
 - Systemd user services (manual start, no auto-boot)
+
+### Seguridad y Control de Acceso — ✅ v2.9.3
+- Nuevos usuarios: trial de 7 días con acceso completo
+- Middleware check_access() en ambos webhooks
+- Estados: trial → active (post-pago) / expired (sin pago)
+- Onboarding guiado: bienvenida + "¿cómo querés que te llame?"
+- Datos post-pago: user_profiles (cédula, correo, nombre completo, aceptación políticas)
+- CLI: manage_users.py para activar/desactivar/listar usuarios
 
 ---
 
