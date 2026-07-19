@@ -152,10 +152,12 @@ async def _process_whatsapp_message(
         logger.info("Skipping duplicate WhatsApp message: %s", msg_id)
         return
 
-    # ---- 0.3. Rapid-fire guard: skip if user is already being processed ----
+    # ---- 0.3. Rapid-fire guard: save message but skip agent while processing ----
     if _is_processing(from_number):
-        logger.info("User %s already processing — skipping rapid-fire msg %s", from_number, msg_id)
+        logger.info("User %s already processing — saving rapid-fire msg %s for context", from_number, msg_id)
         await whatsapp_svc.send_reaction(from_number, msg_id, "⏳")
+        # Still persist the message so agent sees it in future history
+        await _save_message_for_context(session, msg, from_number, msg_id)
         return
 
     # ---- 0.5. Mark processing + reaction + typing ----
@@ -429,6 +431,58 @@ def _mark_processing(phone: str) -> None:
 def _unmark_processing(phone: str) -> None:
     """Unmark a user after processing completes."""
     _processing_users.pop(phone, None)
+
+
+async def _save_message_for_context(
+    session: AsyncSession,
+    msg: dict,
+    from_number: str,
+    msg_id: str,
+) -> None:
+    """
+    Persist a rapid-fire message for conversation history without calling the agent.
+
+    The next time the agent processes a message for this user, it will see
+    this message in the conversation history (last 6 messages).
+    """
+    text = None
+    msg_type_str = msg.get("type", "text")
+
+    if msg_type_str == "text":
+        text = msg.get("text", {}).get("body", "")
+        message_type = MessageType.text
+    elif msg_type_str in ("image", "audio", "voice", "document"):
+        text = f"[{msg_type_str}: recibido mientras Lucho procesaba]"
+        message_type = MessageType.photo if msg_type_str == "image" else MessageType.audio
+    else:
+        text = f"[{msg_type_str}]"
+        message_type = MessageType.text
+
+    if not text:
+        return
+
+    # Resolve user quickly
+    user = await user_svc.resolve_user_by_phone(
+        session=session,
+        phone_number=from_number,
+    )
+    await session.flush()
+
+    # Persist message
+    db_message = await message_svc.create_message(
+        session=session,
+        user_id=user.id,
+        channel=MessageChannel.whatsapp,
+        message_type=message_type,
+        text=text,
+        file_path=f"whatsapp://{from_number}/{msg_id}",
+    )
+    db_message.extraction_result = {
+        "rapid_fire_skipped": True,
+        "whatsapp_message_id": msg_id,
+    }
+    await session.commit()
+    logger.debug("Saved rapid-fire msg %s for user %s", msg_id, from_number)
 
 
 # =============================================================================
