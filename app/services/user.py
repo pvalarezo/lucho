@@ -177,6 +177,25 @@ async def _create_trial_subscription(
     return sub
 
 
+async def _ensure_trial_subscription(
+    session: AsyncSession,
+    user_id: str,
+) -> Subscription | None:
+    """
+    Ensure a user has a trial subscription. Creates one if missing.
+    Used by check_access for users without subscriptions.
+    """
+    from app.models.user import User as UserModel
+
+    result = await session.execute(
+        select(UserModel).where(UserModel.id == user_id)
+    )
+    user = result.scalar_one_or_none()
+    if not user:
+        return None
+    return await _create_trial_subscription(session, user)
+
+
 # =============================================================================
 # ACCESS CHECK
 # =============================================================================
@@ -208,6 +227,11 @@ async def check_access(session: AsyncSession, user_id: str) -> AccessResult:
     sub = result.scalar_one_or_none()
 
     if not sub:
+        # No subscription found — create a trial for this user
+        logger.warning("User %s has no subscription — creating trial", user_id)
+        sub = await _ensure_trial_subscription(session, user_id)
+        if sub:
+            return AccessResult(allowed=True)
         return AccessResult(
             allowed=False,
             reason="⚠️ No tenés una suscripción activa. Contactanos para activar tu cuenta.",
