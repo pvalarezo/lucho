@@ -102,12 +102,23 @@ async def telegram_webhook(
     )
     await session.flush()
 
-    # ---- 5. Onboarding: if new user, send welcome messages first ----
+    # ---- 5. Onboarding: 3-step flow for new users ----
     if not user.onboarding_complete:
-        await _send_onboarding_messages_telegram(chat_id, user)
-        user.onboarding_complete = True
-        await session.commit()
-        return {"status": "onboarding_sent"}
+        if user.onboarding_step == 0:
+            # Step 0 → Send messages 1 (welcome) + 2 (ask name)
+            await _send_onboarding_step0_telegram(chat_id, user)
+            user.onboarding_step = 1
+            await session.commit()
+            return {"status": "onboarding_step0"}
+        elif user.onboarding_step == 1:
+            # Step 1 → User sent their name, save it + send message 3 (trial)
+            name = text.strip() if text else user.first_name
+            user.preferred_name = name
+            await _send_onboarding_step1_telegram(chat_id, name)
+            user.onboarding_step = 2
+            user.onboarding_complete = True
+            await session.commit()
+            return {"status": "onboarding_complete"}
 
     # ---- 6. Access check (trial/active subscription required) ----
     access = await user_svc.check_access(session, str(user.id))
@@ -309,44 +320,47 @@ async def _is_duplicate(session: AsyncSession, chat_id: int, telegram_message_id
     return result.scalar_one_or_none() is not None
 
 
-async def _send_onboarding_messages_telegram(chat_id: int, user) -> None:
-    """
-    Send onboarding welcome messages (2 messages) for new users via Telegram.
-    """
-    name = user.first_name or ""
-
-    # ---- Message 1: Welcome + presentation ----
+async def _send_onboarding_step0_telegram(chat_id: int, user) -> None:
+    """Step 0: Send welcome messages 1 and 2 via Telegram."""
     msg1 = (
-        f"👋 ¡Hola {name}!\n\n"
-        f"Soy *Lucho*, tu asistente personal ecuatoriano 🇪🇨\n"
-        f"Fui creado por AURACORE para ser tu *segundo cerebro*: "
-        f"recordar, organizar y encontrar tu información personal.\n\n"
-        f"*¿Qué puedo hacer por vos?*\n\n"
-        f"🚗 *Vehículos* — Guardar tu placa, alertas de pico y placa, "
-        f"fechas de matriculación\n\n"
-        f"📄 *Documentos* — Guardar SOAT, cédula, facturas, garantías "
-        f"con fecha de vencimiento\n\n"
-        f"📅 *Recordatorios* — Citas, eventos, fechas importantes "
-        f"con anticipación\n\n"
-        f"📝 *Listas y notas* — Compras, tareas, ideas organizadas por tema\n\n"
-        f"📋 *Proyectos* — Tareas agrupadas con fechas de entrega\n\n"
-        f"💰 *Gastos compartidos* — Dividir cuentas entre amigos\n\n"
-        f"🔍 *Búsqueda* — Encontrar todo lo que guardaste "
-        f"y también buscar en internet\n\n"
-        f"Mandame lo que necesités sin estructura, "
-        f"yo lo organizo. ¡Hablame como a un amigo!"
+        "👋 ¡Hola!\n\n"
+        "Soy Lucho, tu asistente personal ecuatoriano 🇪🇨\n\n"
+        "Estoy aquí para ser tu segundo cerebro: "
+        "recordar, organizar y encontrar tu información del día a día.\n\n"
+        "¿Qué puedo hacer por vos?\n\n"
+        "🚗 Vehículos — Guardar tu placa, alertas de pico y placa, "
+        "fechas de matriculación\n\n"
+        "📄 Documentos — Guardar cédula, facturas, garantías "
+        "con fecha de vencimiento\n\n"
+        "📅 Recordatorios — Citas, eventos, fechas importantes "
+        "con anticipación\n\n"
+        "📝 Listas y notas — Compras, tareas, ideas organizadas por tema\n\n"
+        "📋 Proyectos — Tareas agrupadas con fechas de entrega\n\n"
+        "💰 Gastos compartidos — Dividir cuentas entre amigos\n\n"
+        "🔍 Búsqueda — Encontrar todo lo que guardaste "
+        "y también buscar en internet\n\n"
+        "Mandame lo que necesités sin estructura, "
+        "yo lo organizo. ¡Hablame como a un amigo!"
     )
     await telegram_svc.send_message(chat_id, msg1)
 
-    # ---- Message 2: Ask for name + trial info ----
     msg2 = (
-        f"⚡ *¿Cómo querés que te llame?*\n\n"
-        f"Decime tu nombre y empezamos.\n\n"
-        f"🎉 *Tenés 7 días de prueba GRATIS* con acceso a "
-        f"todas las funcionalidades. No necesitamos ningún dato "
-        f"personal ni de pago durante este tiempo.\n\n"
-        f"Al finalizar la prueba, si querés continuar, "
-        f"elegís tu plan y completás tu registro. "
-        f"Por ahora, ¡disfrutá Lucho sin compromisos! 🚀"
+        "⚡ Para iniciar a trabajar, "
+        "¿Cómo quieres que te llame?\n\n"
+        "Dime tu nombre y empezamos...."
     )
     await telegram_svc.send_message(chat_id, msg2)
+
+
+async def _send_onboarding_step1_telegram(chat_id: int, name: str) -> None:
+    """Step 1: User gave their name. Confirm + trial info via Telegram."""
+    msg3 = (
+        f"👏👏 Perfecto *{name}*, he registrado tu nombre\n\n"
+        "🎉 Tienes 7 días de prueba GRATIS con acceso a "
+        "todas las funcionalidades. No necesitamos ningún dato "
+        "personal ni de pago durante este tiempo.\n\n"
+        "Al finalizar la prueba, si querés continuar, "
+        "elegís tu plan y completás tu registro. "
+        "Por ahora, ¡disfrutá Lucho sin compromisos! 🚀"
+    )
+    await telegram_svc.send_message(chat_id, msg3)

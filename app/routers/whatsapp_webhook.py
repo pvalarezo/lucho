@@ -250,12 +250,23 @@ async def _process_whatsapp_message(
     )
     await session.flush()
 
-    # ---- 3. Onboarding: if new user, send welcome messages first ----
+    # ---- 3. Onboarding: 3-step flow for new users ----
     if not user.onboarding_complete:
-        await _send_onboarding_messages(from_number, user)
-        user.onboarding_complete = True
-        await session.commit()
-        return
+        if user.onboarding_step == 0:
+            # Step 0 → Send messages 1 (welcome) + 2 (ask name)
+            await _send_onboarding_step0(phone, user)
+            user.onboarding_step = 1
+            await session.commit()
+            return
+        elif user.onboarding_step == 1:
+            # Step 1 → User sent their name, save it + send message 3 (trial)
+            name = text.strip() if text else user.first_name
+            user.preferred_name = name
+            await _send_onboarding_step1(phone, name)
+            user.onboarding_step = 2
+            user.onboarding_complete = True
+            await session.commit()
+            return
 
     # ---- 4. Access check (trial/active subscription required) ----
     access = await user_svc.check_access(session, str(user.id))
@@ -364,47 +375,55 @@ async def _is_duplicate_whatsapp(session: AsyncSession, msg_id: str) -> bool:
     return result.scalar_one_or_none() is not None
 
 
-async def _send_onboarding_messages(phone: str, user) -> None:
+async def _send_onboarding_step0(phone: str, user) -> None:
     """
-    Send onboarding welcome messages (2 messages) for new users.
-
-    Message 1: Presentation — who Lucho is, what he can do.
-    Message 2: Ask for preferred name + trial info.
+    Step 0: Send welcome messages 1 and 2.
+    Message 1: Presentation of Lucho.
+    Message 2: Ask for name.
     """
-    name = user.first_name or ""
-
     # ---- Message 1: Welcome + presentation ----
     msg1 = (
-        f"👋 ¡Hola {name}!\n\n"
-        f"Soy *Lucho*, tu asistente personal ecuatoriano 🇪🇨\n"
-        f"Fui creado por AURACORE para ser tu *segundo cerebro*: "
-        f"recordar, organizar y encontrar tu información personal.\n\n"
-        f"*¿Qué puedo hacer por vos?*\n\n"
-        f"🚗 *Vehículos* — Guardar tu placa, alertas de pico y placa, "
-        f"fechas de matriculación\n\n"
-        f"📄 *Documentos* — Guardar SOAT, cédula, facturas, garantías "
-        f"con fecha de vencimiento\n\n"
-        f"📅 *Recordatorios* — Citas, eventos, fechas importantes "
-        f"con anticipación\n\n"
-        f"📝 *Listas y notas* — Compras, tareas, ideas organizadas por tema\n\n"
-        f"📋 *Proyectos* — Tareas agrupadas con fechas de entrega\n\n"
-        f"💰 *Gastos compartidos* — Dividir cuentas entre amigos\n\n"
-        f"🔍 *Búsqueda* — Encontrar todo lo que guardaste "
-        f"y también buscar en internet\n\n"
-        f"Mandame lo que necesités sin estructura, "
-        f"yo lo organizo. ¡Hablame como a un amigo!"
+        "👋 ¡Hola!\n\n"
+        "Soy Lucho, tu asistente personal ecuatoriano 🇪🇨\n\n"
+        "Estoy aquí para ser tu segundo cerebro: "
+        "recordar, organizar y encontrar tu información del día a día.\n\n"
+        "¿Qué puedo hacer por vos?\n\n"
+        "🚗 Vehículos — Guardar tu placa, alertas de pico y placa, "
+        "fechas de matriculación\n\n"
+        "📄 Documentos — Guardar cédula, facturas, garantías "
+        "con fecha de vencimiento\n\n"
+        "📅 Recordatorios — Citas, eventos, fechas importantes "
+        "con anticipación\n\n"
+        "📝 Listas y notas — Compras, tareas, ideas organizadas por tema\n\n"
+        "📋 Proyectos — Tareas agrupadas con fechas de entrega\n\n"
+        "💰 Gastos compartidos — Dividir cuentas entre amigos\n\n"
+        "🔍 Búsqueda — Encontrar todo lo que guardaste "
+        "y también buscar en internet\n\n"
+        "Mandame lo que necesités sin estructura, "
+        "yo lo organizo. ¡Hablame como a un amigo!"
     )
     await whatsapp_svc.send_message(phone, msg1)
 
-    # ---- Message 2: Ask for name + trial info ----
+    # ---- Message 2: Ask for name ----
     msg2 = (
-        f"⚡ *¿Cómo querés que te llame?*\n\n"
-        f"Decime tu nombre y empezamos.\n\n"
-        f"🎉 *Tenés 7 días de prueba GRATIS* con acceso a "
-        f"todas las funcionalidades. No necesitamos ningún dato "
-        f"personal ni de pago durante este tiempo.\n\n"
-        f"Al finalizar la prueba, si querés continuar, "
-        f"elegís tu plan y completás tu registro. "
-        f"Por ahora, ¡disfrutá Lucho sin compromisos! 🚀"
+        "⚡ Para iniciar a trabajar, "
+        "¿Cómo quieres que te llame?\n\n"
+        "Dime tu nombre y empezamos...."
     )
     await whatsapp_svc.send_message(phone, msg2)
+
+
+async def _send_onboarding_step1(phone: str, name: str) -> None:
+    """
+    Step 1: User gave their name. Confirm + trial info.
+    """
+    msg3 = (
+        f"👏👏 Perfecto *{name}*, he registrado tu nombre\n\n"
+        "🎉 Tienes 7 días de prueba GRATIS con acceso a "
+        "todas las funcionalidades. No necesitamos ningún dato "
+        "personal ni de pago durante este tiempo.\n\n"
+        "Al finalizar la prueba, si querés continuar, "
+        "elegís tu plan y completás tu registro. "
+        "Por ahora, ¡disfrutá Lucho sin compromisos! 🚀"
+    )
+    await whatsapp_svc.send_message(phone, msg3)
