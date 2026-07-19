@@ -254,7 +254,7 @@ async def _process_whatsapp_message(
     if not user.onboarding_complete:
         if user.onboarding_step == 0:
             # Step 0 → Send messages 1 (welcome) + 2 (ask name)
-            await _send_onboarding_step0(phone, user)
+            await _send_onboarding_step0(from_number, user)
             user.onboarding_step = 1
             await session.commit()
             return
@@ -262,7 +262,7 @@ async def _process_whatsapp_message(
             # Step 1 → User sent their name, save it + send message 3 (trial)
             name = text.strip() if text else user.first_name
             user.preferred_name = name
-            await _send_onboarding_step1(phone, name)
+            await _send_onboarding_step1(from_number, name)
             user.onboarding_step = 2
             user.onboarding_complete = True
             await session.commit()
