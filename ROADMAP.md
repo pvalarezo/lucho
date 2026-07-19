@@ -12,7 +12,7 @@ Plan general del proyecto, fases, hitos y funcionalidades por ola.
 
 ## Fase 1 — MVP Técnico ✅ COMPLETADA — 2026-07-12
 
-**Versión:** v2.9.2 | **Tools:** 19 | **Funcionalidades:** 19/19 completadas
+**Versión:** v2.9.3 | **Tools:** 19 | **Funcionalidades:** 19/19 completadas
 **Skills Ecuador:** 7 skills en 4 dominios | **Tests:** 272/275 (98%)
 **Canales:** Telegram (webhook) + WhatsApp Cloud API (webhook) — arquitectura unificada
 **Entregables Fase 1:** ✅ 100% completado
@@ -27,6 +27,7 @@ Plan general del proyecto, fases, hitos y funcionalidades por ola.
 **Canales:** Telegram + WhatsApp
 
 - [x] WhatsApp Cloud API integración completa ✅ v2.8.0
+- [x] WhatsApp: reacción ⏳ + typing indicator + debounce 3s ✅ v2.9.3
 - [x] WhatsApp Templates documentados (4 plantillas) ✅ v2.9.1
 - [x] Telegram webhook unificado (adios polling) ✅ v2.9.2
 - [x] Sistema de suscripción: planes, trial 7 días, control acceso ✅ v2.9.3

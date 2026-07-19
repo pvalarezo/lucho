@@ -10,7 +10,7 @@ Estado actual de cada fase, módulo y entregable. Fase 1 completada con rediseñ
 ### Versiones
 | Tag | Fecha | Descripción |
 |-----|-------|-------------|
-| v2.9.3 | 2026-07-18 | Sistema de suscripción: subscription_plans, trial 7 días, control de acceso en webhooks, onboarding guiado con bienvenida. Tablas nuevas: subscription_plans + user_profiles. Scripts: seed_subscription_plans.py, manage_users.py. |
+| v2.9.3 | 2026-07-18 | Sistema completo: suscripción (planes, trial 7 días, acceso), onboarding 3 pasos, WhatsApp (⏳ reacción, typing indicator, debounce 3s). Tablas nuevas: subscription_plans + user_profiles. Webhook WhatsApp reescrito con debounce. Scripts: seed_subscription_plans.py, manage_users.py. |
 | v2.9.2 | 2026-07-16 | Telegram polling eliminado: migrado a webhook unificado. app/bot.py + run_bot.py + lucho-bot.service eliminados. Telegram y WhatsApp usan mismo patrón webhook vía lucho-api. Script setup_telegram_webhook.py para configurar. |
 | v2.9.1 | 2026-07-16 | WhatsApp Templates: 4 plantillas documentadas (document_reminder, project_reminder, pico_y_placa, daily_digest) en docs/whatsapp_templates.md. Categoría UTILITY, listas para crear en Meta. |
 | v2.9.0 | 2026-07-16 | OCR/Visión migrado a DeepSeek: extract_document_data + analyze_image usan deepseek-chat como primario. Código muerto eliminado en vision.py. Meta Live: config verificada, webhook confirmado, esperando aprobación. |
@@ -102,12 +102,18 @@ Estado actual de cada fase, módulo y entregable. Fase 1 completada con rediseñ
 - Systemd user services (manual start, no auto-boot)
 
 ### Seguridad y Control de Acceso — ✅ v2.9.3
-- Nuevos usuarios: trial de 7 días con acceso completo
+- Nuevos usuarios: trial de 7 días con acceso completo (plan Básico)
 - Middleware check_access() en ambos webhooks
 - Estados: trial → active (post-pago) / expired (sin pago)
-- Onboarding guiado: bienvenida + "¿cómo querés que te llame?"
+- Onboarding 3 pasos: presentación → nombre → confirmación trial
 - Datos post-pago: user_profiles (cédula, correo, nombre completo, aceptación políticas)
 - CLI: manage_users.py para activar/desactivar/listar usuarios
+
+### WhatsApp Experience — ✅ v2.9.3
+- ⏳ Reacción inmediata al recibir mensaje (reloj de arena)
+- Typing indicator oficial (3 puntitos "escribiendo..." vía status:read)
+- Debounce 3s: espera silencio antes de llamar al agente (mensajes agrupados)
+- Webhook reescrito con arquitectura limpia (save → debounce → process)
 
 ---
 

@@ -2,106 +2,88 @@
 
 ---
 
-## Sesión actual — 2026-07-18
+## Sesión finalizada — 2026-07-18/19
 
-**v2.9.3 — Sistema de suscripción, trial, onboarding y control de acceso**
+**v2.9.3 — Suscripción, trial, onboarding, WhatsApp UX, debounce**
 
-### Entregables:
+### Entregables completados:
 
-#### Tablas nuevas ✅
-- `subscription_plans`: catálogo de planes con features en JSONB
+#### 🗄️ Base de datos
+- `subscription_plans`: catálogo de planes con features en JSONB (plan "Básico" creado)
 - `user_profiles`: datos post-pago (cédula, correo, nombre completo, políticas)
-
-#### Modelos modificados ✅
-- `users`: is_active default=False, +preferred_name, +onboarding_complete
+- `users`: is_active=False (default), +preferred_name, +onboarding_step
 - `subscriptions`: plan FK a subscription_plans, +payment_method, +renewal_type
 - `payments`: +user_id FK, +payment_method
 
-#### Sistema de Trial + Acceso ✅
-- Nuevos usuarios: trial 7 días, plan Básico, acceso completo
-- Middleware `check_access()` en ambos webhooks
+#### 🔐 Seguridad + Trial
+- Trial 7 días automático al registrarse (plan Básico, todos los features)
+- Middleware `check_access()` en webhooks Telegram + WhatsApp
 - Estados: trial → active (post-pago) / expired (sin pago)
+- `_ensure_trial_subscription()` fallback para usuarios sin suscripción
 
-#### Onboarding guiado ✅
-- Webhook envía bienvenida con info de trial + "¿cómo querés que te llame?"
-- System prompt actualizado con instrucciones de onboarding
-- `onboarding_complete = True` automático tras primera interacción exitosa
+#### 👋 Onboarding 3 pasos
+- Msg 1: Presentación Lucho + funcionalidades (con Patricio texts)
+- Msg 2: "¿Cómo quieres que te llame?"
+- Msg 3: "Perfecto *nombre*, 7 días GRATIS..."
+- Campo `onboarding_step` (0→1→2→done)
 
-#### Scripts ✅
-- `scripts/seed_subscription_plans.py`: crea el plan Básico
-- `scripts/manage_users.py`: listar, activar, desactivar usuarios
+#### 💬 WhatsApp UX
+- ⏳ Reacción inmediata (reloj) al recibir mensaje
+- Typing indicator oficial (3 puntitos vía `status:read` + `typing_indicator`)
+- Debounce 3 segundos: espera silencio, procesa mensajes agrupados
+- Webhook WhatsApp reescrito limpio con arquitectura save → debounce → process
+
+#### 🏗️ Infraestructura
+- Telegram polling eliminado → webhook unificado
+- Scripts: `seed_subscription_plans.py`, `manage_users.py`, `setup_telegram_webhook.py`
+- 2 servicios systemd (lucho-api + lucho-tunnel), antes eran 3
+- Alembic migrations aplicadas correctamente
 
 ---
 
 ## Próxima sesión — Prioridades
 
-### 🔴 INMEDIATA — Puesta en marcha
+### 🔴 INMEDIATA
 
-**1. Correr migración y seed**
-- [ ] `python3 -m alembic upgrade head`
-- [ ] `python scripts/seed_subscription_plans.py`
-
-**2. Arrancar servicios y configurar webhook**
-- [ ] `systemctl --user start lucho-api lucho-tunnel`
-- [ ] `python scripts/setup_telegram_webhook.py`
-
-**3. Probar flujo completo**
-- [ ] Escribir desde un número NUEVO en WhatsApp/Telegram
-- [ ] Verificar que recibe el mensaje de bienvenida trial
-- [ ] Verificar que puede interactuar normalmente
-- [ ] `python scripts/manage_users.py --list` para ver el usuario creado
-
-**4. Crear templates en Meta Business Manager**
+**1. Crear templates en Meta Business Manager**
 - [ ] Usar `docs/whatsapp_templates.md` como guía
-- [ ] Crear 4 templates en Meta Developers
+- [ ] Crear 4 templates: `document_reminder`, `project_reminder`, `pico_y_placa`, `daily_digest`
+- [ ] Esperar aprobación Meta (24-48h)
 
 ### 🟡 MEDIA
 
-**5. Conectar templates en el scheduler**
-- [ ] Implementar `send_template_message` en `whatsapp.py`
-- [ ] Recordatorios de documentos, proyectos, pico y placa, daily digest
+**2. Conectar templates en el scheduler**
+- [ ] Implementar `send_template_message` con parámetros en `whatsapp.py`
+- [ ] Recordatorios de documentos, proyectos, pico y placa, daily digest via template
 
-**6. Post-pago: flujo de activación**
-- [ ] Cuando el trial expira y el usuario paga:
-  - [ ] Solicitar cédula, correo, nombre completo
-  - [ ] Enviar link de políticas de privacidad
-  - [ ] Registrar aceptación ("SI")
-  - [ ] Activar suscripción (status = active)
+**3. Flujo post-pago**
+- [ ] Cuando trial expira: solicitar cédula, correo, nombre completo
+- [ ] Enviar link de políticas de privacidad
+- [ ] Registrar aceptación ("SI") en user_profiles
 
-### 🟢 FASE 2 — Beta Cerrada
+### 🟢 FASE 2
 
-**7. Métricas** — % extracción correcta, retención D7/D30, intención de pago
-**8. Funcionalidades Ola 2** — cumpleaños, vacunas, suscripciones, control de gastos
+**4. Métricas** — % extracción correcta, retención D7/D30, intención de pago
+**5. Ola 2** — cumpleaños, vacunas, suscripciones, control de gastos
 
 ### ⚪ FUTURO
-
-- [ ] Whisper local ($0 transcripción)
-- [ ] Dashboard de métricas
-- [ ] Fase 3: pagos reales (Kushki/PayPhone), facturación SRI
+- Whisper local ($0), skills adicionales, dashboard
+- Fase 3: pagos reales (Kushki/PayPhone), facturación SRI
 
 ---
 
 ## Comandos rápidos
 
 ```bash
-# Migración
-python3 -m alembic upgrade head
-python scripts/seed_subscription_plans.py
-
 # Arrancar servicios
 systemctl --user start lucho-api lucho-tunnel
 
 # Webhook Telegram
 python scripts/setup_telegram_webhook.py
-python scripts/setup_telegram_webhook.py --info
 
 # Gestionar usuarios
 python scripts/manage_users.py --list
 python scripts/manage_users.py --activate 593987654321
-python scripts/manage_users.py --show 593987654321
-
-# Logs
-journalctl --user -u lucho-api -f
 
 # Git
 git add -A && git commit -m "mensaje"
