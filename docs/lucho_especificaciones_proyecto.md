@@ -3,7 +3,7 @@
 **Empresa creadora:** AURACORE SOLUCIONES SAS
 **Desarrollador:** Patricio Valarezo
 **Contacto:** patriciovalarezo@gmail.com
-**Versión del documento:** 1.7 — Fase 1 completada: multi-LLM (DeepSeek), sistema de tools, respuestas contextuales, bot Telegram con polling. Ver sección 14 para cambios respecto a v1.6.
+**Versión del documento:** 1.7 — Fase 1 completada: multi-LLM (DeepSeek), sistema de tools, respuestas contextuales, bot Telegram con webhook. Ver sección 14 para cambios respecto a v1.6.
 
 ---
 
@@ -458,11 +458,11 @@ Este enrutamiento por costo es lo que hace sostenible la unit economics de un pl
 
 **Principio intacto:** El LLM solo formatea datos que YA están en la base. No inventa información. Si no hay datos, responde "No tengo vehículos registrados".
 
-### 14.4 Bot Telegram con polling (desarrollo)
+### 14.4 Bot Telegram con webhook (producción)
 
-**Cambio:** Para desarrollo se usa polling (long polling) en vez de webhook. No requiere SSL, IP pública ni dominio.
+**Cambio:** v2.9.2 — Migrado de polling a webhook unificado. Telegram y WhatsApp usan el mismo patrón: ambos empujan mensajes al endpoint webhook de lucho-api vía Cloudflare Tunnel.
 
-**Migración a producción:** Cambiar a webhook es una línea de configuración. El endpoint `POST /telegram/webhook` ya está implementado y funcional.
+**Configuración:** `python scripts/setup_telegram_webhook.py` — una sola vez. El endpoint `POST /telegram/webhook` recibe updates de Telegram sin necesidad de proceso aparte.
 
 ### 14.5 Router con 9 targets (incluye meta + tool)
 

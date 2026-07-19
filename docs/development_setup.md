@@ -92,24 +92,23 @@ cloudflared tunnel run lucho-whatsapp
 
 URL pública: `https://lucho-dev.apx5.com`
 
-### 3.3 Telegram Bot (polling)
+### 3.3 Telegram Webhook (setup único)
+
+Telegram usa webhook igual que WhatsApp — no necesita proceso aparte.
 
 ```bash
-# Iniciar
-systemctl --user start lucho-bot
+# Configurar webhook (solo se hace una vez)
+python scripts/setup_telegram_webhook.py
 
-# Detener
-systemctl --user stop lucho-bot
+# Verificar estado actual
+python scripts/setup_telegram_webhook.py --info
 
-# Ver logs
-journalctl --user -u lucho-bot -f
-
-# Manualmente (sin systemd)
-cd /home/pvalarezo/auracore-apps/lucho
-python3 run_bot.py
+# Volver a polling (si fuera necesario)
+python scripts/setup_telegram_webhook.py --delete
 ```
 
 Bot: `@lucho_pvalarezo_bot`
+Webhook URL: `https://lucho-dev.apx5.com/telegram/webhook`
 
 ---
 

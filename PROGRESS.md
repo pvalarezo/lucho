@@ -27,7 +27,7 @@ Estado actual de cada fase, módulo y entregable. Fase 1 completada con rediseñ
 ### Arquitectura — ✅ 100%
 - Agente unificado: system prompt + 19 tools + conversation memory
 - Skills Ecuador: 7 skills en 4 dominios (culture, transit, legal, tax)
-- Canales: Telegram (polling) + WhatsApp Cloud API (webhook vía Meta Cloud API)
+- Canales: Telegram (webhook) + WhatsApp Cloud API (webhook vía Meta Cloud API)
 - Cloudflare Tunnel: https://lucho-dev.apx5.com → localhost:8000
 - Systemd user services: lucho-api, lucho-tunnel (disabled at boot, manual start)
 - Telegram migrado a webhook (mismo endpoint que WhatsApp, sin proceso polling aparte)
@@ -94,7 +94,7 @@ Estado actual de cada fase, módulo y entregable. Fase 1 completada con rediseñ
 ### Infraestructura — ✅ 100%
 - FastAPI, Docker Compose, Alembic, 18 tablas PostgreSQL + pgvector
 - MinIO (fotos/documentos), Redis (configurado), sentence-transformers (embeddings locales)
-- Bot Telegram polling
+- Telegram webhook (recibir y enviar mensajes)
 - WhatsApp Cloud API webhook (recibir y enviar mensajes, verificado ✅)
 - Cloudflare Tunnel para HTTPS público (lucho-dev.apx5.com)
 - Systemd user services (manual start, no auto-boot)
