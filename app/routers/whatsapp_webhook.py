@@ -133,29 +133,48 @@ async def _process_whatsapp_message(
     Process a single WhatsApp message through the Lucho Agent.
 
     Steps:
-    1. Extract sender info
+    0. Extract sender info, dedup, rapid-fire guard
+    1. Determine message type + content
     2. Resolve/create user
-    3. Download media to MinIO (if photo/audio/document)
-    4. Persist raw message
-    5. Call the Lucho Agent
-    6. Send response back via WhatsApp
+    3. Onboarding (if needed)
+    4. Access check
+    5. Persist + call agent + respond
     """
-    from_number = msg.get("from")  # e.g., "593987654321"
+    from_number = msg.get("from")
     msg_id = msg.get("id", "unknown")
-    msg_type = msg.get("type", "text")
 
     if not from_number:
         logger.warning("WhatsApp message without 'from' field: %s", msg_id)
         return
 
-    # ---- 0. Deduplication: skip if already processed ----
+    # ---- 0. Deduplication ----
     if await _is_duplicate_whatsapp(session, msg_id):
         logger.info("Skipping duplicate WhatsApp message: %s", msg_id)
         return
 
-    # ---- 0.5. Send ⏳ reaction + typing indicator ----
-    await whatsapp_svc.send_reaction(from_number, msg_id, "⏳")
-    await whatsapp_svc.send_typing(from_number, msg_id)
+    # ---- 0.3. Rapid-fire guard: skip if user is already being processed ----
+    if _is_processing(from_number):
+        logger.info("User %s already processing — skipping rapid-fire msg %s", from_number, msg_id)
+        await whatsapp_svc.send_reaction(from_number, msg_id, "⏳")
+        return
+
+    # ---- 0.5. Mark processing + reaction + typing ----
+    _mark_processing(from_number)
+    try:
+        await whatsapp_svc.send_reaction(from_number, msg_id, "⏳")
+        await whatsapp_svc.send_typing(from_number, msg_id)
+        await _process_message_content(session, msg, from_number, msg_id)
+    finally:
+        _unmark_processing(from_number)
+
+
+async def _process_message_content(
+    session: AsyncSession,
+    msg: dict,
+    from_number: str,
+    msg_id: str,
+) -> None:
+    """Process message content after guards pass."""
 
     # ---- 1. Determine message type and content ----
     text = None
@@ -379,7 +398,42 @@ async def _is_duplicate_whatsapp(session: AsyncSession, msg_id: str) -> bool:
     return result.scalar_one_or_none() is not None
 
 
-async def _send_onboarding_step0(phone: str, user) -> None:
+# =============================================================================
+# RAPID-FIRE GUARD — prevents duplicate agent calls for burst messages
+# =============================================================================
+
+import time
+
+# In-memory set of phone numbers currently being processed.
+# Keys auto-expire after 30s (worst-case fallback).
+_processing_users: dict[str, float] = {}
+_PROCESSING_TTL = 30.0  # seconds
+
+
+def _is_processing(phone: str) -> bool:
+    """Check if a user is currently being processed."""
+    if phone not in _processing_users:
+        return False
+    # Auto-cleanup stale entries
+    if time.monotonic() - _processing_users[phone] > _PROCESSING_TTL:
+        del _processing_users[phone]
+        return False
+    return True
+
+
+def _mark_processing(phone: str) -> None:
+    """Mark a user as being processed."""
+    _processing_users[phone] = time.monotonic()
+
+
+def _unmark_processing(phone: str) -> None:
+    """Unmark a user after processing completes."""
+    _processing_users.pop(phone, None)
+
+
+# =============================================================================
+# ONBOARDING
+# =============================================================================
     """
     Step 0: Send welcome messages 1 and 2.
     Message 1: Presentation of Lucho.
