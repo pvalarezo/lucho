@@ -179,6 +179,7 @@ async def _process_message_content(
     """Process message content after guards pass."""
 
     # ---- 1. Determine message type and content ----
+    msg_type = msg.get("type", "text")
     text = None
     file_object_key = None
 
