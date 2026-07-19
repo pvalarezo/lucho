@@ -102,13 +102,17 @@ async def telegram_webhook(
     )
     await session.flush()
 
-    # ---- 5. Access check (trial/active subscription required) ----
+    # ---- 5. Onboarding: if new user, send welcome messages first ----
+    if not user.onboarding_complete:
+        await _send_onboarding_messages_telegram(chat_id, user)
+        user.onboarding_complete = True
+        await session.commit()
+        return {"status": "onboarding_sent"}
+
+    # ---- 6. Access check (trial/active subscription required) ----
     access = await user_svc.check_access(session, str(user.id))
     if not access.allowed:
         await telegram_svc.send_message(chat_id, access.reason)
-        if not user.onboarding_complete:
-            # New user — also send trial welcome
-            await _send_trial_welcome(chat_id, user)
         await session.commit()
         return {"status": "access_denied", "reason": access.reason}
 
@@ -305,22 +309,44 @@ async def _is_duplicate(session: AsyncSession, chat_id: int, telegram_message_id
     return result.scalar_one_or_none() is not None
 
 
-async def _send_trial_welcome(chat_id: int, user) -> None:
-    """Send trial welcome + onboarding first message."""
+async def _send_onboarding_messages_telegram(chat_id: int, user) -> None:
+    """
+    Send onboarding welcome messages (2 messages) for new users via Telegram.
+    """
     name = user.first_name or ""
-    welcome = (
-        f"👋 ¡Hola {name}! Soy *Lucho*, tu asistente personal.\n\n"
-        f"🎉 *Tenés 7 días de prueba GRATIS* con acceso a todas las funcionalidades.\n"
-        f"No necesitamos datos de pago.\n\n"
-        f"⚡ *¿Cómo querés que te llame?*\n"
-        f"(Respondeme con tu nombre y empezamos)\n\n"
-        f"Con Lucho podés:\n"
-        f"• 🚗 Guardar tu vehículo y recibir alertas de pico y placa\n"
-        f"• 📅 Crear recordatorios y eventos\n"
-        f"• 📝 Tomar notas y listas\n"
-        f"• 📄 Guardar documentos (SOAT, matrícula, facturas)\n"
-        f"• 💰 Registrar gastos compartidos\n"
-        f"• 🔍 Buscar entre todos tus datos\n\n"
-        f"Mandame un mensaje y empezamos 🚀"
+
+    # ---- Message 1: Welcome + presentation ----
+    msg1 = (
+        f"👋 ¡Hola {name}!\n\n"
+        f"Soy *Lucho*, tu asistente personal ecuatoriano 🇪🇨\n"
+        f"Fui creado por AURACORE para ser tu *segundo cerebro*: "
+        f"recordar, organizar y encontrar tu información personal.\n\n"
+        f"*¿Qué puedo hacer por vos?*\n\n"
+        f"🚗 *Vehículos* — Guardar tu placa, alertas de pico y placa, "
+        f"fechas de matriculación\n\n"
+        f"📄 *Documentos* — Guardar SOAT, cédula, facturas, garantías "
+        f"con fecha de vencimiento\n\n"
+        f"📅 *Recordatorios* — Citas, eventos, fechas importantes "
+        f"con anticipación\n\n"
+        f"📝 *Listas y notas* — Compras, tareas, ideas organizadas por tema\n\n"
+        f"📋 *Proyectos* — Tareas agrupadas con fechas de entrega\n\n"
+        f"💰 *Gastos compartidos* — Dividir cuentas entre amigos\n\n"
+        f"🔍 *Búsqueda* — Encontrar todo lo que guardaste "
+        f"y también buscar en internet\n\n"
+        f"Mandame lo que necesités sin estructura, "
+        f"yo lo organizo. ¡Hablame como a un amigo!"
     )
-    await telegram_svc.send_message(chat_id, welcome)
+    await telegram_svc.send_message(chat_id, msg1)
+
+    # ---- Message 2: Ask for name + trial info ----
+    msg2 = (
+        f"⚡ *¿Cómo querés que te llame?*\n\n"
+        f"Decime tu nombre y empezamos.\n\n"
+        f"🎉 *Tenés 7 días de prueba GRATIS* con acceso a "
+        f"todas las funcionalidades. No necesitamos ningún dato "
+        f"personal ni de pago durante este tiempo.\n\n"
+        f"Al finalizar la prueba, si querés continuar, "
+        f"elegís tu plan y completás tu registro. "
+        f"Por ahora, ¡disfrutá Lucho sin compromisos! 🚀"
+    )
+    await telegram_svc.send_message(chat_id, msg2)
