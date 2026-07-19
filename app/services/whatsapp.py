@@ -192,17 +192,44 @@ async def send_template_message(phone: str, template_name: str, language_code: s
             return None
 
 
-async def send_typing(phone: str) -> None:
+async def send_typing(phone: str, message_id: str) -> None:
     """
-    Show 'typing...' indicator. Non-blocking, best-effort.
+    Show typing indicator (3 dots) on WhatsApp via the official API.
 
-    NOTE: WhatsApp Cloud API does NOT support a native typing indicator
-    like Telegram's sendChatAction. This method is a no-op for WhatsApp.
-    We rely on the ⏳ reaction instead for visual feedback.
+    Sends a 'read' status with typing_indicator to trigger the
+    typing bubble. Automatically dismissed when we respond or
+    after 25 seconds (WhatsApp default).
+
+    API doc: https://developers.facebook.com/docs/whatsapp/cloud-api/messages/typing-indicators
+
+    Args:
+        phone: Recipient phone number
+        message_id: WhatsApp message ID to mark as read + show typing
     """
-    # WhatsApp Cloud API has no typing indicator endpoint.
-    # The ⏳ reaction (send_reaction) serves this purpose.
-    return
+    if not _is_configured():
+        return
+
+    url = f"{BASE_URL}/{settings.WHATSAPP_PHONE_NUMBER_ID}/messages"
+    headers = {
+        "Authorization": f"Bearer {settings.WHATSAPP_ACCESS_TOKEN}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "messaging_product": "whatsapp",
+        "status": "read",
+        "message_id": message_id,
+        "typing_indicator": {
+            "type": "text",
+        },
+    }
+
+    async with httpx.AsyncClient(timeout=5) as client:
+        try:
+            response = await client.post(url, json=payload, headers=headers)
+            response.raise_for_status()
+            logger.debug("WhatsApp typing indicator sent for msg %s", message_id)
+        except httpx.HTTPError as exc:
+            logger.debug("WhatsApp typing indicator failed: %s", exc)
 
 
 async def send_reaction(phone: str, message_id: str, emoji: str = "⏳") -> dict | None:
