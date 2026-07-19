@@ -86,7 +86,7 @@ class Payment(UUIDMixin, Base):
     __tablename__ = "payments"
 
     user_id: Mapped[_uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True, index=True
     )
     subscription_id: Mapped[_uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("subscriptions.id"), nullable=False, index=True
@@ -95,10 +95,9 @@ class Payment(UUIDMixin, Base):
     amount: Mapped[float] = mapped_column(Float, nullable=False)
     currency: Mapped[str] = mapped_column(String(8), default="USD", nullable=False)
 
-    payment_method: Mapped[PaymentMethod] = mapped_column(
+    payment_method: Mapped[PaymentMethod | None] = mapped_column(
         SAEnum(PaymentMethod, name="payment_method"),
-        default=PaymentMethod.other,
-        nullable=False,
+        nullable=True,
     )
 
     gateway: Mapped[str | None] = mapped_column(String(32), nullable=True)  # "kushki", "payphone"
