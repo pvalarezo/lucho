@@ -194,32 +194,15 @@ async def send_template_message(phone: str, template_name: str, language_code: s
 
 async def send_typing(phone: str) -> None:
     """
-    Trigger WhatsApp 'typing...' indicator (3 dots).
+    Show 'typing...' indicator. Non-blocking, best-effort.
 
-    WhatsApp Cloud API doesn't have a native typing endpoint like Telegram.
-    Workaround: send an invisible zero-width character that triggers
-    the typing indicator without showing a visible message.
+    NOTE: WhatsApp Cloud API does NOT support a native typing indicator
+    like Telegram's sendChatAction. This method is a no-op for WhatsApp.
+    We rely on the ⏳ reaction instead for visual feedback.
     """
-    if not _is_configured():
-        return
-
-    url = f"{BASE_URL}/{settings.WHATSAPP_PHONE_NUMBER_ID}/messages"
-    headers = {
-        "Authorization": f"Bearer {settings.WHATSAPP_ACCESS_TOKEN}",
-        "Content-Type": "application/json",
-    }
-    payload = {
-        "messaging_product": "whatsapp",
-        "to": str(phone),
-        "type": "text",
-        "text": {"body": "\u200B"},  # zero-width space — invisible, triggers typing
-    }
-
-    async with httpx.AsyncClient(timeout=5) as client:
-        try:
-            await client.post(url, json=payload, headers=headers)
-        except httpx.HTTPError:
-            pass  # best-effort
+    # WhatsApp Cloud API has no typing indicator endpoint.
+    # The ⏳ reaction (send_reaction) serves this purpose.
+    return
 
 
 async def send_reaction(phone: str, message_id: str, emoji: str = "⏳") -> dict | None:
