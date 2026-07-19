@@ -1,19 +1,19 @@
 """WhatsApp webhook — receive messages from WhatsApp Cloud API.
 
-Flow:
-1. GET  → webhook verification (Meta challenge)
-2. POST → receive messages:
-   a. Resolve/create user by WhatsApp phone number
-   b. Upload media to MinIO (photos, audio, documents)
-   c. Persist raw message
-   d. Call the Lucho Agent → response
-   e. Send response back via WhatsApp
+Architecture:
+- Messages are immediately saved with ⏳ reaction + typing indicator.
+- A 3-second debounce timer waits for the user to finish typing.
+- When silence is detected, all pending messages are processed together.
+- The agent sees the full burst as conversation context.
 """
 
+import asyncio
 import logging
+import time
 
 from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from app.config import settings
 from app.dependencies import get_db
@@ -28,9 +28,55 @@ from app.agent import process_message
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["whatsapp"], prefix="/whatsapp")
 
+# =============================================================================
+# DEBOUNCE SYSTEM — waits 3s of silence before calling the agent
+# =============================================================================
+
+_DEBOUNCE_SECONDS = 3.0
+_debounce_timers: dict[str, asyncio.Task] = {}
+_processing_locks: dict[str, bool] = {}
+
+
+def _cancel_debounce(phone: str) -> None:
+    """Cancel any pending debounce timer for this user."""
+    task = _debounce_timers.pop(phone, None)
+    if task and not task.done():
+        task.cancel()
+
+
+async def _debounce_agent_call(phone: str):
+    """Wait for silence, then call the agent with all pending messages."""
+    try:
+        await asyncio.sleep(_DEBOUNCE_SECONDS)
+    except asyncio.CancelledError:
+        return  # new message arrived, timer reset
+
+    # Remove from timers
+    _debounce_timers.pop(phone, None)
+
+    # Process pending messages
+    if _processing_locks.get(phone):
+        return  # already processing (shouldn't happen)
+
+    _processing_locks[phone] = True
+    try:
+        from app.database import async_session
+        async with async_session() as session:
+            await _process_pending_messages(session, phone)
+    except Exception:
+        logger.exception("Debounce agent call failed for %s", phone)
+    finally:
+        _processing_locks.pop(phone, None)
+
+
+def _schedule_debounce(phone: str) -> None:
+    """Schedule/reset the debounce timer for a user."""
+    _cancel_debounce(phone)
+    _debounce_timers[phone] = asyncio.create_task(_debounce_agent_call(phone))
+
 
 # =============================================================================
-# WEBHOOK VERIFICATION (GET)
+# WEBHOOK ENDPOINTS
 # =============================================================================
 
 
@@ -40,21 +86,11 @@ async def whatsapp_webhook_verify(
     token: str = Query(default="", alias="hub.verify_token"),
     challenge: str = Query(default="", alias="hub.challenge"),
 ):
-    """
-    Verify WhatsApp webhook subscription.
-    Called by Meta when setting up or refreshing the webhook.
-    """
+    """Verify WhatsApp webhook subscription."""
     is_valid, response_challenge = whatsapp_svc.verify_webhook(mode, token, challenge)
-
     if is_valid and response_challenge:
         return Response(content=str(response_challenge), media_type="text/plain")
-
     return Response(content="Verification failed", status_code=403)
-
-
-# =============================================================================
-# INCOMING MESSAGES (POST)
-# =============================================================================
 
 
 @router.post("/webhook")
@@ -62,83 +98,43 @@ async def whatsapp_webhook_receive(
     request: Request,
     session: AsyncSession = Depends(get_db),
 ):
-    """
-    Receive and process incoming WhatsApp messages.
-
-    WhatsApp Cloud API sends a JSON payload with:
-    {
-      "object": "whatsapp_business_account",
-      "entry": [{
-        "changes": [{
-          "value": {
-            "messages": [{
-              "from": "593987654321",
-              "id": "wamid.xxx",
-              "type": "text" | "image" | "audio" | "voice" | "document",
-              "text": {"body": "..."},
-              ...
-            }]
-          }
-        }]
-      }]
-    }
-    """
+    """Receive and process incoming WhatsApp messages."""
     body = await request.json()
     logger.info("WhatsApp webhook payload: object=%s entries=%s", body.get("object"), len(body.get("entry", [])))
 
-    # ---- 1. Validate payload structure ----
     if body.get("object") != "whatsapp_business_account":
-        logger.info("Non-WABA webhook payload, ignoring: %s", body.get("object"))
         return {"status": "ignored"}
 
-    entries = body.get("entry", [])
-    if not entries:
-        logger.info("No entries in webhook payload")
-        return {"status": "no_entry"}
-
-    # Process all entries/changes/messages
-    for entry in entries:
+    for entry in body.get("entry", []):
         for change in entry.get("changes", []):
             value = change.get("value", {})
             messages = value.get("messages", [])
             statuses = value.get("statuses", [])
 
-            logger.info("WhatsApp change: messages=%d statuses=%d", len(messages), len(statuses))
-
-            # Skip status updates (sent, delivered, read receipts)
             if not messages and statuses:
-                logger.info("Skipping status update(s): %s", [s.get("status") for s in statuses])
-                continue
+                continue  # skip status updates
 
             if not messages:
-                logger.info("Change without messages or statuses — keys: %s", list(value.keys()))
                 continue
 
             for msg in messages:
-                await _process_whatsapp_message(session, msg)
+                await _handle_incoming_message(session, msg)
 
     return {"status": "processed"}
 
 
 # =============================================================================
-# MESSAGE PROCESSING
+# MESSAGE HANDLING — immediate ack, debounced agent call
 # =============================================================================
 
 
-async def _process_whatsapp_message(
-    session: AsyncSession,
-    msg: dict,
-) -> None:
+async def _handle_incoming_message(session: AsyncSession, msg: dict) -> None:
     """
-    Process a single WhatsApp message through the Lucho Agent.
-
-    Steps:
-    0. Extract sender info, dedup, rapid-fire guard
-    1. Determine message type + content
-    2. Resolve/create user
-    3. Onboarding (if needed)
-    4. Access check
-    5. Persist + call agent + respond
+    Handle an incoming WhatsApp message:
+    1. Dedup
+    2. Send ⏳ reaction + typing indicator
+    3. Save message to DB immediately
+    4. Schedule debounced agent call
     """
     from_number = msg.get("from")
     msg_id = msg.get("id", "unknown")
@@ -147,325 +143,48 @@ async def _process_whatsapp_message(
         logger.warning("WhatsApp message without 'from' field: %s", msg_id)
         return
 
-    # ---- 0. Deduplication ----
-    if await _is_duplicate_whatsapp(session, msg_id):
+    # ---- Dedup ----
+    result = await session.execute(
+        select(MessageModel.id).where(
+            MessageModel.extraction_result.contains({"whatsapp_message_id": msg_id})
+        ).limit(1)
+    )
+    if result.scalar_one_or_none():
         logger.info("Skipping duplicate WhatsApp message: %s", msg_id)
         return
 
-    # ---- 0.3. Rapid-fire guard: save message but skip agent while processing ----
-    if _is_processing(from_number):
-        logger.info("User %s already processing — saving rapid-fire msg %s for context", from_number, msg_id)
-        await whatsapp_svc.send_reaction(from_number, msg_id, "⏳")
-        # Still persist the message so agent sees it in future history
-        await _save_message_for_context(session, msg, from_number, msg_id)
-        return
+    # ---- Immediate ack: ⏳ + typing ----
+    await whatsapp_svc.send_reaction(from_number, msg_id, "⏳")
+    await whatsapp_svc.send_typing(from_number, msg_id)
 
-    # ---- 0.5. Mark processing + reaction + typing ----
-    _mark_processing(from_number)
-    try:
-        await whatsapp_svc.send_reaction(from_number, msg_id, "⏳")
-        await whatsapp_svc.send_typing(from_number, msg_id)
-        await _process_message_content(session, msg, from_number, msg_id)
-    finally:
-        _unmark_processing(from_number)
-
-
-async def _process_message_content(
-    session: AsyncSession,
-    msg: dict,
-    from_number: str,
-    msg_id: str,
-) -> None:
-    """Process message content after guards pass."""
-
-    # ---- 1. Determine message type and content ----
-    msg_type = msg.get("type", "text")
+    # ---- Save message to DB ----
     text = None
-    file_object_key = None
+    msg_type = msg.get("type", "text")
 
     match msg_type:
         case "text":
             text = msg.get("text", {}).get("body", "")
             message_type = MessageType.text
-
-        case "image":
-            message_type = MessageType.photo
-            media_id = msg.get("image", {}).get("id")
-            caption = msg.get("image", {}).get("caption")
-            if media_id:
-                image_bytes = await whatsapp_svc.download_media(media_id)
-                if image_bytes:
-                    file_object_key = await minio_svc.upload_file(
-                        user_id=from_number,  # temporary, will use real user_id after resolve
-                        file_bytes=image_bytes,
-                        filename=f"whatsapp_{msg_id}.jpg",
-                        content_type="image/jpeg",
-                    )
-                    text = f"[foto: {file_object_key}]"
-                    if caption:
-                        text = f"{text} {caption}"
-
-        case "audio" | "voice":
-            message_type = MessageType.audio
-            audio_obj = msg.get("audio") or msg.get("voice", {})
-            media_id = audio_obj.get("id")
-            if media_id:
-                # Send immediate ack — transcribing takes time
-                await whatsapp_svc.send_message(from_number, "🎙️ Transcribiendo tu audio...")
-
-                audio_bytes = await whatsapp_svc.download_media(media_id)
-                if audio_bytes:
-                    from app.services import whisper as whisper_svc
-
-                    file_object_key = await minio_svc.upload_file(
-                        user_id=from_number,
-                        file_bytes=audio_bytes,
-                        filename=f"whatsapp_{msg_id}.ogg",
-                        content_type="audio/ogg",
-                    )
-                    try:
-                        text = await whisper_svc.transcribe_audio(audio_bytes)
-                        if text:
-                            await whatsapp_svc.send_message(from_number, f"📝 Entendido: {text[:200]}")
-                    except Exception as exc:
-                        logger.exception("WhatsApp audio transcription failed: %s", exc)
-                        text = "[audio no transcrito]"
-
-        case "document":
-            message_type = MessageType.photo  # store in MinIO like photos
-            doc_obj = msg.get("document", {})
-            media_id = doc_obj.get("id")
-            doc_filename = doc_obj.get("filename", f"doc_{msg_id}")
-            doc_caption = doc_obj.get("caption")
-            if media_id:
-                doc_bytes = await whatsapp_svc.download_media(media_id)
-                if doc_bytes:
-                    file_object_key = await minio_svc.upload_file(
-                        user_id=from_number,
-                        file_bytes=doc_bytes,
-                        filename=f"whatsapp_{msg_id}_{doc_filename}",
-                        content_type=doc_obj.get("mime_type", "application/octet-stream"),
-                    )
-                    text = f"[documento: {doc_filename} → {file_object_key}]"
-                    if doc_caption:
-                        text = f"{text} {doc_caption}"
-
+        case "image" | "audio" | "voice" | "document":
+            text = f"[{msg_type}: recibido]"
+            message_type = MessageType.photo if msg_type == "image" else MessageType.audio
         case "button" | "interactive":
-            message_type = MessageType.text
-            # Extract text from interactive/button messages
             interactive = msg.get("interactive", {})
             button_reply = interactive.get("button_reply", {})
             list_reply = interactive.get("list_reply", {})
             text = button_reply.get("title") or button_reply.get("id") or list_reply.get("title") or ""
+            message_type = MessageType.text
             if not text:
-                logger.info("WhatsApp interactive message without text: %s", msg_id)
                 return
-
         case _:
-            logger.info("Unsupported WhatsApp message type '%s' from %s", msg_type, from_number)
+            logger.info("Unsupported message type '%s' from %s", msg_type, from_number)
             return
 
     if not text:
         logger.warning("WhatsApp message %s without extractable text", msg_id)
         return
 
-    # ---- 2. Resolve or create user ----
-    user = await user_svc.resolve_user_by_phone(
-        session=session,
-        phone_number=from_number,
-    )
-    await session.flush()
-
-    # ---- 3. Onboarding: 3-step flow for new users ----
-    if not user.onboarding_complete:
-        if user.onboarding_step == 0:
-            # Step 0 → Send messages 1 (welcome) + 2 (ask name)
-            await _send_onboarding_step0(from_number, user)
-            user.onboarding_step = 1
-            await session.commit()
-            return
-        elif user.onboarding_step == 1:
-            # Step 1 → User sent their name, save it + send message 3 (trial)
-            name = text.strip() if text else user.first_name
-            user.preferred_name = name
-            await _send_onboarding_step1(from_number, name)
-            user.onboarding_step = 2
-            user.onboarding_complete = True
-            await session.commit()
-            return
-
-    # ---- 4. Access check (trial/active subscription required) ----
-    access = await user_svc.check_access(session, str(user.id))
-    if not access.allowed:
-        await whatsapp_svc.send_message(from_number, access.reason)
-        await session.commit()
-        return
-
-    # ---- 5. Update file_object_key with real user_id if needed ----
-    file_path = file_object_key or f"whatsapp://{from_number}/{msg_id}"
-
-    # ---- 3. Persist raw message ----
-    db_message = await message_svc.create_message(
-        session=session,
-        user_id=user.id,
-        channel=MessageChannel.whatsapp,
-        message_type=message_type,
-        text=text,
-        file_path=file_path,
-    )
-    await session.flush()
-
-    # ---- 4. Call the Lucho Agent ----
-    content = text or "[audio/photo message]"
-    logger.info("Calling agent for user=%s with: %s", user.id, content[:100])
-    response = await process_message(
-        session=session,
-        user_id=str(user.id),
-        user_message=content,
-    )
-
-    response_text = response.get("text", "") if isinstance(response, dict) else response
-    files = response.get("files", []) if isinstance(response, dict) else []
-    logger.info("Agent response: text_len=%d files=%d text_preview=%s", len(response_text), len(files), response_text[:80] if response_text else "[EMPTY]")
-
-    # ---- 5. Send files first (if any) ----
-    for file_info in files:
-        file_key = file_info.get("file_key", "")
-        caption = file_info.get("caption", "")
-        if not file_key:
-            continue
-        try:
-            file_bytes = await minio_svc.download_file(file_key)
-            if file_bytes:
-                filename = file_info.get("filename", file_key.split("/")[-1])
-                await whatsapp_svc.send_photo(
-                    phone=from_number,
-                    photo_bytes=file_bytes,
-                    caption=caption if caption else None,
-                    filename=filename,
-                )
-        except Exception as exc:
-            logger.exception("WhatsApp photo send failed '%s': %s", file_key, exc)
-
-    # ---- 6. Send text response ----
-    if response_text:
-        # Skip text if we already sent files with a caption and text is redundant
-        skip_text = (
-            files
-            and len(response_text) < 80
-            and any(phrase in response_text.lower() for phrase in [
-                "aquí está", "aquí tenés", "listo", "acá está"
-            ])
-        )
-        if not skip_text:
-            await whatsapp_svc.send_message(from_number, response_text)
-
-    # ---- 7. Update message status ----
-    db_message.extraction_result = {
-        "agent_response": response_text,
-        "files_sent": len(files),
-        "whatsapp_message_id": msg_id,
-    }
-    await message_svc.update_message_status(session, db_message, MessageStatus.confirmed)
-
-    # Mark previous rapid-fire messages as acknowledged (they were used as context)
-    await _acknowledge_rapid_fire_messages(session, user.id)
-
-    # Mark onboarding as complete after first successful interaction
-    if not user.onboarding_complete:
-        user.onboarding_complete = True
-
-    await session.commit()
-
-    logger.info(
-        "WhatsApp message %s processed: user=%s, type=%s, response_len=%d",
-        msg_id,
-        user.id,
-        msg_type,
-        len(response_text),
-    )
-
-
-# =============================================================================
-# DEDUPLICATION
-# =============================================================================
-
-
-async def _is_duplicate_whatsapp(session: AsyncSession, msg_id: str) -> bool:
-    """Check if a WhatsApp message ID was already processed."""
-    from sqlalchemy import select
-
-    # Check if any message has this WhatsApp ID stored in extraction_result
-    result = await session.execute(
-        select(MessageModel.id).where(
-            MessageModel.extraction_result.contains({"whatsapp_message_id": msg_id})
-        ).limit(1)
-    )
-    return result.scalar_one_or_none() is not None
-
-
-# =============================================================================
-# RAPID-FIRE GUARD — prevents duplicate agent calls for burst messages
-# =============================================================================
-
-import time
-
-# In-memory set of phone numbers currently being processed.
-# Keys auto-expire after 30s (worst-case fallback).
-_processing_users: dict[str, float] = {}
-_PROCESSING_TTL = 30.0  # seconds
-
-
-def _is_processing(phone: str) -> bool:
-    """Check if a user is currently being processed."""
-    if phone not in _processing_users:
-        return False
-    # Auto-cleanup stale entries
-    if time.monotonic() - _processing_users[phone] > _PROCESSING_TTL:
-        del _processing_users[phone]
-        return False
-    return True
-
-
-def _mark_processing(phone: str) -> None:
-    """Mark a user as being processed."""
-    _processing_users[phone] = time.monotonic()
-
-
-def _unmark_processing(phone: str) -> None:
-    """Unmark a user after processing completes."""
-    _processing_users.pop(phone, None)
-
-
-async def _save_message_for_context(
-    session: AsyncSession,
-    msg: dict,
-    from_number: str,
-    msg_id: str,
-) -> None:
-    """
-    Persist a rapid-fire message for conversation history without calling the agent.
-
-    The next time the agent processes a message for this user, it will see
-    this message in the conversation history (last 6 messages).
-    """
-    text = None
-    msg_type_str = msg.get("type", "text")
-
-    if msg_type_str == "text":
-        text = msg.get("text", {}).get("body", "")
-        message_type = MessageType.text
-    elif msg_type_str in ("image", "audio", "voice", "document"):
-        text = f"[{msg_type_str}: recibido mientras Lucho procesaba]"
-        message_type = MessageType.photo if msg_type_str == "image" else MessageType.audio
-    else:
-        text = f"[{msg_type_str}]"
-        message_type = MessageType.text
-
-    if not text:
-        return
-
-    # Resolve user quickly
+    # Resolve user (create if new)
     user = await user_svc.resolve_user_by_phone(
         session=session,
         phone_number=from_number,
@@ -481,57 +200,162 @@ async def _save_message_for_context(
         text=text,
         file_path=f"whatsapp://{from_number}/{msg_id}",
     )
-    db_message.extraction_result = {
-        "rapid_fire_skipped": True,
-        "whatsapp_message_id": msg_id,
-    }
+    db_message.extraction_result = {"whatsapp_message_id": msg_id, "pending": True}
     await session.commit()
-    logger.debug("Saved rapid-fire msg %s for user %s", msg_id, from_number)
 
+    logger.info("Saved WhatsApp msg %s from %s: %s", msg_id, from_number, text[:80])
 
-async def _acknowledge_rapid_fire_messages(session: AsyncSession, user_id) -> None:
-    """
-    Mark previous rapid-fire (skipped) messages as acknowledged.
-
-    When the agent responds to a normal message, it implicitly used
-    the skipped messages as conversation context. Mark them as seen.
-    """
-    from sqlalchemy import select, update as sql_update
-
-    # Find recent skipped messages for this user that haven't been acknowledged
-    result = await session.execute(
-        select(MessageModel.id).where(
-            MessageModel.user_id == user_id,
-            MessageModel.extraction_result.contains({"rapid_fire_skipped": True}),
-            MessageModel.status == MessageStatus.received,
-        ).limit(10)
-    )
-    skipped_ids = [row[0] for row in result.fetchall()]
-
-    if skipped_ids:
-        await session.execute(
-            sql_update(MessageModel)
-            .where(MessageModel.id.in_(skipped_ids))
-            .values(
-                extraction_result={"rapid_fire_skipped": True, "acknowledged": True},
-                status=MessageStatus.confirmed,
-            )
-        )
-        logger.debug("Acknowledged %d rapid-fire messages for user %s", len(skipped_ids), user_id)
+    # ---- Schedule debounced agent call ----
+    _schedule_debounce(from_number)
 
 
 # =============================================================================
-# ONBOARDING
+# AGENT PROCESSING — called after debounce silence
+# =============================================================================
+
+
+async def _process_pending_messages(session: AsyncSession, phone: str) -> None:
+    """
+    Process all pending messages for a user.
+    Called by the debounce timer after 3s of silence.
+    """
+    # Find user
+    result = await session.execute(
+        select(user_svc.User).where(
+            (user_svc.User.whatsapp_id == phone) | (user_svc.User.telegram_id == phone)
+        )
+    )
+    user = result.scalar_one_or_none()
+    if not user:
+        logger.warning("Debounce: user not found for %s", phone)
+        return
+
+    # Find all pending messages (not yet processed)
+    result = await session.execute(
+        select(MessageModel)
+        .where(
+            MessageModel.user_id == user.id,
+            MessageModel.extraction_result.contains({"pending": True}),
+        )
+        .order_by(MessageModel.received_at.asc())
+        .limit(10)
+    )
+    pending = result.scalars().all()
+
+    if not pending:
+        return
+
+    # Build combined text from all pending messages
+    texts = [m.text for m in pending if m.text]
+    combined_text = "\n".join(texts)
+
+    logger.info(
+        "Debounce agent call: user=%s, %d pending msgs: %s",
+        user.id, len(pending), combined_text[:120],
+    )
+
+    # ---- Onboarding check ----
+    if not user.onboarding_complete:
+        if user.onboarding_step == 0:
+            await _send_onboarding_step0(phone, user)
+            user.onboarding_step = 1
+            await _mark_all_processed(session, pending)
+            await session.commit()
+            return
+        elif user.onboarding_step == 1:
+            name = combined_text.strip().split("\n")[0][:128]  # first line as name
+            user.preferred_name = name
+            await _send_onboarding_step1(phone, name)
+            user.onboarding_step = 2
+            user.onboarding_complete = True
+            await _mark_all_processed(session, pending)
+            await session.commit()
+            return
+
+    # ---- Access check ----
+    access = await user_svc.check_access(session, str(user.id))
+    if not access.allowed:
+        await whatsapp_svc.send_message(phone, access.reason)
+        await _mark_all_processed(session, pending)
+        await session.commit()
+        return
+
+    # ---- Call the agent ----
+    response = await process_message(
+        session=session,
+        user_id=str(user.id),
+        user_message=combined_text,
+    )
+
+    response_text = response.get("text", "") if isinstance(response, dict) else response
+    files = response.get("files", []) if isinstance(response, dict) else []
+
+    # ---- Send files ----
+    for file_info in files:
+        file_key = file_info.get("file_key", "")
+        caption = file_info.get("caption", "")
+        if not file_key:
+            continue
+        try:
+            file_bytes = await minio_svc.download_file(file_key)
+            if file_bytes:
+                filename = file_info.get("filename", file_key.split("/")[-1])
+                await whatsapp_svc.send_photo(
+                    phone=phone,
+                    photo_bytes=file_bytes,
+                    caption=caption if caption else None,
+                    filename=filename,
+                )
+        except Exception as exc:
+            logger.exception("WhatsApp photo send failed '%s': %s", file_key, exc)
+
+    # ---- Send text response ----
+    if response_text:
+        skip_text = (
+            files
+            and len(response_text) < 80
+            and any(phrase in response_text.lower() for phrase in [
+                "aquí está", "aquí tenés", "listo", "acá está"
+            ])
+        )
+        if not skip_text:
+            await whatsapp_svc.send_message(phone, response_text)
+
+    # ---- Mark all as processed ----
+    await _mark_all_processed(session, pending, response_text)
+
+    # Mark onboarding complete
+    if not user.onboarding_complete:
+        user.onboarding_complete = True
+
+    await session.commit()
+    logger.info("Debounce complete for %s: %d msgs processed", phone, len(pending))
+
+
+async def _mark_all_processed(
+    session: AsyncSession,
+    messages: list,
+    agent_response: str | None = None,
+) -> None:
+    """Mark pending messages as processed."""
+    for m in messages:
+        m.extraction_result = {"acknowledged": True}
+        m.status = MessageStatus.confirmed
+        if agent_response and m == messages[0]:
+            m.extraction_result = {
+                "agent_response": agent_response,
+                "batch_size": len(messages),
+            }
+    await session.flush()
+
+
+# =============================================================================
+# ONBOARDING MESSAGES
 # =============================================================================
 
 
 async def _send_onboarding_step0(phone: str, user) -> None:
-    """
-    Step 0: Send welcome messages 1 and 2.
-    Message 1: Presentation of Lucho.
-    Message 2: Ask for name.
-    """
-    # ---- Message 1: Welcome + presentation ----
+    """Step 0: Send welcome messages 1 (presentation) + 2 (ask name)."""
     msg1 = (
         "👋 ¡Hola!\n\n"
         "Soy Lucho, tu asistente personal ecuatoriano 🇪🇨\n\n"
@@ -554,7 +378,6 @@ async def _send_onboarding_step0(phone: str, user) -> None:
     )
     await whatsapp_svc.send_message(phone, msg1)
 
-    # ---- Message 2: Ask for name ----
     msg2 = (
         "⚡ Para iniciar a trabajar, "
         "¿Cómo quieres que te llame?\n\n"
@@ -564,9 +387,7 @@ async def _send_onboarding_step0(phone: str, user) -> None:
 
 
 async def _send_onboarding_step1(phone: str, name: str) -> None:
-    """
-    Step 1: User gave their name. Confirm + trial info.
-    """
+    """Step 1: User gave their name. Confirm + trial info."""
     msg3 = (
         f"👏👏 Perfecto *{name}*, he registrado tu nombre\n\n"
         "🎉 Tienes 7 días de prueba GRATIS con acceso a "
