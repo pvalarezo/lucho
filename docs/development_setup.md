@@ -119,16 +119,16 @@ Bot: `@lucho_pvalarezo_bot`
 
 ```bash
 # Arrancar todo
-systemctl --user start lucho-api lucho-tunnel lucho-bot
+systemctl --user start lucho-api lucho-tunnel
 
 # Detener todo
-systemctl --user stop lucho-api lucho-tunnel lucho-bot
+systemctl --user stop lucho-api lucho-tunnel
 
 # Reiniciar todo
-systemctl --user restart lucho-api lucho-tunnel lucho-bot
+systemctl --user restart lucho-api lucho-tunnel
 
 # Ver estado de todo
-systemctl --user status lucho-api lucho-tunnel lucho-bot --no-pager
+systemctl --user status lucho-api lucho-tunnel --no-pager
 ```
 
 ### Solo un servicio
@@ -136,9 +136,6 @@ systemctl --user status lucho-api lucho-tunnel lucho-bot --no-pager
 ```bash
 # Reiniciar API después de cambiar código
 systemctl --user restart lucho-api
-
-# Reiniciar bot después de cambiar código
-systemctl --user restart lucho-bot
 ```
 
 ### Verificar que funciona
@@ -196,8 +193,8 @@ Los archivos de servicio están en `~/.config/systemd/user/`. Se instalaron así
 ```bash
 # Una vez creados los archivos .service:
 systemctl --user daemon-reload
-systemctl --user enable lucho-api lucho-tunnel lucho-bot
-systemctl --user start lucho-api lucho-tunnel lucho-bot
+systemctl --user enable lucho-api lucho-tunnel
+systemctl --user start lucho-api lucho-tunnel
 ```
 
 Para que corran sin sesión abierta (`linger=yes` ya está activado):
@@ -230,8 +227,10 @@ systemctl --user status lucho-tunnel
 curl https://lucho-dev.apx5.com/
 
 # ¿El bot no contesta en Telegram?
-systemctl --user status lucho-bot
-journalctl --user -u lucho-bot -n 20
+# Verificar que el webhook esté configurado:
+python scripts/setup_telegram_webhook.py --info
+# Ver logs de la API:
+journalctl --user -u lucho-api -n 20
 
 # ¿La DB no conecta?
 docker compose -f docker-compose.dev.yml ps

@@ -10,6 +10,7 @@ Estado actual de cada fase, módulo y entregable. Fase 1 completada con rediseñ
 ### Versiones
 | Tag | Fecha | Descripción |
 |-----|-------|-------------|
+| v2.9.2 | 2026-07-16 | Telegram polling eliminado: migrado a webhook unificado. app/bot.py + run_bot.py + lucho-bot.service eliminados. Telegram y WhatsApp usan mismo patrón webhook vía lucho-api. Script setup_telegram_webhook.py para configurar. |
 | v2.9.1 | 2026-07-16 | WhatsApp Templates: 4 plantillas documentadas (document_reminder, project_reminder, pico_y_placa, daily_digest) en docs/whatsapp_templates.md. Categoría UTILITY, listas para crear en Meta. |
 | v2.9.0 | 2026-07-16 | OCR/Visión migrado a DeepSeek: extract_document_data + analyze_image usan deepseek-chat como primario. Código muerto eliminado en vision.py. Meta Live: config verificada, webhook confirmado, esperando aprobación. |
 | v2.8.1 | 2026-07-15 | WhatsApp end-to-end tested: texto, foto, audio. Dedup, ack inmediato, fix PHONE_NUMBER_ID, fix OPENAI_API_KEY en .env |
@@ -28,7 +29,8 @@ Estado actual de cada fase, módulo y entregable. Fase 1 completada con rediseñ
 - Skills Ecuador: 7 skills en 4 dominios (culture, transit, legal, tax)
 - Canales: Telegram (polling) + WhatsApp Cloud API (webhook vía Meta Cloud API)
 - Cloudflare Tunnel: https://lucho-dev.apx5.com → localhost:8000
-- Systemd user services: lucho-api, lucho-tunnel, lucho-bot (disabled at boot, manual start)
+- Systemd user services: lucho-api, lucho-tunnel (disabled at boot, manual start)
+- Telegram migrado a webhook (mismo endpoint que WhatsApp, sin proceso polling aparte)
 
 ### Funcionalidades — 17 completadas
 
@@ -80,13 +82,14 @@ Estado actual de cada fase, módulo y entregable. Fase 1 completada con rediseñ
 
 | # | Tarea | Prioridad | Esfuerzo |
 |---|-------|-----------|----------|
-| 1 | Activar app Meta en Live (esperando business verification) | 🔴 Inmediata | — |
+| 1 | Activar app Meta en Live ✅ (cuenta WhatsApp lista) | ✅ Lista | — |
 | 2 | Crear templates en Meta Business Manager (documentados en docs/whatsapp_templates.md) | 🔴 Inmediata | 30min |
-| 3 | Conectar templates en scheduler (send_template_message) | 🟡 Media | 2h |
-| 3 | Indexado numerado en búsquedas | 🟢 Baja | — |
-| 4 | Dashboard métricas | 🟢 Futuro | — |
-| 5 | Skills adicionales (transporte, servicios básicos) | 🟢 Opcional | 40min |
-| 6 | Whisper local (reducir costo transcripción a $0) | 🟢 Futuro | 2h |
+| 3 | Eliminar Telegram polling → migrar a webhook unificado | ✅ Hecho v2.9.2 | — |
+| 4 | Conectar templates en scheduler (send_template_message) | 🟡 Media | 2h |
+| 5 | Indexado numerado en búsquedas | 🟢 Baja | — |
+| 6 | Dashboard métricas | 🟢 Futuro | — |
+| 7 | Skills adicionales (transporte, servicios básicos) | 🟢 Opcional | 40min |
+| 8 | Whisper local (reducir costo transcripción a $0) | 🟢 Futuro | 2h |
 
 ### Infraestructura — ✅ 100%
 - FastAPI, Docker Compose, Alembic, 18 tablas PostgreSQL + pgvector

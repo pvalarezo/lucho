@@ -493,4 +493,4 @@ Este enrutamiento por costo es lo que hace sostenible la unit economics de un pl
 | R4 | 9 targets = más clasificaciones erróneas | La confirmación editable es la red de seguridad. Métricas de precisión del router en beta (Fase 2). Iteración de prompts, no reentrenamiento. |
 | R5 | Tools rompen guardrail "solo datos del usuario" | Las tools SOLO consultan información del usuario (sus multas, su placa, su RUC). No son búsquedas abiertas. Principio: "consulta sobre tus datos en sistemas externos", no "búsqueda genérica". |
 | R6 | Costo extra por respuesta contextual | ~$0.0003 por mensaje adicional. Se usa el modelo barato (router_model) para formateo. Ajustable por feature flag. |
-| R7 | Polling → Webhook en producción | El código de webhook está listo y probado. Migrar es cambiar `run_bot.py` por configurar el webhook en Telegram + Traefik para SSL. |
+| R7 | Polling → Webhook en producción | ✅ v2.9.2 — Completado. Telegram migrado a webhook unificado. Ambos canales usan el mismo patrón vía lucho-api. |

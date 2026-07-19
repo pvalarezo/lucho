@@ -91,6 +91,79 @@ async def send_photo(
             return None
 
 
+async def set_webhook(url: str, drop_pending_updates: bool = True) -> dict | None:
+    """
+    Set the Telegram bot webhook URL.
+
+    After calling this, Telegram will push updates to this URL instead of
+    requiring polling. The URL must be HTTPS (self-signed not allowed).
+
+    Args:
+        url: Public HTTPS URL for the webhook (e.g. https://lucho-dev.apx5.com/telegram/webhook)
+        drop_pending_updates: Discard updates that arrived while no webhook was set
+    """
+    if not settings.TELEGRAM_BOT_TOKEN:
+        logger.warning("TELEGRAM_BOT_TOKEN not set — skipping set_webhook")
+        return None
+
+    webhook_url = f"{BASE_URL}/setWebhook"
+    payload = {"url": url}
+    if drop_pending_updates:
+        payload["drop_pending_updates"] = True
+
+    async with httpx.AsyncClient(timeout=10) as client:
+        try:
+            response = await client.post(webhook_url, json=payload)
+            response.raise_for_status()
+            data = response.json()
+            if data.get("ok"):
+                logger.info("Telegram webhook set to: %s", url)
+            else:
+                logger.error("Telegram webhook setup failed: %s", data)
+            return data
+        except httpx.HTTPError as exc:
+            logger.error("Failed to set Telegram webhook: %s", exc)
+            return None
+
+
+async def get_webhook_info() -> dict | None:
+    """Get current webhook configuration from Telegram."""
+    if not settings.TELEGRAM_BOT_TOKEN:
+        return None
+
+    url = f"{BASE_URL}/getWebhookInfo"
+    async with httpx.AsyncClient(timeout=10) as client:
+        try:
+            response = await client.post(url)
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPError as exc:
+            logger.error("Failed to get webhook info: %s", exc)
+            return None
+
+
+async def delete_webhook(drop_pending_updates: bool = False) -> dict | None:
+    """Delete the webhook and return to polling mode."""
+    if not settings.TELEGRAM_BOT_TOKEN:
+        return None
+
+    url = f"{BASE_URL}/deleteWebhook"
+    payload = {}
+    if drop_pending_updates:
+        payload["drop_pending_updates"] = True
+
+    async with httpx.AsyncClient(timeout=10) as client:
+        try:
+            response = await client.post(url, json=payload)
+            response.raise_for_status()
+            data = response.json()
+            logger.info("Telegram webhook deleted")
+            return data
+        except httpx.HTTPError as exc:
+            logger.error("Failed to delete Telegram webhook: %s", exc)
+            return None
+
+
 async def download_file(file_id: str) -> bytes | None:
     """Download a file (photo, audio, voice) from Telegram servers."""
     if not settings.TELEGRAM_BOT_TOKEN:

@@ -4,30 +4,24 @@
 
 ## Sesión actual — 2026-07-16
 
-**v2.9.1 — WhatsApp Templates documentados + OCR DeepSeek**
+**v2.9.2 — Telegram polling eliminado: webhook unificado**
 
 ### Entregables de la sesión:
 
-#### OCR/Visión — Migrado a DeepSeek ✅
-- `extract_document_data` usa DeepSeek Vision como primario
-- Nueva función `_deepseek_ocr` que reusa `_deepseek_vision` con `OCR_EXTRACTION_PROMPT`
-- Fallback: DeepSeek → Anthropic → OpenAI
-- Código muerto eliminado en `vision.py` (bloque duplicado)
+#### Telegram: Polling → Webhook unificado ✅
+- `app/routers/webhook.py` reescrito con todas las funcionalidades de `bot.py`:
+  - Transcripción de audio con Whisper
+  - Deduplicación de mensajes
+  - Ack inmediato ("Transcribiendo...", "📝 Entendido")
+  - Manejo de fotos, documentos, y audio consistente con WhatsApp
+- Archivos eliminados: `app/bot.py`, `run_bot.py`, `lucho-bot.service`
+- `app/services/telegram.py` ahora incluye `set_webhook()`, `get_webhook_info()`, `delete_webhook()`
+- `scripts/setup_telegram_webhook.py` para configurar el webhook
+- `docs/development_setup.md` actualizado: 2 servicios en vez de 3
+- Arquitectura unificada: Telegram y WhatsApp usan el mismo patrón webhook → lucho-api
 
-#### Transcripción de audio — Análisis completado ✅
-- DeepSeek, MiniMax, Kimi no ofrecen STT. OpenAI Whisper se mantiene.
-- Alternativa futura: Whisper local ($0 costo)
-
-#### Meta Live — Configuración verificada ✅
-- WHATSAPP_PHONE_NUMBER_ID, ACCESS_TOKEN, VERIFY_TOKEN confirmados
-- Webhook verificado: responde hub.challenge correctamente
-- API + Tunnel corriendo
-- ⏳ Pendiente: aprobación de business verification por Meta
-
-#### WhatsApp Templates — Documentados ✅
-- 4 templates diseñados y documentados en `docs/whatsapp_templates.md`
-- Templates: `document_reminder`, `project_reminder`, `pico_y_placa`, `daily_digest`
-- Categoría UTILITY, pendientes de creación en Meta y aprobación (24-48h)
+#### Meta Live — Cuenta WhatsApp lista ✅
+- La cuenta de WhatsApp ya está lista y funcional
 
 ---
 
@@ -35,10 +29,10 @@
 
 ### 🔴 INMEDIATA
 
-**1. Activar app Meta en Live**
-- [ ] Verificar estado de business verification en Meta
-- [ ] Cambiar switch Desarrollo → Activo en consola Meta
-- [ ] Probar mensaje desde número real sin whitelist
+**1. Arrancar servicios y configurar webhook de Telegram**
+- [ ] `systemctl --user start lucho-api lucho-tunnel`
+- [ ] `python scripts/setup_telegram_webhook.py`
+- [ ] Probar que el bot responde en Telegram vía webhook
 
 **2. Crear templates en Meta Business Manager**
 - [ ] Usar `docs/whatsapp_templates.md` como guía
@@ -53,27 +47,28 @@
 - Agregar envío WhatsApp al `daily_digest`
 - Agregar job de notificación pico y placa vía template
 
-**4. Lucho Bot (Telegram polling)**
-- No está corriendo actualmente
-- Evaluar si mantener o migrar todo a webhook
-
 ### 🟢 BAJA
 
-**5. Whisper local** — transcripción sin costo de API
-**6. Skills adicionales** — transporte, servicios básicos
-**7. Dashboard de métricas**
+**4. Whisper local** — transcripción sin costo de API
+**5. Skills adicionales** — transporte, servicios básicos
+**6. Dashboard de métricas**
+**7. Fase 2** — onboarding guiado, métricas, fechas especiales, vacunas, suscripciones
 
 ---
 
 ## Comandos rápidos
 
 ```bash
-# Servicios
+# Servicios (solo 2 ahora)
 systemctl --user start lucho-api lucho-tunnel
 
 # Logs
 journalctl --user -u lucho-api -f
 journalctl --user -u lucho-tunnel -f
+
+# Configurar webhook Telegram (una vez)
+python scripts/setup_telegram_webhook.py
+python scripts/setup_telegram_webhook.py --info
 
 # Git
 git add -A && git commit -m "mensaje"
