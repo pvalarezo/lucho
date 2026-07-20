@@ -26,10 +26,12 @@ from app.models.asset import Asset, AssetType
 from app.models.event import Event, EventStatus
 from app.models.reminder import Reminder, ReminderChannel, ReminderStatus
 from app.models.user import User
+from app.models.vehicle import Vehicle
 from app.models.list import ListItem, ItemStatus
 from app.services import vehicle_rules as vr
 from app.services.notifications import send_notification, NotificationChannel, resolve_user_contact
 from app.services import telegram as telegram_svc
+from app.services import whatsapp as whatsapp_svc
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -58,6 +60,7 @@ async def run_daily_rules():
             await _evaluate_events(session)
             await _evaluate_documents(session)
             await _evaluate_project_tasks(session)
+            await _evaluate_pico_y_placa(session)
             await session.commit()
             logger.info("Daily reminder evaluation complete.")
         except Exception as exc:
@@ -70,31 +73,25 @@ async def run_daily_rules():
 # =============================================================================
 
 async def _evaluate_vehicle_assets(session: AsyncSession):
-    """Evaluate matriculación, SOAT, RTV for all vehicle assets."""
+    """Evaluate matriculación, SOAT, RTV for all vehicle assets (from vehicles table)."""
     today = date.today()
 
     result = await session.execute(
-        select(Asset).where(
-            Asset.asset_type == AssetType.vehicle,
-            Asset.deleted_at.is_(None),
-        )
+        select(Vehicle).where(Vehicle.deleted_at.is_(None))
     )
     vehicles = result.scalars().all()
 
     for vehicle in vehicles:
-        attrs = vehicle.attributes or {}
-        plate = attrs.get("plate", "")
-        last_digit = attrs.get("last_digit")
+        plate = vehicle.plate or ""
+        last_digit = vehicle.last_digit
 
         if not plate and last_digit is None:
             continue
 
         rules = vr.evaluate_vehicle_rules(plate, last_digit, today)
-        vehicle.attributes = {**attrs, **{
-            "last_digit": rules["last_digit"],
-            "pico_y_placa_days": rules["pico_y_placa_days"],
-            "next_matriculation": rules["next_matriculation"],
-        }}
+        vehicle.last_digit = rules["last_digit"]
+        vehicle.pico_y_placa_days = rules["pico_y_placa_days"]
+        vehicle.next_matriculation = date.fromisoformat(rules["next_matriculation"])
 
         matric_date = date.fromisoformat(rules["next_matriculation"])
         await _ensure_event(
@@ -235,6 +232,29 @@ async def _send_document_reminder(
     if sent:
         logger.info("Document reminder sent: %s (%d days)", doc_name, days_until)
 
+    # WhatsApp template (for proactive reminders outside 24h window)
+    if user.whatsapp_id:
+        await _send_document_reminder_whatsapp(
+            user.whatsapp_id, emoji, doc_name, doc_type, ds, str(expiry_date)
+        )
+
+
+async def _send_document_reminder_whatsapp(
+    phone: str,
+    emoji: str,
+    doc_name: str,
+    doc_type: str,
+    days_text: str,
+    expiry_date_str: str,
+):
+    """Send document reminder via WhatsApp template (6 body params)."""
+    await whatsapp_svc.send_template_message(
+        phone=phone,
+        template_name="document_reminder",
+        language_code="es",
+        body_params=[emoji, doc_name, doc_type, days_text, expiry_date_str, doc_name],
+    )
+
 
 # =============================================================================
 # PROJECT TASKS — due date reminders
@@ -311,6 +331,72 @@ async def _send_project_reminder(
     if sent:
         logger.info("Project reminder sent: %s (%d days)", task.content[:50], days_until)
 
+    # WhatsApp template (for proactive reminders outside 24h window)
+    if user.whatsapp_id:
+        await _send_project_reminder_whatsapp(
+            user.whatsapp_id, emoji, project.name, task.content,
+            ds, str(task.due_date)
+        )
+
+
+async def _send_project_reminder_whatsapp(
+    phone: str,
+    emoji: str,
+    project_name: str,
+    task_content: str,
+    days_text: str,
+    due_date_str: str,
+):
+    """Send project reminder via WhatsApp template (6 body params)."""
+    await whatsapp_svc.send_template_message(
+        phone=phone,
+        template_name="project_reminder",
+        language_code="es",
+        body_params=[emoji, project_name, task_content, days_text, due_date_str, task_content],
+    )
+
+
+# =============================================================================
+# PICO Y PLACA — daily restriction check
+# =============================================================================
+
+async def _evaluate_pico_y_placa(session: AsyncSession):
+    """Check vehicles with pico y placa today and notify via WhatsApp template."""
+    today = date.today()
+    weekday_names = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
+    today_name = weekday_names[today.weekday()]
+
+    # No restrictions on weekends
+    if today.weekday() >= 5:
+        return
+
+    result = await session.execute(
+        select(Vehicle).where(Vehicle.deleted_at.is_(None))
+    )
+    vehicles = result.scalars().all()
+
+    for vehicle in vehicles:
+        plate = vehicle.plate or ""
+        pyp_days = vehicle.pico_y_placa_days or ""
+
+        if not plate or not pyp_days or today_name not in pyp_days:
+            continue
+
+        user_result = await session.execute(
+            select(User).where(User.id == vehicle.user_id)
+        )
+        user = user_result.scalar_one_or_none()
+        if not user or not user.whatsapp_id:
+            continue
+
+        await whatsapp_svc.send_template_message(
+            phone=user.whatsapp_id,
+            template_name="pico_y_placa",
+            language_code="es",
+            body_params=[plate, f"hoy {today_name.lower()}"],
+        )
+        logger.info("Pico y placa reminder sent: %s on %s", plate, today_name)
+
 
 # =============================================================================
 # HELPERS
@@ -354,7 +440,7 @@ async def _ensure_event(session, user_id, asset_id, title, target_date, certaint
 # =============================================================================
 
 async def run_daily_digest():
-    """Send a morning summary to users with active data."""
+    """Send a morning summary to users with active data (Telegram + WhatsApp)."""
     logger.info("Starting daily digest...")
     today = date.today()
     weekday = ["lunes","martes","miércoles","jueves","viernes","sábado","domingo"][today.weekday()]
@@ -362,17 +448,35 @@ async def run_daily_digest():
     async with async_session() as session:
         try:
             result = await session.execute(
-                select(User).where(User.telegram_id.isnot(None), User.is_active == True)
+                select(User).where(User.is_active == True)
             )
             users = result.scalars().all()
 
             for user in users:
                 digest = await _build_digest(session, user, today, weekday)
-                if digest:
+                if not digest:
+                    continue
+
+                # Telegram
+                if user.telegram_id:
                     try:
                         await telegram_svc.send_message(int(user.telegram_id), digest)
+                        logger.info("Digest sent to Telegram %s", user.telegram_id)
                     except Exception as exc:
-                        logger.warning("Digest failed for %s: %s", user.telegram_id, exc)
+                        logger.warning("Digest Telegram failed for %s: %s", user.telegram_id, exc)
+
+                # WhatsApp template
+                if user.whatsapp_id:
+                    try:
+                        await whatsapp_svc.send_template_message(
+                            phone=user.whatsapp_id,
+                            template_name="daily_digest",
+                            language_code="es",
+                            body_params=[digest],
+                        )
+                        logger.info("Digest sent to WhatsApp %s", user.whatsapp_id)
+                    except Exception as exc:
+                        logger.warning("Digest WhatsApp failed for %s: %s", user.whatsapp_id, exc)
 
             await session.commit()
         except Exception as exc:
@@ -386,10 +490,9 @@ async def _build_digest(session, user, today, weekday):
 
     # Vehicles
     result = await session.execute(
-        select(Asset).where(
-            Asset.user_id == user.id,
-            Asset.asset_type == AssetType.vehicle,
-            Asset.deleted_at.is_(None),
+        select(Vehicle).where(
+            Vehicle.user_id == user.id,
+            Vehicle.deleted_at.is_(None),
         )
     )
     vehicles = result.scalars().all()
@@ -437,9 +540,8 @@ async def _build_digest(session, user, today, weekday):
     if vehicles:
         parts.append("\n🚗 Vehículos:")
         for v in vehicles:
-            attrs = v.attributes or {}
-            plate = attrs.get("plate", "?")
-            pyp = attrs.get("pico_y_placa_days", "")
+            plate = v.plate or "?"
+            pyp = v.pico_y_placa_days or ""
             if pyp:
                 parts.append(f"  • {plate}: pico y placa {pyp}")
                 if weekday.capitalize() in pyp:

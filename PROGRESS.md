@@ -5,132 +5,140 @@ Estado actual de cada fase, módulo y entregable. Fase 1 completada con rediseñ
 ---
 
 ## Fase 0 — Validación ✅ COMPLETADA
-## Fase 1 — MVP Técnico ✅ COMPLETADA
+## Fase 1 — MVP Técnico ✅ COMPLETADA (v2.10.0)
 
 ### Versiones
 | Tag | Fecha | Descripción |
 |-----|-------|-------------|
-| v2.9.4 | 2026-07-19 | WhatsApp multimedia: descarga imágenes/audio/docs de WhatsApp → MinIO, transcripción audio con Whisper. Stickers responden con mensaje amable. Inyección de file_key en texto para conectar foto+instrucción. Foto sin instrucción: confirmación rápida sin llamar al agente. System prompt reforzado: regla #0 anti-alucinación con tools de escritura, ejemplos corregidos. Template send_template_message acepta body_params. |
-| v2.9.3 | 2026-07-18 | Sistema completo: suscripción (planes, trial 7 días, acceso), onboarding 3 pasos, WhatsApp (⏳ reacción, typing indicator, debounce 3s). Tablas nuevas: subscription_plans + user_profiles. Webhook WhatsApp reescrito con debounce. Scripts: seed_subscription_plans.py, manage_users.py. |
-| v2.9.2 | 2026-07-16 | Telegram polling eliminado: migrado a webhook unificado. app/bot.py + run_bot.py + lucho-bot.service eliminados. Telegram y WhatsApp usan mismo patrón webhook vía lucho-api. Script setup_telegram_webhook.py para configurar. |
-| v2.9.1 | 2026-07-16 | WhatsApp Templates: 4 plantillas documentadas (document_reminder, project_reminder, pico_y_placa, daily_digest) en docs/whatsapp_templates.md. Categoría UTILITY, listas para crear en Meta. |
-| v2.9.0 | 2026-07-16 | OCR/Visión migrado a DeepSeek: extract_document_data + analyze_image usan deepseek-chat como primario. Código muerto eliminado en vision.py. Meta Live: config verificada, webhook confirmado, esperando aprobación. |
-| v2.8.1 | 2026-07-15 | WhatsApp end-to-end tested: texto, foto, audio. Dedup, ack inmediato, fix PHONE_NUMBER_ID, fix OPENAI_API_KEY en .env |
-| v2.8.0 | 2026-07-14 | WhatsApp Cloud API: send/receive, media, webhook, real _send_whatsapp(), dev setup docs, Cloudflare tunnel, systemd services |
-| v2.7.0 | 2026-07-14 | Web search tool: DuckDuckGo (ddgs), consultas Ecuador actuales |
-| v2.6.0 | 2026-07-13 | Refactor file_key, flujo archivos sin auto-save, regla #0 NUNCA MIENTAS, sin Markdown |
-| v2.5.0 | 2026-07-13 | Tests actualizados: 267 unit offline (100%), suite + stress para agente |
-| v2.4.0 | 2026-07-13 | Skills Ecuador: documentos, SRI facturación, gastronomía, feriados (7 skills total) |
-| v2.3.0 | 2026-07-13 | Envío de fotos/docs: tool send_photo, búsqueda documentos, respuesta dict |
-| v2.2.0 | 2026-07-12 | Proyectos/tareas, recordatorios unificados, contactos |
-| v2.1.0 | 2026-07-12 | OCR documentos, digest diario, PDFs |
-| v2.0.0 | 2026-07-12 | Rediseño a arquitectura de agente |
+| v2.10.0 | 2026-07-20 | Módulo de Vehículos independiente (`vehicles` + `vehicle_maintenances`), 22 tools total. Flujo post-pago (cédula→email→nombre→políticas). Scheduler conectado a WhatsApp templates (4 tipos). Límite vehículos parametrizable por plan. Tests: 307/307 (100%). |
+| v2.9.4 | 2026-07-19 | WhatsApp multimedia: descarga imágenes/audio/docs → MinIO, transcripción Whisper. Stickers, inyección file_key, foto sin instrucción. System prompt regla #0 reforzada. Template send_template_message con body_params. |
+| v2.9.3 | 2026-07-18 | Suscripción (planes, trial 7 días), onboarding 3 pasos, WhatsApp (reacción, typing, debounce 3s). Tablas: subscription_plans, user_profiles. |
+| v2.9.2 | 2026-07-16 | Telegram polling → webhook unificado. |
+| v2.9.1 | 2026-07-16 | WhatsApp Templates documentados (4 plantillas). |
+| v2.9.0 | 2026-07-16 | OCR/Visión → DeepSeek. Meta Live configurado. |
+| v2.8.1 | 2026-07-15 | WhatsApp end-to-end tested. |
+| v2.8.0 | 2026-07-14 | WhatsApp Cloud API: send/receive, media, webhook. |
+| v2.7.0 | 2026-07-14 | Web search tool (DuckDuckGo). |
+| v2.6.0 | 2026-07-13 | Refactor file_key, regla #0 NUNCA MIENTAS. |
+| v2.5.0 | 2026-07-13 | Tests: 267 unit offline (100%). |
+| v2.4.0 | 2026-07-13 | Skills Ecuador: 7 skills en 4 dominios. |
+| v2.3.0 | 2026-07-13 | Envío de fotos/docs: tool send_photo. |
+| v2.2.0 | 2026-07-12 | Proyectos/tareas, recordatorios unificados, contactos. |
+| v2.1.0 | 2026-07-12 | OCR documentos, digest diario, PDFs. |
+| v2.0.0 | 2026-07-12 | Rediseño a arquitectura de agente. |
 
 ### Arquitectura — ✅ 100%
-- Agente unificado: system prompt + 19 tools + conversation memory
+- Agente unificado: system prompt + 22 tools + conversation memory
 - Skills Ecuador: 7 skills en 4 dominios (culture, transit, legal, tax)
 - Canales: Telegram (webhook) + WhatsApp Cloud API (webhook vía Meta Cloud API)
 - Cloudflare Tunnel: https://lucho-dev.apx5.com → localhost:8000
-- Systemd user services: lucho-api, lucho-tunnel (disabled at boot, manual start)
-- Telegram migrado a webhook (mismo endpoint que WhatsApp, sin proceso polling aparte)
+- Systemd user services: lucho-api, lucho-tunnel (manual start)
+- Telegram migrado a webhook (sin polling aparte)
 
-### Funcionalidades — 17 completadas
+### Base de Datos — 22 tablas
+`users`, `user_profiles`, `messages`, `assets`, `events`, `reminders`, `topics`, `notes`, `lists`, `list_items`, `projects`, `project_tasks`, `contacts`, `caregiver_links`, `shared_expenses`, `shared_expense_participants`, `subscription_plans`, `subscriptions`, `payments`, `subscription_invoices`, **`vehicles`** 🆕, **`vehicle_maintenances`** 🆕
 
-| # | Funcionalidad | Tools | Estado |
-|---|--------------|-------|--------|
-| 1 | Vehículos (guardar, ANT/SRI, pico y placa) | save_vehicle, check_vehicle_info | ✅ |
-| 2 | Documentos (cédula, SOAT, garantía, OCR) | save_document, analyze_image | ✅ |
-| 3 | Eventos/Recordatorios | save_event + scheduler | ✅ |
-| 4 | Listas (compras, tareas) | save_list | ✅ |
-| 5 | Notas por tema | save_note | ✅ |
-| 6 | Gastos compartidos | save_expense | ✅ |
-| 7 | Búsqueda (datos + historial chat) | search_my_data, search_conversation | ✅ |
-| 8 | Resumen diario automático 8 AM | daily_digest | ✅ |
-| 9 | Correcciones | update_last | ✅ |
-| 10 | Conversación natural + memoria | Agente multi-turno | ✅ |
-| 11 | Skills Ecuador | 7 MD + loader | ✅ |
-| 12 | Proyectos y Tareas | save/list/complete_project_task | ✅ |
-| 13 | Contactos (nombre, tel, email, WA) | save_contact, list_contacts | ✅ |
-| 14 | Recordatorios unificados | Scheduler: eventos 15/7/3/0, docs 30/15/7, proyectos 7/3/1 | ✅ |
-| 15 | Notificaciones multi-canal | notifications.py (Telegram + placeholders) | ✅ |
-| 16 | Envío de fotos/docs al usuario | send_photo (detecta imagen vs documento, MinIO → Telegram) | ✅ |
-| 17 | Web search MUNDIAL | web_search (DuckDuckGo ddgs, CUALQUIER tema, sin restricción) | ✅ |
-| 18 | WhatsApp Cloud API | whatsapp_webhook, send/recibir mensajes, fotos, audio, docs | ✅ |
-| 19 | Documentación dev setup | docs/development_setup.md | ✅ |
+### Tools del Agente — 22 tools
 
-### Flujo de archivos — ✅ Refinado
+| # | Tool | Módulo | Escritura |
+|---|------|--------|-----------|
+| 1 | `save_vehicle` | Vehículos 🆕 | ✍️ |
+| 2 | `list_my_vehicles` | Vehículos 🆕 | 👁️ |
+| 3 | `add_maintenance` | Vehículos 🆕 | ✍️ |
+| 4 | `list_maintenances` | Vehículos 🆕 | 👁️ |
+| 5 | `save_document` | Documentos | ✍️ |
+| 6 | `save_event` | Eventos | ✍️ |
+| 7 | `save_list` | Listas | ✍️ |
+| 8 | `save_note` | Notas | ✍️ |
+| 9 | `save_expense` | Gastos | ✍️ |
+| 10 | `search_my_data` | Búsqueda | 👁️ |
+| 11 | `search_conversation` | Búsqueda | 👁️ |
+| 12 | `web_search` | Búsqueda | 👁️ |
+| 13 | `analyze_image` | OCR/Visión | 👁️+✍️ |
+| 14 | `get_my_summary` | Resumen | 👁️ |
+| 15 | `save_project_task` | Proyectos | ✍️ |
+| 16 | `list_project_tasks` | Proyectos | 👁️ |
+| 17 | `complete_project_task` | Proyectos | ✍️ |
+| 18 | `update_last` | Correcciones | ✍️ |
+| 19 | `save_contact` | Contactos | ✍️ |
+| 20 | `list_contacts` | Contactos | 👁️ |
+| 21 | `check_vehicle_info` | Vehículos | 👁️ |
+| 22 | `send_photo` | Archivos | ✍️ |
 
-| Escenario | Comportamiento |
-|-----------|---------------|
-| Archivo sin instrucción | Sube a MinIO, LLM pregunta qué hacer |
-| Archivo con caption | Procesa según instrucción del usuario |
-| Mensaje previo + archivo | Usa historial de conversación como contexto |
-| Pedir archivo guardado | search_my_data → send_photo → envía el archivo |
-| Regla #0 | NUNCA decir "guardé"/"envié" sin haber ejecutado la tool |
+### Scheduler — ✅ Conectado a WhatsApp Templates
 
-### Meta Live — ⏳ Esperando aprobación
-- Business verification: documentos enviados a Meta
-- Webhook verificado: https://lucho-dev.apx5.com/whatsapp/webhook ✅
-- Token permanente configurado ✅
-- Pendiente: switch Desarrollo → Activo cuando Meta apruebe
+| Recordatorio | Template | body_params | Horario |
+|-------------|----------|-------------|---------|
+| Documento por vencer | `document_reminder` | 6 params ({{2}}={{6}}) | 8:00 AM |
+| Tarea de proyecto | `project_reminder` | 6 params ({{3}}={{6}}) | 8:00 AM |
+| Pico y placa | `pico_y_placa` | 2 params | 8:00 AM |
+| Daily digest | `daily_digest` | 1 param (LLM) | 8:00 AM |
+| Eventos (citas) | `send_notification` | Texto directo | 8:00 AM |
 
-### OCR/Visión — ✅ Migrado a DeepSeek
-- `extract_document_data`: DeepSeek como primario, fallback Anthropic → OpenAI
-- `analyze_image`: DeepSeek primario, fallback Anthropic
-- Modelo: `deepseek-chat` (OpenAI-compatible vision)
-- Transcripción audio: OpenAI Whisper se mantiene (único proveedor viable con STT)
+### Flujo de Suscripción — ✅ Completo
+```
+Nuevo usuario → Onboarding (pasos 0→1→2) → Trial 7 días
+                                              ↓
+                                    Trial expira (día 8)
+                                              ↓
+                              Post-pago (pasos 3→4→5→6)
+                         cédula → email → nombre → políticas
+                                              ↓
+                                   Datos en user_profiles
+                                              ↓
+                                   Pendiente: pago (Fase 3)
+```
 
-### Pendientes
+### Meta Live — ⏳ Templates en revisión
+- 4 plantillas creadas: `document_reminder`, `project_reminder`, `pico_y_placa`, `daily_digest`
+- Categoría: UTILITY (menos `daily_digest` que se recreó como UTILITY)
+- `initial_greeting`: ya tiene traducción español `es`
+- Esperando aprobación (24-48h)
 
-| # | Tarea | Prioridad | Esfuerzo |
-|---|-------|-----------|----------|
-| 1 | Crear templates en Meta Business Manager (document_reminder, project_reminder, pico_y_placa, daily_digest) | 🔴 Inmediata | 30min |
-| 2 | Conectar templates en scheduler (send_template_message) | 🟡 Media | 2h |
-| 3 | Flujo post-pago: cuando trial expira → pedir cédula, correo, nombre, políticas | 🟡 Media | — |
-| 4 | Agregar traducción español (es) al template initial_greeting en Meta | 🟢 Baja | 5min |
-| 5 | Indexado numerado en búsquedas | 🟢 Baja | — |
-| 6 | Dashboard métricas | 🟢 Futuro | — |
-| 7 | Skills adicionales (transporte, servicios básicos) | 🟢 Opcional | 40min |
-| 8 | Whisper local (reducir costo transcripción a $0) | 🟢 Futuro | 2h |
-
-### Infraestructura — ✅ 100%
-- FastAPI, Docker Compose, Alembic, 20 tablas PostgreSQL + pgvector
-- MinIO (fotos/documentos), Redis (configurado), sentence-transformers (embeddings locales)
-- Telegram webhook (recibir y enviar mensajes)
-- WhatsApp Cloud API webhook (recibir y enviar mensajes, verificado ✅)
-- Cloudflare Tunnel para HTTPS público (lucho-dev.apx5.com)
-- Systemd user services (manual start, no auto-boot)
-
-### Seguridad y Control de Acceso — ✅ v2.9.3
-- Nuevos usuarios: trial de 7 días con acceso completo (plan Básico)
-- Middleware check_access() en ambos webhooks
-- Estados: trial → active (post-pago) / expired (sin pago)
-- Onboarding 3 pasos: presentación → nombre → confirmación trial
-- Datos post-pago: user_profiles (cédula, correo, nombre completo, aceptación políticas)
-- CLI: manage_users.py para activar/desactivar/listar usuarios
-
-### WhatsApp Experience — ✅ v2.9.4
-- ⏳ Reacción inmediata al recibir mensaje (reloj de arena)
-- Typing indicator oficial (3 puntitos "escribiendo..." vía status:read)
-- Debounce 3s: espera silencio antes de llamar al agente (mensajes agrupados)
-- Webhook reescrito con arquitectura limpia (save → debounce → process)
-- 📷 Imágenes: descarga de WhatsApp → MinIO → file_key real para el agente
-- 🎵 Audio/Voz: descarga → MinIO → transcripción Whisper → texto al agente
-- 📄 Documentos: descarga → MinIO → file_key real
-- 😅 Stickers: mensaje amable "todavía no puedo ver stickers"
-- 🔗 Inyección de file_key: cuando un texto referencia una foto reciente, se conecta automáticamente
-- ⚡ Foto sin instrucción: confirmación rápida sin llamar al agente
+### Tests — 307/307 (100%) ✅
 
 ---
 
-## Fase 2 — Beta Cerrada 📋 PLANEADA
-## Fase 3 — Lanzamiento 📋 PLANEADA
+## Fase 2 — Beta Cerrada 📋 EN PROGRESO
+
+### Completado en Fase 2:
+- [x] WhatsApp Cloud API integración completa
+- [x] WhatsApp: reacción + typing indicator + debounce 3s
+- [x] WhatsApp Templates: 4 plantillas creadas + documentadas
+- [x] Telegram webhook unificado
+- [x] Sistema de suscripción: planes, trial 7 días, control acceso
+- [x] Onboarding guiado: bienvenida + nombre preferido
+- [x] Seguridad: middleware check_access
+- [x] Proyectos y Tareas
+- [x] Contactos
+- [x] Envío de fotos al usuario
+- [x] Skills Ecuador (7 skills)
+- [x] Flujo post-pago: 4 pasos + user_profiles
+- [x] Módulo de Vehículos independiente
+- [x] Scheduler conectado a WhatsApp templates
+- [x] Límite vehículos parametrizable por plan
+
+### Pendientes Fase 2:
+- [ ] Módulo de Finanzas Personales 🆕
+- [ ] Métricas: % extracción correcta, retención D7/D30
+- [ ] Ola 2: cumpleaños, vacunas, suscripciones, control de gastos
+
+---
+
+## Fase 3 — Lanzamiento con Monetización 📋 PLANEADA
+- [ ] Integración de pago (Kushki/PayPhone)
+- [ ] Webhook de pago (reactivación automática)
+- [ ] Facturación SRI de la suscripción (AuraFac)
+- [ ] Funcionalidades Ola 3 (fiscal/financiero)
+- [ ] Familia y cuidado (medicamentos, modo cuidado, remesas)
+
 ## Fase 4 — SMB 📋 FUTURO
-## Fase 5 — Expansión 📋 FUTURO
+## Fase 5 — Expansión Regional 📋 FUTURO
 
 ---
 
 ## Leyenda
 - ✅ Completado
 - 🔨 En progreso
-- ⬚ Pendiente
+- 📋 Planeado
+- 🆕 Nuevo en esta versión

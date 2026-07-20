@@ -14,6 +14,7 @@ from app.models.contact import Contact, CaregiverLink
 from app.models.shared_expense import SharedExpense, SharedExpenseParticipant, SplitType, ParticipantStatus
 from app.models.subscription_plan import SubscriptionPlan
 from app.models.subscription import Subscription, Payment, SubscriptionInvoice, SubscriptionStatus, PaymentStatus, PaymentMethod, RenewalType
+from app.models.vehicle import Vehicle, VehicleMaintenance, MaintenanceType
 
 __all__ = [
     "Base",
@@ -57,4 +58,7 @@ __all__ = [
     "PaymentStatus",
     "PaymentMethod",
     "RenewalType",
+    "Vehicle",
+    "VehicleMaintenance",
+    "MaintenanceType",
 ]

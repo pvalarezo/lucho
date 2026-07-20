@@ -67,7 +67,7 @@ check("confirmá" in sp or "confirmá lo que entendiste" in sp, "Rule: confirm b
 check("corrigiendo" in sp or "corregirte" in sp or "corregir" in sp, "Rule: supports corrections")
 check("send_photo" in sp, "Mentions send_photo tool (rule #7)")
 check("file_key" in sp, "Mentions file_key")
-check("capital de Francia" in sp, "Includes guardrail example (capital of France)")
+check("NUNCA MIENTAS" in sp, "Includes anti-hallucination rule #0 (NUNCA MIENTAS)")
 
 # Check short prompt
 check("Eres Lucho" in LUCHO_SYSTEM_PROMPT_SHORT, "Short prompt has identity")
@@ -77,19 +77,20 @@ check(len(LUCHO_SYSTEM_PROMPT_SHORT) < 500, f"Short prompt is short ({len(LUCHO_
 # ════════════════════════════════════════════════════════
 # 2. TOOL SCHEMAS (18 tools)
 # ════════════════════════════════════════════════════════
-section("2. Tool Schemas (18 tools)")
+section("2. Tool Schemas (22 tools)")
 
 from app.agent.tools import ALL_TOOLS, TOOL_SCHEMAS
 
-check(len(ALL_TOOLS) == 18, f"Exactly 18 tools (found {len(ALL_TOOLS)})")
-check(len(TOOL_SCHEMAS) == 18, f"TOOL_SCHEMAS has 18 entries (found {len(TOOL_SCHEMAS)})")
+check(len(ALL_TOOLS) == 22, f"Exactly 22 tools (found {len(ALL_TOOLS)})")
+check(len(TOOL_SCHEMAS) == 22, f"TOOL_SCHEMAS has 22 entries (found {len(TOOL_SCHEMAS)})")
 
 expected_tools = [
-    "save_vehicle", "save_document", "save_event", "save_list", "save_note",
+    "save_vehicle", "list_my_vehicles", "add_maintenance", "list_maintenances",
+    "save_document", "save_event", "save_list", "save_note",
     "save_expense", "search_my_data", "search_conversation", "analyze_image",
     "get_my_summary", "save_project_task", "list_project_tasks",
     "complete_project_task", "update_last", "save_contact", "list_contacts",
-    "check_vehicle_info", "send_photo",
+    "check_vehicle_info", "send_photo", "web_search",
 ]
 
 tool_names = [t["function"]["name"] for t in ALL_TOOLS]
@@ -141,6 +142,10 @@ handler_map = {
     "list_contacts": "handle_list_contacts",
     "check_vehicle_info": "handle_check_vehicle_info",
     "send_photo": "handle_send_photo",
+    "web_search": "handle_web_search",
+    "list_my_vehicles": "handle_list_my_vehicles",
+    "add_maintenance": "handle_add_maintenance",
+    "list_maintenances": "handle_list_maintenances",
 }
 
 for tool_name, handler_name in handler_map.items():

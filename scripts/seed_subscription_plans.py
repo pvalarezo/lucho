@@ -39,6 +39,7 @@ BASIC_PLAN = {
         "daily_digest": True,
         "file_storage_mb": 100,
         "messages_per_day": 50,
+        "max_vehicles": 2,
     },
     "is_active": True,
 }

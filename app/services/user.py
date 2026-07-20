@@ -275,3 +275,170 @@ async def check_access(session: AsyncSession, user_id: str) -> AccessResult:
         allowed=False,
         reason="⚠️ No pudimos verificar tu suscripción. Contactanos.",
     )
+
+
+# =============================================================================
+# POST-PAGO FLOW
+# =============================================================================
+
+
+async def _get_post_pago_step(session: AsyncSession, user_id: str) -> int | None:
+    """
+    Determine which post-pago step the user is on.
+    Uses onboarding_step: 3=cédula, 4=email, 5=full_name, 6=privacy, 7=done.
+    Returns None if post-pago already completed.
+    """
+    result = await session.execute(
+        select(User).where(User.id == user_id)
+    )
+    user = result.scalar_one_or_none()
+    if not user:
+        return None
+
+    step = user.onboarding_step
+    if step < 3:
+        # Trial just expired, start post-pago at step 3 (cédula)
+        return 3
+    if 3 <= step <= 6:
+        # Mid-post-pago, resume at current step
+        return step
+    # step >= 7: completed
+    return None
+
+
+async def advance_post_pago_step(
+    session: AsyncSession,
+    user_id: str,
+    expected_step: int,
+    user_input: str,
+) -> dict:
+    """
+    Process one post-pago step, saving data to UserProfile.
+    Returns dict with {ok: bool, next_step: int | None, message: str}.
+    """
+    from app.models.user_profile import UserProfile
+
+    # Validate user exists
+    result = await session.execute(
+        select(User).where(User.id == user_id)
+    )
+    user = result.scalar_one_or_none()
+    if not user:
+        return {"ok": False, "next_step": None, "message": "Error: usuario no encontrado."}
+
+    # Get or create profile
+    result = await session.execute(
+        select(UserProfile).where(UserProfile.user_id == user_id)
+    )
+    profile = result.scalar_one_or_none()
+    if not profile:
+        profile = UserProfile(user_id=user_id)
+        session.add(profile)
+
+    text = user_input.strip()
+
+    if expected_step == 3:
+        # Step 3: cédula/RUC
+        if len(text) < 6 or len(text) > 13:
+            return {
+                "ok": False,
+                "next_step": 3,
+                "message": "Eso no parece un número de cédula o RUC válido. Intentá de nuevo.",
+            }
+        profile.id_number = text
+        user.onboarding_step = 4
+        await session.flush()
+        return {
+            "ok": True,
+            "next_step": 4,
+            "message": (
+                f"✅ Cédula *{text}* registrada.\n\n"
+                "¿Cuál es tu correo electrónico?"
+            ),
+        }
+
+    elif expected_step == 4:
+        # Step 4: email
+        if "@" not in text or "." not in text.split("@")[-1]:
+            return {
+                "ok": False,
+                "next_step": 4,
+                "message": "Eso no parece un correo válido. Ponelo de nuevo.",
+            }
+        profile.email = text
+        user.onboarding_step = 5
+        await session.flush()
+        return {
+            "ok": True,
+            "next_step": 5,
+            "message": (
+                f"✅ Correo *{text}* registrado.\n\n"
+                "¿Cuál es tu nombre completo (como aparece en tu cédula)?"
+            ),
+        }
+
+    elif expected_step == 5:
+        # Step 5: full name
+        if len(text) < 5:
+            return {
+                "ok": False,
+                "next_step": 5,
+                "message": "Ese nombre es muy corto. Poné tu nombre completo.",
+            }
+        profile.full_name = text
+        user.onboarding_step = 6
+        await session.flush()
+        return {
+            "ok": True,
+            "next_step": 6,
+            "message": (
+                f"✅ Nombre *{text}* registrado.\n\n"
+                "Antes de continuar, revisá nuestras políticas de privacidad "
+                "en: https://auracore.com/politicas\n\n"
+                "Respondé *SI* para aceptar y continuar."
+            ),
+        }
+
+    elif expected_step == 6:
+        # Step 6: privacy acceptance
+        if text.upper().strip() not in ("SI", "SÍ", "S", "YES", "OK", "ACEPTO", "DE ACUERDO"):
+            return {
+                "ok": False,
+                "next_step": 6,
+                "message": "Necesito que aceptés las políticas. Respondé *SI* para continuar.",
+            }
+        profile.privacy_policy_accepted = True
+        profile.privacy_policy_accepted_at = datetime.now(timezone.utc)
+        profile.terms_accepted = True
+        profile.terms_accepted_at = datetime.now(timezone.utc)
+        user.onboarding_step = 7
+        await session.flush()
+        return {
+            "ok": True,
+            "next_step": None,  # Done
+            "message": (
+                "✅ ¡Perfecto! Tus datos quedaron registrados.\n\n"
+                "📋 *Resumen de tu registro:*\n"
+                f"• Cédula: {profile.id_number}\n"
+                f"• Correo: {profile.email}\n"
+                f"• Nombre: {profile.full_name}\n"
+                f"• Políticas: aceptadas ✅\n\n"
+                "Pronto podrás elegir tu plan y pagar para reactivar Lucho. "
+                "Te avisamos ni bien esté listo el sistema de pagos. 🚀"
+            ),
+        }
+
+    return {"ok": False, "next_step": None, "message": "Error: paso no reconocido."}
+
+
+async def get_post_pago_start_message(session: AsyncSession, user_id: str) -> str:
+    """
+    Get the starting message for the post-pago flow.
+    Called when user first enters post-pago (after trial expires).
+    """
+    return (
+        "⏰ *Tu período de prueba de 7 días terminó.*\n\n"
+        "Para continuar usando Lucho, necesito algunos datos. "
+        "Son 4 pasos rápidos:\n\n"
+        "*Paso 1/4:* ¿Cuál es tu número de cédula o RUC?"
+    )

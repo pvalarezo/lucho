@@ -120,9 +120,27 @@ async def telegram_webhook(
             await session.commit()
             return {"status": "onboarding_complete"}
 
+    # ---- 5b. Post-pago flow (steps 3-6, trial expired data collection) ----
+    if 3 <= user.onboarding_step <= 6:
+        result = await user_svc.advance_post_pago_step(
+            session, str(user.id), user.onboarding_step,
+            text if text else "",
+        )
+        await telegram_svc.send_message(chat_id, result["message"])
+        await session.commit()
+        return {"status": "post_pago_step", "step": user.onboarding_step}
+
     # ---- 6. Access check (trial/active subscription required) ----
     access = await user_svc.check_access(session, str(user.id))
     if not access.allowed:
+        # Post-pago start: trial just expired, kick off the flow
+        if access.post_pago_step is not None:
+            msg = await user_svc.get_post_pago_start_message(session, str(user.id))
+            user.onboarding_step = 3
+            await telegram_svc.send_message(chat_id, msg)
+            await session.commit()
+            return {"status": "post_pago_start"}
+        # Regular denial
         await telegram_svc.send_message(chat_id, access.reason)
         await session.commit()
         return {"status": "access_denied", "reason": access.reason}

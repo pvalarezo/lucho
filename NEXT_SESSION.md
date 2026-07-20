@@ -2,59 +2,64 @@
 
 ---
 
-## Sesión finalizada — 2026-07-19
+## Sesión finalizada — 2026-07-20
 
-**v2.9.4 — WhatsApp multimedia, stickers, anti-alucinación**
+**v2.10.0 — Módulo de Vehículos, Post-pago, Scheduler Templates**
 
-### Entregables completados:
+### Entregables completados en esta sesión:
 
-#### 📷 WhatsApp Multimedia (problema #1)
-- Imágenes: descarga de WhatsApp → subida a MinIO → `file_key` real para el agente
-- Audio/Voz: descarga → MinIO → transcripción con Whisper → texto transcrito al agente
-- Documentos: descarga → MinIO → `file_key` real
-- Formato unificado con Telegram: `[foto: file_key] {instrucción}`
+#### 🧪 Tests ajustados post v2.9.4
+- Tool count: 18 → 19 → 22
+- Guardrail check: "capital de Francia" → "NUNCA MIENTAS"
+- Short prompt: recortado de 519 → 452 chars
+- Unit tests: 307/307 (100%)
 
-#### 😅 Stickers (problema #2)
-- Respuesta amable: "Todavía no puedo ver stickers 😅. Mandame texto, foto o audio y con gusto te ayudo."
-- Tipos desconocidos también responden con mensaje informativo
+#### 📨 WhatsApp Templates corregidos
+- `document_reminder`: 6 params, `{{2}}`=`{{6}}` (variables repetidas → Meta no permite)
+- `project_reminder`: 6 params, `{{3}}`=`{{6}}`
+- `pico_y_placa`: sin cambios (2 params)
+- `daily_digest`: recreado como UTILITY (sin CTA, con firma "— Lucho")
+- Las 4 plantillas creadas en Meta, en revisión
 
-#### 🔗 Inyección de file_key
-- Cuando un texto menciona "foto", "imagen", "guarda", etc., busca la foto más reciente (últimos 2 min) e inyecta su `file_key` en el contexto
-- Resuelve el problema WhatsApp vs Telegram: en WhatsApp foto y texto son mensajes separados
+#### ⏰ Scheduler conectado a WhatsApp templates
+- `_send_document_reminder`: WhatsApp template con 6 body_params
+- `_send_project_reminder`: WhatsApp template con 6 body_params
+- `_evaluate_pico_y_placa`: nueva función diaria, template 2 params
+- `run_daily_digest`: multicanal (Telegram + WhatsApp template)
+- Import `whatsapp_svc` agregado
 
-#### ⚡ Foto sin instrucción
-- Si solo hay foto sin texto, NO llama al agente. Envía confirmación rápida: "📷 Recibí tu foto. ¿Querés que la analice, la guarde, o qué hacemos?"
-- Ahorra un round-trip al LLM
+#### 📝 Flujo post-pago
+- `AccessResult` extendido con `post_pago_step`
+- `check_access()` inicia flujo al expirar trial
+- `advance_post_pago_step()`: 4 pasos (cédula → email → nombre → políticas)
+- WhatsApp + Telegram sincronizados
+- Datos guardados en `user_profiles` (id_number, email, full_name, privacy_accepted)
 
-#### 🧠 System prompt anti-alucinación (problema #3)
-- Regla #0 reescrita: lista explícita de tools de escritura OBLIGATORIAS
-- Flujo obligatorio: **primero tool → si success → después confirmar**
-- Ejemplos corregidos: ahora muestran el tool call ANTES del "guardé"
-- Ejemplo agregado de save_list
+#### 🚗 Módulo de Vehículos independiente
+- Tablas: `vehicles` + `vehicle_maintenances` (Alembic migration)
+- Tools nuevas: `list_my_vehicles`, `add_maintenance`, `list_maintenances`
+- `save_vehicle` migrado de Assets → Vehicles
+- Límite parametrizable: `plan.features.max_vehicles` (default 2)
+- Scheduler actualizado a tabla `vehicles`
+- `check_vehicle_info`: consulta API externa ANT/SRI/multas (sin tabla multas)
 
-#### 📨 Template WhatsApp
-- `send_template_message` ahora acepta `body_params` para plantillas con variables
-- Template `initial_greeting` probado: funciona con `language_code="en"` (Meta lo aprobó en inglés)
-
-#### 🧹 Limpieza de datos
-- PostgreSQL: 20 tablas truncadas
-- MinIO: 6 objetos eliminados
-- Plan de suscripción "Básico" re-sembrado
-
-#### 🔄 Ida y vuelta Anthropic
-- `chat_with_tools` implementado para AnthropicProvider (traducción OpenAI↔Anthropic)
-- `agent_model` agregado al provider base (Haiku para routing, Sonnet para agent loop)
-- Se revirtió a DeepSeek porque no hay API key de Anthropic configurada
-- Código de Anthropic queda listo para cuando se active
-
-### Archivos modificados (5):
-| Archivo | Cambios |
-|---------|---------|
-| `app/routers/whatsapp_webhook.py` | +259 líneas: descarga multimedia, stickers, inyección file_key, foto sin instrucción, tipos desconocidos |
-| `app/services/whatsapp.py` | +31 líneas: `send_template_message` acepta `body_params` |
-| `app/agent/lucho_system_prompt.py` | +27 líneas: regla #0 reforzada, ejemplos corregidos |
-| `app/services/llm/anthropic.py` | +183 líneas: `chat_with_tools` implementado |
-| `app/services/llm/base.py` | +3 líneas: `agent_model` |
+### Archivos modificados (14):
+| Archivo | Cambio |
+|---------|--------|
+| `app/models/vehicle.py` | 🆕 Vehicle + VehicleMaintenance + MaintenanceType |
+| `app/models/__init__.py` | 🔧 Registro modelos nuevos |
+| `alembic/versions/9a5e88f1a576_*.py` | 🆕 Migración autogenerada |
+| `app/agent/tools.py` | 🔧 save_vehicle → vehicles, +3 handlers, 22 tools total |
+| `app/agent/lucho_system_prompt.py` | 🔧 Short prompt recortado 452 chars |
+| `app/services/scheduler.py` | 🔧 Vehicle queries, _evaluate_pico_y_placa, digest |
+| `app/services/user.py` | 🔧 AccessResult, check_access, advance_post_pago_step |
+| `app/routers/whatsapp_webhook.py` | 🔧 Post-pago flow, paso 3-6 |
+| `app/routers/webhook.py` | 🔧 Post-pago flow (Telegram) |
+| `scripts/seed_subscription_plans.py` | 🔧 max_vehicles: 2 |
+| `docs/whatsapp_templates.md` | 🔧 Plantillas corregidas |
+| `tests/unit.py` | 🔧 19→22 tools, guardrail, handler_map |
+| `PROGRESS.md` | 📝 v2.10.0 |
+| `ROADMAP.md` | 📝 Actualizado |
 
 ---
 
@@ -62,27 +67,25 @@
 
 ### 🔴 INMEDIATA
 
-**1. Crear templates en Meta Business Manager**
-- [ ] Usar `docs/whatsapp_templates.md` como guía
-- [ ] Crear 4 templates: `document_reminder`, `project_reminder`, `pico_y_placa`, `daily_digest`
-- [ ] Agregar traducción `es` al template `initial_greeting`
-- [ ] Esperar aprobación Meta (24-48h)
+**1. Módulo de Finanzas Personales** 🆕
+- [ ] Tablas: `transactions` (ingreso/gasto, monto, categoría, fecha, cuenta, notas)
+- [ ] Tablas: `budgets` (presupuesto mensual por categoría)
+- [ ] Categorías predefinidas: alimentación, transporte, vivienda, salud, entretenimiento, servicios, otros
+- [ ] Tools: `add_transaction`, `list_transactions`, `get_balance`, `set_budget`, `check_budget`
+- [ ] Scheduler: alerta cuando se excede presupuesto
+- [ ] Resumen mensual: "gastaste $X este mes, tu categoría top fue..."
 
-### 🟡 MEDIA
+### 🟡 ESPERA
 
-**2. Conectar templates en el scheduler**
-- [ ] Implementar `send_template_message` con parámetros en notificaciones
-- [ ] Recordatorios de documentos, proyectos, pico y placa, daily digest via template
-
-**3. Flujo post-pago**
-- [ ] Cuando trial expira: solicitar cédula, correo, nombre completo
-- [ ] Enviar link de políticas de privacidad
-- [ ] Registrar aceptación ("SI") en user_profiles
+**2. Templates en Meta** — esperando aprobación (24-48h)
+- [x] 4 plantillas creadas
+- [x] `initial_greeting` traducido a español
+- [ ] Verificar aprobación y probar envío real
 
 ### 🟢 FASE 2
 
-**4. Métricas** — % extracción correcta, retención D7/D30, intención de pago
-**5. Ola 2** — cumpleaños, vacunas, suscripciones, control de gastos
+**3. Métricas** — % extracción correcta, retención D7/D30, intención de pago
+**4. Ola 2** — cumpleaños, vacunas, suscripciones, control de gastos
 
 ### ⚪ FUTURO
 - Whisper local ($0), skills adicionales, dashboard
@@ -104,21 +107,14 @@ python scripts/setup_telegram_webhook.py
 python scripts/manage_users.py --list
 python scripts/manage_users.py --activate 593987654321
 
-# Limpiar BD para pruebas
-python -c "
-import asyncio
-from app.database import async_session
-from sqlalchemy import text
-async def main():
-    async with async_session() as s:
-        await s.execute(text(\"SET session_replication_role = replica\"))
-        tables = ['assets','caregiver_links','contacts','events','list_items','lists','messages','notes','payments','project_tasks','projects','reminders','shared_expense_participants','shared_expenses','subscription_invoices','subscriptions','topics','user_profiles','users']
-        for t in tables:
-            await s.execute(text(f'TRUNCATE TABLE \"{t}\" CASCADE'))
-        await s.execute(text(\"SET session_replication_role = DEFAULT\"))
-        await s.commit()
-asyncio.run(main())
-" && python scripts/seed_subscription_plans.py
+# Aplicar migraciones
+python -m alembic upgrade head
+
+# Sembrar planes de suscripción
+python scripts/seed_subscription_plans.py
+
+# Unit tests
+python tests/unit.py
 
 # Git
 git add -A && git commit -m "mensaje"

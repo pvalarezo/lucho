@@ -34,10 +34,12 @@ Recordatorio de documento 📄
 ### Body
 
 ```
-{{1}} {{2}} ({{3}})
+Hola. Te informo que:
+
+📄 {{1}} {{2}} ({{3}})
 Vence: {{4}} ({{5}})
 
-Si ya lo renovaste, responde "ya renové {{2}}" y lo actualizo.
+Si ya lo renovaste, responde "ya renové {{6}}" y lo actualizo.
 ```
 
 ### Variables
@@ -49,10 +51,15 @@ Si ya lo renovaste, responde "ya renové {{2}}" y lo actualizo.
 | {{3}} | soat | Tipo de documento |
 | {{4}} | en 7 días | Texto descriptivo del vencimiento |
 | {{5}} | 2026-07-22 | Fecha de vencimiento (ISO) |
+| {{6}} | SOAT PBC1234 | Nombre del documento (igual que {{2}}, repetido por regla de Meta) |
+
+> ⚠️ `{{2}}` y `{{6}}` tienen el mismo valor (nombre del documento). Meta no permite repetir la misma variable en el body, por eso se usa un número distinto. El código debe enviar `body_params[1]` y `body_params[5]` con el mismo string.
 
 ### Ejemplo renderizado
 
-> 🔴 SOAT PBC1234 (soat)
+> Hola. Te informo que:
+>
+> 📄 🔴 SOAT PBC1234 (soat)
 > Vence: en 7 días (2026-07-22)
 >
 > Si ya lo renovaste, responde "ya renové SOAT PBC1234" y lo actualizo.
@@ -78,11 +85,13 @@ Recordatorio de proyecto 📋
 ### Body
 
 ```
-{{1}} Proyecto: {{2}}
+Hola. Te informo que:
+
+📋 {{1}} Proyecto: {{2}}
 Tarea: {{3}}
 Vence: {{4}} ({{5}})
 
-Cuando la termines, responde "completé {{3}}".
+Cuando la termines, responde "completé {{6}}".
 ```
 
 ### Variables
@@ -94,10 +103,15 @@ Cuando la termines, responde "completé {{3}}".
 | {{3}} | Configurar pasarela de pago | Contenido de la tarea |
 | {{4}} | en 3 días | Texto descriptivo del vencimiento |
 | {{5}} | 2026-07-19 | Fecha de vencimiento (ISO) |
+| {{6}} | Configurar pasarela de pago | Contenido de la tarea (igual que {{3}}, repetido por regla de Meta) |
+
+> ⚠️ `{{3}}` y `{{6}}` tienen el mismo valor (contenido de la tarea). Meta no permite repetir la misma variable en el body.
 
 ### Ejemplo renderizado
 
-> 🟡 Proyecto: Tienda Online
+> Hola. Te informo que:
+>
+> 📋 🟡 Proyecto: Tienda Online
 > Tarea: Configurar pasarela de pago
 > Vence: en 3 días (2026-07-19)
 >
@@ -153,13 +167,18 @@ Pico y Placa 🚗
 ### Header (tipo Texto)
 
 ```
-Buenos días ☀️
+Resumen diario ☀️
 ```
 
 ### Body
 
 ```
+☀️ Tu resumen de hoy:
+
 {{1}}
+
+—
+Lucho
 ```
 
 ### Variables
@@ -168,7 +187,7 @@ Buenos días ☀️
 |---|---------|-------------|
 | {{1}} | (texto generado por IA) | Resumen completo del día |
 
-> ⚠️ Este template usa una sola variable porque el contenido lo genera el LLM dinámicamente.
+> ⚠️ Body con texto fijo al inicio (`☀️ Tu resumen de hoy:`) y al cierre (`— Lucho`). Sin CTAs ni preguntas para que Meta lo clasifique como UTILITY.
 
 ---
 
@@ -176,8 +195,8 @@ Buenos días ☀️
 
 | # | Nombre | Header | Body vars | Categoría |
 |---|--------|--------|-----------|-----------|
-| 1 | `document_reminder` | Recordatorio de documento 📄 | 5 | UTILITY |
-| 2 | `project_reminder` | Recordatorio de proyecto 📋 | 5 | UTILITY |
+| 1 | `document_reminder` | Recordatorio de documento 📄 | 6 | UTILITY |
+| 2 | `project_reminder` | Recordatorio de proyecto 📋 | 6 | UTILITY |
 | 3 | `pico_y_placa` | Pico y Placa 🚗 | 2 | UTILITY |
 | 4 | `daily_digest` | Buenos días ☀️ | 1 | UTILITY |
 

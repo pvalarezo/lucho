@@ -526,9 +526,99 @@ TOOL_WEB_SEARCH = {
     },
 }
 
+TOOL_LIST_MY_VEHICLES = {
+    "type": "function",
+    "function": {
+        "name": "list_my_vehicles",
+        "description": "Mostrar los vehículos del usuario con datos clave: pico y placa, matriculación, SOAT, RTV. Usar cuando el usuario pregunta '¿qué carros tengo?', '¿cómo están mis vehículos?', o quiere ver información de sus vehículos guardados.",
+        "parameters": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    },
+}
+
+TOOL_ADD_MAINTENANCE = {
+    "type": "function",
+    "function": {
+        "name": "add_maintenance",
+        "description": "Registrar un mantenimiento de un vehículo: cambio de aceite, frenos, llantas, batería, general. Incluye costo, kilometraje, taller y fecha del mantenimiento. El usuario puede subir la factura como foto.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "vehicle_id_or_plate": {
+                    "type": "string",
+                    "description": "ID del vehículo o placa para identificar cuál vehículo. Ej: 'PBC1234'.",
+                },
+                "maintenance_type": {
+                    "type": "string",
+                    "description": "Tipo de mantenimiento: oil_change, brakes, tires, battery, general, other.",
+                    "enum": ["oil_change", "brakes", "tires", "battery", "general", "other"],
+                },
+                "description": {
+                    "type": "string",
+                    "description": "Descripción de qué se hizo.",
+                },
+                "cost": {
+                    "type": "number",
+                    "description": "Costo en USD.",
+                },
+                "mileage_km": {
+                    "type": "integer",
+                    "description": "Kilometraje actual del vehículo.",
+                },
+                "performed_at": {
+                    "type": "string",
+                    "description": "Fecha del mantenimiento en formato YYYY-MM-DD. Default: hoy.",
+                },
+                "performed_by": {
+                    "type": "string",
+                    "description": "Taller o mecánico que hizo el trabajo.",
+                },
+                "next_at": {
+                    "type": "string",
+                    "description": "Fecha sugerida para el próximo mantenimiento (YYYY-MM-DD).",
+                },
+                "next_mileage_km": {
+                    "type": "integer",
+                    "description": "Kilometraje sugerido para el próximo mantenimiento.",
+                },
+                "file_key": {
+                    "type": "string",
+                    "description": "Clave del archivo en MinIO si el usuario adjuntó foto de la factura.",
+                },
+            },
+            "required": ["vehicle_id_or_plate", "maintenance_type"],
+        },
+    },
+}
+
+TOOL_LIST_MAINTENANCES = {
+    "type": "function",
+    "function": {
+        "name": "list_maintenances",
+        "description": "Mostrar el historial de mantenimientos de un vehículo. Usar cuando el usuario pregunta '¿qué mantenimientos le hice al carro?', '¿cuándo fue el último cambio de aceite?', o quiere ver el historial.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "vehicle_id_or_plate": {
+                    "type": "string",
+                    "description": "ID del vehículo o placa. Ej: 'PBC1234'.",
+                },
+            },
+            "required": ["vehicle_id_or_plate"],
+        },
+    },
+}
+
+
 # All available tools (exported for the agent loop)
 ALL_TOOLS = [
     TOOL_SAVE_VEHICLE,
+    TOOL_LIST_MY_VEHICLES,
+    TOOL_ADD_MAINTENANCE,
+    TOOL_LIST_MAINTENANCES,
     TOOL_SAVE_DOCUMENT,
     TOOL_SAVE_EVENT,
     TOOL_SAVE_LIST,
@@ -560,61 +650,114 @@ TOOL_SCHEMAS: dict[str, dict] = {
 # =============================================================================
 
 async def handle_save_vehicle(session, user_id: str, args: dict) -> dict:
-    """Save a vehicle and compute its rules (matriculation, pico y placa)."""
+    """Save a vehicle to the dedicated vehicles table (max 2 per user)."""
     from datetime import date
-    import uuid
+    import uuid as uuid_mod
+    from app.models.vehicle import Vehicle
 
-    plate = (args.get("plate") or "").upper().strip()
+    plate = (args.get("plate") or "").upper().strip().replace("-", "")
     if not plate:
         return {"success": False, "message": "Necesito la placa del vehículo."}
 
-    # Build attributes
-    attrs: dict[str, Any] = {"plate": plate}
-    if args.get("brand"):
-        attrs["brand"] = args["brand"]
-    if args.get("model"):
-        attrs["model"] = args["model"]
-    if args.get("year"):
-        attrs["year"] = args["year"]
+    user_uuid = uuid_mod.UUID(user_id)
 
-    # Compute vehicle rules (pico y placa, matriculación, SOAT, RTV)
+    # ---- Enforce max vehicles per user from subscription plan features ----
+    from app.models.subscription import Subscription, SubscriptionStatus
+    sub_result = await session.execute(
+        select(Subscription)
+        .where(Subscription.user_id == user_uuid)
+        .where(Subscription.status.in_([SubscriptionStatus.trial, SubscriptionStatus.active]))
+    )
+    sub = sub_result.scalar_one_or_none()
+
+    max_vehicles = 2  # default
+    if sub and sub.plan_ref and sub.plan_ref.features:
+        max_vehicles = sub.plan_ref.features.get("max_vehicles", 2)
+
+    count_result = await session.execute(
+        select(Vehicle).where(
+            Vehicle.user_id == user_uuid,
+            Vehicle.deleted_at.is_(None),
+        )
+    )
+    existing_count = len(count_result.scalars().all())
+    if existing_count >= max_vehicles:
+        return {
+            "success": False,
+            "message": (
+                f"Ya tenés {existing_count} vehículo(s) registrado(s). "
+                f"Tu plan permite máximo {max_vehicles}. "
+                "Si querés reemplazar uno, primero eliminalo y luego agregá el nuevo. "
+                "Decime 'eliminar vehículo [placa]' y lo borro."
+            ),
+        }
+
+    # ---- Check for duplicate plate ----
+    dup_result = await session.execute(
+        select(Vehicle).where(
+            Vehicle.user_id == user_uuid,
+            Vehicle.plate == plate,
+            Vehicle.deleted_at.is_(None),
+        )
+    )
+    if dup_result.scalar_one_or_none():
+        return {
+            "success": False,
+            "message": f"El vehículo con placa {plate} ya está registrado. Si querés actualizarlo, decime 'actualizar vehículo {plate}'.",
+        }
+
+    # ---- Compute vehicle rules (pico y placa, matriculación) ----
     today = date.today()
+    last_digit = None
+    pyp_days = ""
+    next_matric = None
     try:
         rules = evaluate_vehicle_rules(plate, None, today)
-        attrs.update({
-            "last_digit": rules["last_digit"],
-            "pico_y_placa_days": rules["pico_y_placa_days"],
-            "next_matriculation": rules["next_matriculation"],
-            "days_until_matriculation": rules["days_until_matriculation"],
-        })
+        last_digit = rules["last_digit"]
+        pyp_days = rules["pico_y_placa_days"]
+        next_matric = date.fromisoformat(rules["next_matriculation"])
     except Exception as exc:
         logger.warning("Could not compute vehicle rules for %s: %s", plate, exc)
 
-    name = f"{attrs.get('brand', '')} {attrs.get('model', '')} ({plate})".strip()
-    if name == f"({plate})":
-        name = plate
+    # ---- Create vehicle ----
+    vehicle = Vehicle(
+        user_id=user_uuid,
+        plate=plate,
+        brand=args.get("brand"),
+        model=args.get("model"),
+        year=args.get("year"),
+        last_digit=last_digit,
+        pico_y_placa_days=pyp_days,
+        next_matriculation=next_matric,
+        notes=args.get("notes"),
+    )
+    session.add(vehicle)
+    await session.flush()
 
-    try:
-        asset = await persist_asset(
-            session=session,
-            user_id=uuid.UUID(user_id),
-            asset_type="vehicle",
-            name=name,
-            attributes=attrs,
-            notes=args.get("notes"),
-        )
-        return {
-            "success": True,
-            "message": f"Vehículo {plate} guardado.",
-            "asset_id": str(asset.id),
+    # ---- Build response ----
+    brand_model = ""
+    if args.get("brand") and args.get("model"):
+        brand_model = f"{args['brand']} {args['model']} "
+    elif args.get("brand"):
+        brand_model = f"{args['brand']} "
+
+    pyp_info = f"\n• Pico y placa: {pyp_days}" if pyp_days else ""
+    matric_info = f"\n• Próxima matriculación: {next_matric}" if next_matric else ""
+
+    return {
+        "success": True,
+        "message": f"Vehículo {plate} guardado.",
+        "vehicle": {
+            "id": str(vehicle.id),
             "plate": plate,
-            "pico_y_placa_days": attrs.get("pico_y_placa_days", ""),
-            "next_matriculation": attrs.get("next_matriculation", ""),
-            "days_until_matriculation": attrs.get("days_until_matriculation", 0),
-        }
-    except Exception as exc:
-        logger.exception("Failed to save vehicle: %s", exc)
-        return {"success": False, "message": "No pude guardar el vehículo. ¿Intentamos de nuevo?"}
+            "brand": args.get("brand"),
+            "model": args.get("model"),
+            "year": args.get("year"),
+            "pico_y_placa_days": pyp_days,
+            "next_matriculation": str(next_matric) if next_matric else None,
+            "last_digit": last_digit,
+        },
+    }
 
 
 async def handle_save_document(session, user_id: str, args: dict) -> dict:
@@ -1490,8 +1633,234 @@ async def handle_web_search(session, user_id: str, args: dict) -> dict:
         }
 
 
+async def handle_list_my_vehicles(session, user_id: str, args: dict) -> dict:
+    """List all vehicles for the current user with key data."""
+    import uuid as uuid_mod
+    from app.models.vehicle import Vehicle
+
+    result = await session.execute(
+        select(Vehicle).where(
+            Vehicle.user_id == uuid_mod.UUID(user_id),
+            Vehicle.deleted_at.is_(None),
+        )
+    )
+    vehicles = result.scalars().all()
+
+    if not vehicles:
+        return {
+            "success": True,
+            "message": "No tenés vehículos registrados todavía. Mandame la placa y te lo guardo.",
+            "vehicles": [],
+        }
+
+    vehicle_list = []
+    for v in vehicles:
+        vehicle_list.append({
+            "id": str(v.id),
+            "plate": v.plate,
+            "brand": v.brand,
+            "model": v.model,
+            "year": v.year,
+            "color": v.color,
+            "pico_y_placa_days": v.pico_y_placa_days,
+            "next_matriculation": str(v.next_matriculation) if v.next_matriculation else None,
+            "soat_expiry": str(v.soat_expiry) if v.soat_expiry else None,
+            "rtv_expiry": str(v.rtv_expiry) if v.rtv_expiry else None,
+            "notes": v.notes,
+        })
+
+    return {
+        "success": True,
+        "message": f"Tenés {len(vehicles)} vehículo(s) registrado(s).",
+        "vehicles": vehicle_list,
+    }
+
+
+async def handle_add_maintenance(session, user_id: str, args: dict) -> dict:
+    """Add a maintenance record for a vehicle."""
+    from datetime import date
+    import uuid as uuid_mod
+    from app.models.vehicle import Vehicle, VehicleMaintenance, MaintenanceType
+
+    vehicle_ref = (args.get("vehicle_id_or_plate") or "").upper().strip().replace("-", "")
+    if not vehicle_ref:
+        return {"success": False, "message": "¿A cuál vehículo le hiciste el mantenimiento? Decime la placa."}
+
+    user_uuid = uuid_mod.UUID(user_id)
+
+    # Find vehicle by id or plate
+    try:
+        vid = uuid_mod.UUID(vehicle_ref)
+        result = await session.execute(
+            select(Vehicle).where(Vehicle.id == vid, Vehicle.user_id == user_uuid)
+        )
+    except ValueError:
+        result = await session.execute(
+            select(Vehicle).where(
+                Vehicle.plate == vehicle_ref,
+                Vehicle.user_id == user_uuid,
+                Vehicle.deleted_at.is_(None),
+            )
+        )
+    vehicle = result.scalar_one_or_none()
+    if not vehicle:
+        return {
+            "success": False,
+            "message": f"No encontré el vehículo '{vehicle_ref}'. ¿Está bien escrita la placa?"
+        }
+
+    # Parse maintenance type
+    mtype_str = (args.get("maintenance_type") or "other").lower().strip()
+    try:
+        mtype = MaintenanceType(mtype_str)
+    except ValueError:
+        mtype = MaintenanceType.other
+
+    # Parse date
+    performed_at_str = args.get("performed_at")
+    performed_at = None
+    if performed_at_str:
+        try:
+            performed_at = date.fromisoformat(performed_at_str)
+        except (ValueError, TypeError):
+            pass
+    if not performed_at:
+        performed_at = date.today()
+
+    # Parse other date fields
+    next_at = None
+    if args.get("next_at"):
+        try:
+            next_at = date.fromisoformat(args["next_at"])
+        except (ValueError, TypeError):
+            pass
+
+    maint = VehicleMaintenance(
+        vehicle_id=vehicle.id,
+        maintenance_type=mtype,
+        description=args.get("description"),
+        cost=args.get("cost"),
+        mileage_km=args.get("mileage_km"),
+        performed_at=performed_at,
+        performed_by=args.get("performed_by"),
+        next_at=next_at,
+        next_mileage_km=args.get("next_mileage_km"),
+        receipt_file_key=args.get("file_key"),
+        notes=args.get("notes"),
+    )
+    session.add(maint)
+    await session.flush()
+
+    # Build friendly type name
+    type_labels = {
+        "oil_change": "cambio de aceite",
+        "brakes": "frenos",
+        "tires": "llantas",
+        "battery": "batería",
+        "general": "mantenimiento general",
+        "other": "otro mantenimiento",
+    }
+    type_label = type_labels.get(mtype.value, mtype.value)
+
+    cost_msg = f", ${args['cost']:.0f}" if args.get("cost") else ""
+    km_msg = f", {args['mileage_km']} km" if args.get("mileage_km") else ""
+    workshop_msg = f" en {args['performed_by']}" if args.get("performed_by") else ""
+
+    return {
+        "success": True,
+        "message": (
+            f"Registrado: {type_label} para {vehicle.plate}"
+            f"{cost_msg}{km_msg}{workshop_msg}."
+        ),
+        "maintenance_id": str(maint.id),
+    }
+
+
+async def handle_list_maintenances(session, user_id: str, args: dict) -> dict:
+    """List maintenance history for a vehicle."""
+    import uuid as uuid_mod
+    from app.models.vehicle import Vehicle, VehicleMaintenance
+
+    vehicle_ref = (args.get("vehicle_id_or_plate") or "").upper().strip().replace("-", "")
+    if not vehicle_ref:
+        return {"success": False, "message": "¿De cuál vehículo querés ver los mantenimientos? Decime la placa."}
+
+    user_uuid = uuid_mod.UUID(user_id)
+
+    # Find vehicle
+    try:
+        vid = uuid_mod.UUID(vehicle_ref)
+        result = await session.execute(
+            select(Vehicle).where(Vehicle.id == vid, Vehicle.user_id == user_uuid)
+        )
+    except ValueError:
+        result = await session.execute(
+            select(Vehicle).where(
+                Vehicle.plate == vehicle_ref,
+                Vehicle.user_id == user_uuid,
+                Vehicle.deleted_at.is_(None),
+            )
+        )
+    vehicle = result.scalar_one_or_none()
+    if not vehicle:
+        return {
+            "success": False,
+            "message": f"No encontré el vehículo '{vehicle_ref}'."
+        }
+
+    maints_result = await session.execute(
+        select(VehicleMaintenance)
+        .where(VehicleMaintenance.vehicle_id == vehicle.id)
+        .order_by(VehicleMaintenance.performed_at.desc())
+        .limit(20)
+    )
+    maintenances = maints_result.scalars().all()
+
+    if not maintenances:
+        return {
+            "success": True,
+            "message": f"{vehicle.plate} no tiene mantenimientos registrados todavía.",
+            "maintenances": [],
+        }
+
+    type_labels = {
+        "oil_change": "🛢️ Cambio de aceite",
+        "brakes": "🛑 Frenos",
+        "tires": "🛞 Llantas",
+        "battery": "🔋 Batería",
+        "general": "🔧 General",
+        "other": "📋 Otro",
+    }
+
+    maint_list = []
+    for m in maintenances:
+        maint_list.append({
+            "id": str(m.id),
+            "type": m.maintenance_type.value if m.maintenance_type else "other",
+            "type_label": type_labels.get(m.maintenance_type.value if m.maintenance_type else "other", "Otro"),
+            "description": m.description,
+            "cost": m.cost,
+            "mileage_km": m.mileage_km,
+            "performed_at": str(m.performed_at) if m.performed_at else None,
+            "performed_by": m.performed_by,
+            "next_at": str(m.next_at) if m.next_at else None,
+            "next_mileage_km": m.next_mileage_km,
+            "receipt_file_key": m.receipt_file_key,
+        })
+
+    return {
+        "success": True,
+        "message": f"{vehicle.plate} tiene {len(maintenances)} mantenimiento(s) registrado(s).",
+        "vehicle_plate": vehicle.plate,
+        "maintenances": maint_list,
+    }
+
+
 TOOL_HANDLERS: dict[str, Any] = {
     "save_vehicle": handle_save_vehicle,
+    "list_my_vehicles": handle_list_my_vehicles,
+    "add_maintenance": handle_add_maintenance,
+    "list_maintenances": handle_list_maintenances,
     "save_document": handle_save_document,
     "save_event": handle_save_event,
     "save_list": handle_save_list,

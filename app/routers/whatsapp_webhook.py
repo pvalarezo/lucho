@@ -479,9 +479,28 @@ async def _process_pending_messages(session: AsyncSession, phone: str) -> None:
             await session.commit()
             return
 
+    # ---- Post-pago flow (steps 3-6, trial expired data collection) ----
+    if 3 <= user.onboarding_step <= 6:
+        result = await user_svc.advance_post_pago_step(
+            session, str(user.id), user.onboarding_step, combined_text
+        )
+        await whatsapp_svc.send_message(phone, result["message"])
+        await _mark_all_processed(session, pending)
+        await session.commit()
+        return
+
     # ---- Access check ----
     access = await user_svc.check_access(session, str(user.id))
     if not access.allowed:
+        # Post-pago start: trial just expired, kick off the flow
+        if access.post_pago_step is not None:
+            msg = await user_svc.get_post_pago_start_message(session, str(user.id))
+            user.onboarding_step = 3  # advance to first post-pago step
+            await whatsapp_svc.send_message(phone, msg)
+            await _mark_all_processed(session, pending)
+            await session.commit()
+            return
+        # Regular denial (expired with data collected, cancelled, etc.)
         await whatsapp_svc.send_message(phone, access.reason)
         await _mark_all_processed(session, pending)
         await session.commit()
