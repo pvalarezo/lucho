@@ -145,7 +145,12 @@ async def send_photo(
             return None
 
 
-async def send_template_message(phone: str, template_name: str, language_code: str = "es") -> dict | None:
+async def send_template_message(
+    phone: str,
+    template_name: str,
+    language_code: str = "es",
+    body_params: list[str] | None = None,
+) -> dict | None:
     """
     Send a pre-approved message template (for proactive messages outside 24h window).
 
@@ -156,6 +161,7 @@ async def send_template_message(phone: str, template_name: str, language_code: s
         phone: Recipient phone number
         template_name: Name of the approved template (e.g., "recordatorio_evento")
         language_code: Language code (default "es" for Spanish)
+        body_params: List of text values for body parameter substitution ({{1}}, {{2}}, ...)
 
     Returns:
         API response dict or None on failure.
@@ -169,15 +175,30 @@ async def send_template_message(phone: str, template_name: str, language_code: s
         "Authorization": f"Bearer {settings.WHATSAPP_ACCESS_TOKEN}",
         "Content-Type": "application/json",
     }
+
+    template_payload: dict[str, Any] = {
+        "name": template_name,
+        "language": {"code": language_code},
+    }
+
+    # Add body parameter substitution if provided
+    if body_params:
+        template_payload["components"] = [
+            {
+                "type": "body",
+                "parameters": [
+                    {"type": "text", "text": param}
+                    for param in body_params
+                ],
+            }
+        ]
+
     payload = {
         "messaging_product": "whatsapp",
         "recipient_type": "individual",
         "to": str(phone),
         "type": "template",
-        "template": {
-            "name": template_name,
-            "language": {"code": language_code},
-        },
+        "template": template_payload,
     }
 
     async with httpx.AsyncClient(timeout=15) as client:

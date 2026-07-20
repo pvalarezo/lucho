@@ -6,10 +6,11 @@ from abc import ABC, abstractmethod
 class LLMProvider(ABC):
     """Abstract base for LLM providers (Anthropic, DeepSeek, etc.)."""
 
-    def __init__(self, api_key: str, router_model: str, extractor_model: str = ""):
+    def __init__(self, api_key: str, router_model: str, extractor_model: str = "", agent_model: str = ""):
         self.api_key = api_key
         self.router_model = router_model
         self.extractor_model = extractor_model or router_model
+        self.agent_model = agent_model or router_model
 
     @abstractmethod
     async def chat(

@@ -23,6 +23,7 @@ from app.services import minio as minio_svc
 from app.services import whatsapp as whatsapp_svc
 from app.services import user as user_svc
 from app.services import message as message_svc
+from app.services import whisper as whisper_svc
 from app.agent import process_message
 
 logger = logging.getLogger(__name__)
@@ -157,49 +158,77 @@ async def _handle_incoming_message(session: AsyncSession, msg: dict) -> None:
     await whatsapp_svc.send_reaction(from_number, msg_id, "⏳")
     await whatsapp_svc.send_typing(from_number, msg_id)
 
-    # ---- Save message to DB ----
-    text = None
-    msg_type = msg.get("type", "text")
-
-    match msg_type:
-        case "text":
-            text = msg.get("text", {}).get("body", "")
-            message_type = MessageType.text
-        case "image" | "audio" | "voice" | "document":
-            text = f"[{msg_type}: recibido]"
-            message_type = MessageType.photo if msg_type == "image" else MessageType.audio
-        case "button" | "interactive":
-            interactive = msg.get("interactive", {})
-            button_reply = interactive.get("button_reply", {})
-            list_reply = interactive.get("list_reply", {})
-            text = button_reply.get("title") or button_reply.get("id") or list_reply.get("title") or ""
-            message_type = MessageType.text
-            if not text:
-                return
-        case _:
-            logger.info("Unsupported message type '%s' from %s", msg_type, from_number)
-            return
-
-    if not text:
-        logger.warning("WhatsApp message %s without extractable text", msg_id)
-        return
-
-    # Resolve user (create if new)
+    # ---- Resolve user early (needed for MinIO uploads) ----
     user = await user_svc.resolve_user_by_phone(
         session=session,
         phone_number=from_number,
     )
     await session.flush()
 
-    # Persist message
+    # ---- Process message by type ----
+    text = None
+    file_path = None
+    transcription = None
+    msg_type = msg.get("type", "text")
+
+    match msg_type:
+        case "text":
+            text = msg.get("text", {}).get("body", "")
+            message_type = MessageType.text
+            file_path = f"whatsapp://{from_number}/{msg_id}"
+
+        case "image" | "document":
+            text, file_path = await _download_and_store_media(
+                msg, msg_type, str(user.id), from_number, msg_id
+            )
+            message_type = MessageType.photo
+
+        case "audio" | "voice":
+            text, file_path, transcription = await _download_and_transcribe_audio(
+                msg, msg_type, str(user.id), from_number, msg_id
+            )
+            message_type = MessageType.audio
+
+        case "sticker":
+            await whatsapp_svc.send_message(
+                from_number,
+                "Todavía no puedo ver stickers 😅. Mandame texto, foto o audio y con gusto te ayudo.",
+            )
+            return
+
+        case "button" | "interactive":
+            interactive = msg.get("interactive", {})
+            button_reply = interactive.get("button_reply", {})
+            list_reply = interactive.get("list_reply", {})
+            text = button_reply.get("title") or button_reply.get("id") or list_reply.get("title") or ""
+            message_type = MessageType.text
+            file_path = f"whatsapp://{from_number}/{msg_id}"
+            if not text:
+                return
+
+        case _:
+            logger.info("Unsupported message type '%s' from %s", msg_type, from_number)
+            await whatsapp_svc.send_message(
+                from_number,
+                f"Recibí tu mensaje pero todavía no sé procesar contenido tipo '{msg_type}'. ¿Me lo contás con texto o foto?",
+            )
+            return
+
+    if not text:
+        logger.warning("WhatsApp message %s without extractable text", msg_id)
+        return
+
+    # ---- Persist message ----
     db_message = await message_svc.create_message(
         session=session,
         user_id=user.id,
         channel=MessageChannel.whatsapp,
         message_type=message_type,
         text=text,
-        file_path=f"whatsapp://{from_number}/{msg_id}",
+        file_path=file_path or f"whatsapp://{from_number}/{msg_id}",
     )
+    if transcription:
+        db_message.transcription = transcription
     db_message.extraction_result = {"whatsapp_message_id": msg_id, "pending": True}
     await session.commit()
 
@@ -207,6 +236,153 @@ async def _handle_incoming_message(session: AsyncSession, msg: dict) -> None:
 
     # ---- Schedule debounced agent call ----
     _schedule_debounce(from_number)
+
+
+# =============================================================================
+# MEDIA HELPERS — download from WhatsApp, upload to MinIO, transcribe audio
+# =============================================================================
+
+
+async def _download_and_store_media(
+    msg: dict,
+    msg_type: str,
+    user_id: str,
+    from_number: str,
+    msg_id: str,
+) -> tuple[str | None, str | None]:
+    """
+    Download image/document from WhatsApp and upload to MinIO.
+    Returns (text, file_key) tuple.
+    """
+    media_obj = msg.get(msg_type, {})
+    media_id = media_obj.get("id")
+    if not media_id:
+        logger.warning("WhatsApp %s without media_id from %s", msg_type, from_number)
+        return f"[{msg_type}: error al recibir]", None
+
+    caption = media_obj.get("caption", "")
+    mime_type = media_obj.get("mime_type", "")
+
+    # Download from WhatsApp servers
+    file_bytes = await whatsapp_svc.download_media(media_id)
+    if not file_bytes:
+        logger.error("Failed to download %s %s from %s", msg_type, media_id, from_number)
+        return f"[{msg_type}: no se pudo descargar]", None
+
+    # Determine filename
+    filename = _media_filename(msg_type, media_id, mime_type, media_obj)
+
+    # Upload to MinIO
+    file_key = await minio_svc.upload_file(
+        user_id=user_id,
+        file_bytes=file_bytes,
+        filename=filename,
+        content_type=mime_type or "application/octet-stream",
+    )
+    if not file_key:
+        return f"[{msg_type}: error al guardar]", None
+
+    # Format according to system prompt conventions (match Telegram format):
+    # [foto: user_id/photo.jpg] — without instruction, agent asks what to do
+    # [foto: user_id/photo.jpg] Guardar como X — with instruction inline
+    if msg_type == "document":
+        text = f"[documento: {filename} \u2192 {file_key}]"
+    else:
+        text = f"[foto: {file_key}]"
+    if caption:
+        # Telegram-style: file_key FIRST, then the user's caption/instruction
+        text = f"[foto: {file_key}] {caption}"
+
+    logger.info("Stored %s from %s: %s (%d bytes)", msg_type, from_number, file_key, len(file_bytes))
+    return text, file_key
+
+
+async def _download_and_transcribe_audio(
+    msg: dict,
+    msg_type: str,
+    user_id: str,
+    from_number: str,
+    msg_id: str,
+) -> tuple[str | None, str | None, str | None]:
+    """
+    Download audio/voice note from WhatsApp, upload to MinIO, and transcribe.
+    Returns (text, file_key, transcription) tuple.
+    """
+    media_obj = msg.get(msg_type, {})
+    media_id = media_obj.get("id")
+    if not media_id:
+        logger.warning("WhatsApp %s without media_id from %s", msg_type, from_number)
+        return f"[{msg_type}: error al recibir]", None, None
+
+    mime_type = media_obj.get("mime_type", "")
+
+    # Download from WhatsApp servers
+    file_bytes = await whatsapp_svc.download_media(media_id)
+    if not file_bytes:
+        logger.error("Failed to download %s %s from %s", msg_type, media_id, from_number)
+        return f"[{msg_type}: no se pudo descargar]", None, None
+
+    # Determine filename
+    filename = _media_filename(msg_type, media_id, mime_type, media_obj)
+
+    # Upload to MinIO
+    file_key = await minio_svc.upload_file(
+        user_id=user_id,
+        file_bytes=file_bytes,
+        filename=filename,
+        content_type=mime_type or "audio/ogg",
+    )
+    if not file_key:
+        return f"[{msg_type}: error al guardar]", None, None
+
+    # Transcribe with Whisper
+    transcription = await whisper_svc.transcribe_audio(file_bytes, filename)
+    if transcription:
+        logger.info("Audio transcribed from %s: %s", from_number, transcription[:120])
+        return transcription, file_key, transcription
+    else:
+        return f"[{msg_type}: recibido - no se pudo transcribir]", file_key, None
+
+
+def _media_filename(
+    msg_type: str,
+    media_id: str,
+    mime_type: str,
+    media_obj: dict,
+) -> str:
+    """Generate a filename for a WhatsApp media file."""
+    short_id = media_id[-12:] if len(media_id) >= 12 else media_id
+
+    # Use original filename for documents
+    if msg_type == "document":
+        original = media_obj.get("filename", "")
+        if original:
+            return f"doc_{short_id}_{original}"
+
+    # Map mime types to extensions
+    ext_map = {
+        "image/jpeg": ".jpg",
+        "image/png": ".png",
+        "image/webp": ".webp",
+        "audio/ogg": ".ogg",
+        "audio/mp4": ".m4a",
+        "audio/mpeg": ".mp3",
+        "audio/webm": ".webm",
+        "application/pdf": ".pdf",
+    }
+    ext = ".bin"
+    for mime, extension in ext_map.items():
+        if mime_type.startswith(mime.split("/")[0] + "/") and mime in ext_map:
+            ext = ext_map[mime]
+            break
+    else:
+        # Fallback by type
+        if msg_type in ("audio", "voice"):
+            ext = ".ogg"
+        elif msg_type == "image":
+            ext = ".jpg"
+
+    return f"{msg_type}_{short_id}{ext}"
 
 
 # =============================================================================
@@ -249,10 +425,41 @@ async def _process_pending_messages(session: AsyncSession, phone: str) -> None:
     texts = [m.text for m in pending if m.text]
     combined_text = "\n".join(texts)
 
+    # ---- Inject recent photo file_key if user references a photo ----
+    photo_keywords = ("foto", "imagen", "imágenes", "captura", "guardar", "guarda",
+                      "guardame", "guardala", "guardalo", "esa foto", "la foto",
+                      "esa imagen", "analiza", "analizala", "analízala")
+    has_text_only = all(
+        m.message_type == MessageType.text for m in pending
+    )
+    if has_text_only and any(kw in combined_text.lower() for kw in photo_keywords):
+        recent_photo_key = await _find_recent_photo_key(session, user.id)
+        if recent_photo_key:
+            combined_text = f"[foto: {recent_photo_key}] {combined_text}"
+            logger.info("Injected recent photo file_key into context: %s", recent_photo_key)
+
     logger.info(
         "Debounce agent call: user=%s, %d pending msgs: %s",
         user.id, len(pending), combined_text[:120],
     )
+
+    # ---- Photo-only: quick confirmation, skip agent ----
+    has_photo_only = all(
+        m.message_type == MessageType.photo for m in pending
+    )
+    is_photo_placeholder = all(
+        (m.text or "").startswith("[foto:") and (m.text or "").count(" ") == 0
+        for m in pending
+    )
+    if has_photo_only and is_photo_placeholder:
+        await whatsapp_svc.send_message(
+            phone,
+            "📷 Recibí tu foto. ¿Querés que la analice, la guarde, o qué hacemos?",
+        )
+        await _mark_all_processed(session, pending)
+        await session.commit()
+        logger.info("Photo-only debounce: quick confirmation sent to %s", phone)
+        return
 
     # ---- Onboarding check ----
     if not user.onboarding_complete:
@@ -347,6 +554,32 @@ async def _mark_all_processed(
                 "batch_size": len(messages),
             }
     await session.flush()
+
+
+async def _find_recent_photo_key(session: AsyncSession, user_id) -> str | None:
+    """
+    Find the most recent photo message with a MinIO file_key for a user.
+    Looks back up to 2 minutes to find the last image the user sent.
+    """
+    from datetime import datetime, timedelta, timezone
+
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=2)
+    result = await session.execute(
+        select(MessageModel)
+        .where(
+            MessageModel.user_id == user_id,
+            MessageModel.message_type == MessageType.photo,
+            MessageModel.received_at >= cutoff,
+            MessageModel.file_path.isnot(None),
+            MessageModel.file_path.not_like("whatsapp://%"),
+        )
+        .order_by(MessageModel.received_at.desc())
+        .limit(1)
+    )
+    msg = result.scalar_one_or_none()
+    if msg and msg.file_path:
+        return msg.file_path
+    return None
 
 
 # =============================================================================

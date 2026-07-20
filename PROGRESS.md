@@ -10,6 +10,7 @@ Estado actual de cada fase, módulo y entregable. Fase 1 completada con rediseñ
 ### Versiones
 | Tag | Fecha | Descripción |
 |-----|-------|-------------|
+| v2.9.4 | 2026-07-19 | WhatsApp multimedia: descarga imágenes/audio/docs de WhatsApp → MinIO, transcripción audio con Whisper. Stickers responden con mensaje amable. Inyección de file_key en texto para conectar foto+instrucción. Foto sin instrucción: confirmación rápida sin llamar al agente. System prompt reforzado: regla #0 anti-alucinación con tools de escritura, ejemplos corregidos. Template send_template_message acepta body_params. |
 | v2.9.3 | 2026-07-18 | Sistema completo: suscripción (planes, trial 7 días, acceso), onboarding 3 pasos, WhatsApp (⏳ reacción, typing indicator, debounce 3s). Tablas nuevas: subscription_plans + user_profiles. Webhook WhatsApp reescrito con debounce. Scripts: seed_subscription_plans.py, manage_users.py. |
 | v2.9.2 | 2026-07-16 | Telegram polling eliminado: migrado a webhook unificado. app/bot.py + run_bot.py + lucho-bot.service eliminados. Telegram y WhatsApp usan mismo patrón webhook vía lucho-api. Script setup_telegram_webhook.py para configurar. |
 | v2.9.1 | 2026-07-16 | WhatsApp Templates: 4 plantillas documentadas (document_reminder, project_reminder, pico_y_placa, daily_digest) en docs/whatsapp_templates.md. Categoría UTILITY, listas para crear en Meta. |
@@ -83,15 +84,14 @@ Estado actual de cada fase, módulo y entregable. Fase 1 completada con rediseñ
 
 | # | Tarea | Prioridad | Esfuerzo |
 |---|-------|-----------|----------|
-| 1 | Activar app Meta en Live ✅ (cuenta WhatsApp lista) | ✅ Lista | — |
-| 2 | Crear templates en Meta Business Manager (documentados en docs/whatsapp_templates.md) | 🔴 Inmediata | 30min |
-| 3 | Eliminar Telegram polling → migrar a webhook unificado | ✅ Hecho v2.9.2 | — |
-| 4 | Sistema de suscripción: planes, trial, control de acceso, onboarding | ✅ Hecho v2.9.3 | — |
-| 5 | Conectar templates en scheduler (send_template_message) | 🟡 Media | 2h |
-| 6 | Indexado numerado en búsquedas | 🟢 Baja | — |
-| 7 | Dashboard métricas | 🟢 Futuro | — |
-| 8 | Skills adicionales (transporte, servicios básicos) | 🟢 Opcional | 40min |
-| 9 | Whisper local (reducir costo transcripción a $0) | 🟢 Futuro | 2h |
+| 1 | Crear templates en Meta Business Manager (document_reminder, project_reminder, pico_y_placa, daily_digest) | 🔴 Inmediata | 30min |
+| 2 | Conectar templates en scheduler (send_template_message) | 🟡 Media | 2h |
+| 3 | Flujo post-pago: cuando trial expira → pedir cédula, correo, nombre, políticas | 🟡 Media | — |
+| 4 | Agregar traducción español (es) al template initial_greeting en Meta | 🟢 Baja | 5min |
+| 5 | Indexado numerado en búsquedas | 🟢 Baja | — |
+| 6 | Dashboard métricas | 🟢 Futuro | — |
+| 7 | Skills adicionales (transporte, servicios básicos) | 🟢 Opcional | 40min |
+| 8 | Whisper local (reducir costo transcripción a $0) | 🟢 Futuro | 2h |
 
 ### Infraestructura — ✅ 100%
 - FastAPI, Docker Compose, Alembic, 20 tablas PostgreSQL + pgvector
@@ -109,11 +109,17 @@ Estado actual de cada fase, módulo y entregable. Fase 1 completada con rediseñ
 - Datos post-pago: user_profiles (cédula, correo, nombre completo, aceptación políticas)
 - CLI: manage_users.py para activar/desactivar/listar usuarios
 
-### WhatsApp Experience — ✅ v2.9.3
+### WhatsApp Experience — ✅ v2.9.4
 - ⏳ Reacción inmediata al recibir mensaje (reloj de arena)
 - Typing indicator oficial (3 puntitos "escribiendo..." vía status:read)
 - Debounce 3s: espera silencio antes de llamar al agente (mensajes agrupados)
 - Webhook reescrito con arquitectura limpia (save → debounce → process)
+- 📷 Imágenes: descarga de WhatsApp → MinIO → file_key real para el agente
+- 🎵 Audio/Voz: descarga → MinIO → transcripción Whisper → texto al agente
+- 📄 Documentos: descarga → MinIO → file_key real
+- 😅 Stickers: mensaje amable "todavía no puedo ver stickers"
+- 🔗 Inyección de file_key: cuando un texto referencia una foto reciente, se conecta automáticamente
+- ⚡ Foto sin instrucción: confirmación rápida sin llamar al agente
 
 ---
 
