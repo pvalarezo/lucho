@@ -117,11 +117,14 @@ async def _evaluate_events(session: AsyncSession):
     today = date.today()
     window_end = today + timedelta(days=max(EVENT_WINDOWS))
 
+    today_start = datetime.combine(today, datetime.min.time())
+    window_end_dt = datetime.combine(window_end, datetime.max.time())
+
     result = await session.execute(
         select(Event).where(
             Event.status == EventStatus.upcoming,
-            Event.target_date >= datetime.combine(today, datetime.min.time(), tzinfo=timezone.utc),
-            Event.target_date <= datetime.combine(window_end, datetime.max.time(), tzinfo=timezone.utc),
+            Event.target_date >= today_start,
+            Event.target_date <= window_end_dt,
         )
     )
     events = result.scalars().all()
@@ -263,13 +266,11 @@ def schedule_event_reminder(event_id: str, target_datetime: datetime):
 
     The daily 8AM cron handles day-level reminders (15/7/3/0 days before).
     This function handles sub-day precision.
-    """
-    # Ensure target_datetime is timezone-aware
-    if target_datetime.tzinfo is None:
-        target_datetime = target_datetime.replace(tzinfo=timezone.utc)
 
+    All times are in local Ecuador time (system timezone).
+    """
     # Don't schedule if already in the past
-    now = datetime.now(timezone.utc)
+    now = datetime.now()
     if target_datetime <= now:
         logger.warning("Skipping ad-hoc reminder for event %s: target time already passed (%s)", event_id, target_datetime)
         return
@@ -544,9 +545,8 @@ async def _evaluate_pico_y_placa(session: AsyncSession):
 
 async def _ensure_event(session, user_id, asset_id, title, target_date, certainty="certain"):
     """Create an event if one doesn't already exist for this title + date."""
-    # Compare dates only (ignore time) for vehicle auto-events
     target_day = target_date.date() if isinstance(target_date, datetime) else target_date
-    target_day_start = datetime.combine(target_day, datetime.min.time(), tzinfo=timezone.utc)
+    target_day_start = datetime.combine(target_day, datetime.min.time())
 
     result = await session.execute(
         select(Event).where(
@@ -653,8 +653,8 @@ async def _build_digest(session, user, today, weekday):
 
     # Deadlines next 7 days
     until = today + timedelta(days=7)
-    today_start = datetime.combine(today, datetime.min.time(), tzinfo=timezone.utc)
-    until_end = datetime.combine(until, datetime.max.time(), tzinfo=timezone.utc)
+    today_start = datetime.combine(today, datetime.min.time())
+    until_end = datetime.combine(until, datetime.max.time())
     result = await session.execute(
         select(Event).where(
             Event.user_id == user.id,

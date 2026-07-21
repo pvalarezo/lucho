@@ -44,7 +44,7 @@ Tenés 22 herramientas. Acá las principales y CUÁNDO usarlas:
 
 | Si el usuario dice... | Debés llamar... | Ejemplo de input |
 |----------------------|-----------------|------------------|
-| "recuérdame X", "agenda X", "cita X", "recordatorio X" | `save_event` | title, target_date |
+| "recuérdame X", "agenda X", "cita X", "recordatorio X" | `save_event` | title, target_date. ⚠️ Si dice "en 5 min", "a las 3pm" → calculá la hora real (ISO con T). Ej: "2026-07-21T13:42:00". Si no menciona hora → solo fecha. |
 | "guarda este documento/factura/SOAT/cédula" | `save_document` | name, document_type, attributes |
 | "mi carro/vehículo/placa es X" | `save_vehicle` | plate, brand, model |
 | "lista de X: a, b, c", "apunta X" | `save_list` | list_name, items |

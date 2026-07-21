@@ -2,7 +2,7 @@
 
 Design rules:
 - target_date is a real indexed column — cron filters on it every day
-- target_date is TIMESTAMPTZ — stores date+time for sub-day reminders ("avísame en 5 min")
+- target_date is TIMESTAMP WITHOUT TIMEZONE — stored in local Ecuador time
 - certainty: 'certain' (legal dates) or 'estimated' (maintenance, reminders)
 - recurrence_rule as JSONB (RFC 5545 subset or simplified structure)
 - status tracks lifecycle
@@ -49,7 +49,7 @@ class Event(UUIDMixin, TimestampMixin, Base):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     target_date: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, index=True
+        DateTime(timezone=False), nullable=False, index=True
     )
 
     certainty: Mapped[EventCertainty] = mapped_column(

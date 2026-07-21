@@ -98,16 +98,16 @@ async def persist_event(
     asset_id: uuid.UUID | None = None,
 ) -> Event:
     """Create an event for the user."""
-    # Parse date if string (supports ISO datetime with or without time)
+    # Parse date if string (supports ISO datetime with or without time).
+    # All datetimes are stored in local Ecuador time (no TZ conversion needed).
     if isinstance(target_date, str):
         try:
             target_date = datetime.fromisoformat(target_date)
-            if target_date.tzinfo is None:
-                target_date = target_date.replace(tzinfo=timezone.utc)
+            # Keep as naive local time (Ecuador)
         except (ValueError, TypeError):
-            target_date = datetime.now(timezone.utc) + timedelta(days=1)  # default: tomorrow
+            target_date = datetime.now() + timedelta(days=1)  # default: tomorrow
     elif target_date is None:
-        target_date = datetime.now(timezone.utc) + timedelta(days=1)
+        target_date = datetime.now() + timedelta(days=1)
 
     # Resolve certainty enum
     try:
