@@ -16,7 +16,7 @@ import logging
 from typing import Any
 
 from app.services.persistence import (
-    persist_asset,
+    persist_document,
     persist_event,
     persist_list_items,
     persist_note,
@@ -29,7 +29,6 @@ from app.services.search import (
 )
 from app.services.vehicle_rules import evaluate_vehicle_rules
 from app.services.embeddings import generate_embedding
-from app.models.asset import AssetType
 
 logger = logging.getLogger(__name__)
 
@@ -889,30 +888,30 @@ async def handle_save_document(session, user_id: str, args: dict) -> dict:
 
     doc_type = (args.get("document_type") or "otro").lower().strip()
     name = (args.get("name") or "documento").strip()
-
-    attrs: dict[str, Any] = {"document_type": doc_type}
-    if args.get("expiry_date"):
-        attrs["expiry_date"] = args["expiry_date"]
-    if args.get("entity_name"):
-        attrs["entity_name"] = args["entity_name"]
-    if args.get("file_key"):
-        attrs["file_key"] = args["file_key"]
+    document_number = args.get("document_number")
+    expiry_date = args.get("expiry_date")
+    entity_name = args.get("entity_name")
+    file_key = args.get("file_key")
 
     try:
-        await persist_asset(
+        doc = await persist_document(
             session=session,
             user_id=uuid.UUID(user_id),
-            asset_type="document",
+            document_type=doc_type,
             name=name,
-            attributes=attrs,
+            document_number=document_number,
+            expiry_date=expiry_date,
+            entity_name=entity_name,
             notes=args.get("notes"),
+            file_key=file_key,
         )
-        expiry_msg = f", vence {attrs['expiry_date']}" if "expiry_date" in attrs else ""
-        has_photo = " (con foto)" if "file_key" in attrs else ""
+        expiry_msg = f", vence {expiry_date}" if expiry_date else ""
+        has_photo = " (con foto)" if file_key else ""
         return {
             "success": True,
             "message": f"Documento '{name}' guardado{expiry_msg}{has_photo}.",
-            "file_key": attrs.get("file_key"),
+            "file_key": file_key,
+            "document_id": str(doc.id),
         }
     except Exception as exc:
         logger.exception("Failed to save document: %s", exc)
@@ -1043,62 +1042,50 @@ async def handle_search_data(session, user_id: str, args: dict) -> dict:
     # ---- Vehicles ----
     if search_type in ("vehicles", "all"):
         from sqlalchemy import select
-        from app.models.asset import Asset
+        from app.models.vehicle import Vehicle
         result = await session.execute(
-            select(Asset).where(
-                Asset.user_id == uid,
-                Asset.asset_type == AssetType.vehicle,
-                Asset.deleted_at.is_(None),
+            select(Vehicle).where(
+                Vehicle.user_id == uid,
+                Vehicle.deleted_at.is_(None),
             )
         )
         vehicles = result.scalars().all()
         if vehicles:
             for v in vehicles:
-                attrs = v.attributes or {}
-                plate = attrs.get("plate", "?")
-                pyp = attrs.get("pico_y_placa_days", "")
-                matric = attrs.get("next_matriculation", "")
-                file_key = attrs.get("file_key", "")
-                lines = [f"🚗 {plate} — {v.name}"]
+                plate = v.plate or "?"
+                pyp = v.pico_y_placa_days or ""
+                matric = v.next_matriculation.isoformat() if v.next_matriculation else ""
+                lines = [f"🚗 {plate} — {v.brand or ''} {v.model or ''}".strip()]
                 if pyp:
                     lines.append(f"   Pico y placa: {pyp}")
                 if matric:
                     lines.append(f"   Matriculación: {matric}")
-                if file_key:
-                    lines.append(f"   📸 foto: {file_key}")
                 results_parts.append("\n".join(lines))
-                item = {"type": "vehicle", "plate": plate, "name": v.name}
-                if file_key:
-                    item["file_key"] = file_key
-                found_items.append(item)
+                found_items.append({"type": "vehicle", "plate": plate, "name": f"{v.brand or ''} {v.model or ''}".strip()})
 
     # ---- Documents ----
     if search_type in ("all",):
         from sqlalchemy import select
-        from app.models.asset import Asset
+        from app.models.document import Document
         result = await session.execute(
-            select(Asset).where(
-                Asset.user_id == uid,
-                Asset.asset_type.in_([AssetType.document, AssetType.insurance, AssetType.tax, AssetType.warranty]),
-                Asset.deleted_at.is_(None),
+            select(Document).where(
+                Document.user_id == uid,
+                Document.deleted_at.is_(None),
             )
         )
         docs = result.scalars().all()
         if docs:
             for d in docs:
-                attrs = d.attributes or {}
-                doc_type = attrs.get("document_type", d.asset_type.value)
-                expiry_date = attrs.get("expiry_date", "")
-                file_key = attrs.get("file_key", "")
-                lines = [f"📄 {d.name} ({doc_type})"]
-                if expiry_date:
-                    lines.append(f"   Vence: {expiry_date}")
-                if file_key:
-                    lines.append(f"   📸 foto: {file_key}")
+                doc_type_label = d.document_type.value if d.document_type else "documento"
+                lines = [f"📄 {d.name} ({doc_type_label})"]
+                if d.expiry_date:
+                    lines.append(f"   Vence: {d.expiry_date}")
+                if d.file_key:
+                    lines.append(f"   📸 foto: {d.file_key}")
                 results_parts.append("\n".join(lines))
-                item = {"type": "document", "document_type": doc_type, "name": d.name}
-                if file_key:
-                    item["file_key"] = file_key
+                item = {"type": "document", "document_type": doc_type_label, "name": d.name}
+                if d.file_key:
+                    item["file_key"] = d.file_key
                 found_items.append(item)
 
     # ---- Pending items ----
@@ -1211,13 +1198,13 @@ async def handle_update_last(session, user_id: str, args: dict) -> dict:
             )
             entity = result.scalar_one_or_none()
             label = "ítem"
-        case "asset":
-            from app.models.asset import Asset
+        case "document":
+            from app.models.document import Document
             result = await session.execute(
-                select(Asset).where(Asset.user_id == uid, Asset.deleted_at.is_(None)).order_by(desc(Asset.created_at)).limit(1)
+                select(Document).where(Document.user_id == uid, Document.deleted_at.is_(None)).order_by(desc(Document.created_at)).limit(1)
             )
             entity = result.scalar_one_or_none()
-            label = entity.name if entity else "activo"
+            label = entity.name if entity else "documento"
         case _:
             return {"success": False, "message": "No encontré qué corregir. ¿Me das más detalles?"}
 

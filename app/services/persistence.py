@@ -12,7 +12,7 @@ from datetime import date, datetime, timedelta, timezone
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.asset import Asset, AssetType
+from app.models.document import Document, DocumentType, DocumentStatus
 from app.models.event import Event, EventCertainty, EventStatus
 from app.models.list import List, ListItem, ItemStatus, ListType
 from app.models.topic import Topic, Note
@@ -23,68 +23,69 @@ from app.models.transaction import Transaction, Budget, TransactionType, Transac
 logger = logging.getLogger(__name__)
 
 
-async def persist_asset(
+async def persist_document(
     session: AsyncSession,
     user_id: uuid.UUID,
-    asset_type: str,
+    document_type: str,
     name: str,
-    attributes: dict,
+    document_number: str | None = None,
+    expiry_date: str | None = None,
+    entity_name: str | None = None,
     notes: str | None = None,
-    source_message_id: uuid.UUID | None = None,
-) -> Asset:
-    """
-    Create or update an asset for the user.
-    Resolves duplicates by asset_type + name similarity before inserting.
-    """
-    # Guard against null values
-    if not name or not name.strip():
-        name = "sin nombre"
-    if not attributes:
-        attributes = {}
+    file_key: str | None = None,
+) -> Document:
+    """Create a document for the user."""
+    # Resolve document type enum
     try:
-        at_enum = AssetType(asset_type)
+        dt_enum = DocumentType(document_type)
     except ValueError:
-        logger.warning("Unknown asset_type '%s' — defaulting to 'other'", asset_type)
-        at_enum = AssetType.other
+        dt_enum = DocumentType.otro
 
-    # Check for existing asset (simple exact match on name + type for now)
+    # Parse expiry date
+    expiry = None
+    if expiry_date:
+        try:
+            from datetime import date as date_type
+            expiry = date_type.fromisoformat(expiry_date)
+        except (ValueError, TypeError):
+            pass
+
+    # Check for existing document (same name + type)
     result = await session.execute(
-        select(Asset).where(
-            Asset.user_id == user_id,
-            Asset.asset_type == at_enum,
-            Asset.name == name,
-            Asset.deleted_at.is_(None),
+        select(Document).where(
+            Document.user_id == user_id,
+            Document.document_type == dt_enum,
+            Document.name == name,
+            Document.deleted_at.is_(None),
         )
     )
     existing = result.scalar_one_or_none()
 
     if existing:
-        logger.info("Updating existing asset %s (%s)", existing.id, name)
-        existing.attributes = {**existing.attributes, **attributes}
+        logger.info("Updating existing document %s (%s)", existing.id, name)
+        existing.document_number = document_number or existing.document_number
+        existing.expiry_date = expiry or existing.expiry_date
+        existing.entity_name = entity_name or existing.entity_name
         existing.notes = notes or existing.notes
+        if file_key:
+            existing.file_key = file_key
         await session.flush()
         return existing
 
-    # Create new asset
-    asset = Asset(
+    doc = Document(
         user_id=user_id,
-        asset_type=at_enum,
+        document_type=dt_enum,
         name=name,
-        attributes=attributes,
+        document_number=document_number,
+        expiry_date=expiry,
+        entity_name=entity_name,
         notes=notes,
+        file_key=file_key,
     )
-    session.add(asset)
+    session.add(doc)
     await session.flush()
-
-    # Generate embedding for semantic search
-    from app.services import embeddings as embed_svc
-    emb_text = f"{at_enum.value}: {name}"
-    embedding = await embed_svc.generate_embedding(emb_text)
-    if embedding:
-        asset.embedding = embedding
-
-    logger.info("Created asset %s: %s (%s)", asset.id, name, asset_type)
-    return asset
+    logger.info("Created document %s: %s (%s)", doc.id, name, document_type)
+    return doc
 
 
 async def persist_event(

@@ -40,9 +40,9 @@ class Event(UUIDMixin, TimestampMixin, Base):
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True
     )
 
-    # Optional link to the asset this event belongs to
+    # Optional link to a related entity (legacy FK to assets, now just a reference)
     asset_id: Mapped[_uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("assets.id"), nullable=True, index=True
+        UUID(as_uuid=True), nullable=True, index=True
     )
 
     title: Mapped[str] = mapped_column(String(512), nullable=False)
@@ -73,4 +73,3 @@ class Event(UUIDMixin, TimestampMixin, Base):
 
     # Relationships
     user = relationship("User", backref="events")
-    asset = relationship("Asset", backref="events")

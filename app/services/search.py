@@ -16,7 +16,7 @@ from sqlalchemy import text, select, func
 from sqlalchemy.orm import joinedload
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.asset import Asset
+from app.models.document import Document
 from app.models.event import Event, EventStatus
 from app.models.topic import Note
 from app.models.list import ListItem, ItemStatus
@@ -93,30 +93,27 @@ async def semantic_search(
                 "created_at": row.created_at.isoformat(),
             })
 
-    # Search assets by name (only those with real embeddings)
-    if source_tables is None or "assets" in source_tables:
-        asset_results = await session.execute(
+    # Search documents (new table)
+    if source_tables is None or "documents" in source_tables:
+        doc_results = await session.execute(
             select(
-                Asset.id,
-                Asset.name.label("text"),
-                Asset.asset_type,
-                Asset.created_at,
-                (1 - Asset.embedding.cosine_distance(query_embedding)).label("similarity"),
+                Document.id,
+                Document.name.label("text"),
+                Document.document_type,
+                Document.created_at,
             )
             .where(
-                Asset.user_id == user_id,
-                Asset.deleted_at.is_(None),
-                Asset.embedding.isnot(None),  # only assets with real embeddings
+                Document.user_id == user_id,
+                Document.deleted_at.is_(None),
             )
-            .order_by(Asset.embedding.cosine_distance(query_embedding))
             .limit(top_k)
         )
-        for row in asset_results:
+        for row in doc_results:
             results.append({
                 "id": str(row.id),
-                "source": "asset",
-                "text": f"{row.asset_type}: {row.text}",
-                "similarity": round(float(row.similarity), 4),
+                "source": "document",
+                "text": f"{row.document_type}: {row.text}",
+                "similarity": 1.0,
                 "created_at": row.created_at.isoformat(),
             })
 

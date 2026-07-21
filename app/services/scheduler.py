@@ -23,7 +23,7 @@ from sqlalchemy import select, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import async_session
-from app.models.asset import Asset, AssetType
+from app.models.document import Document, DocumentType, DocumentStatus
 from app.models.event import Event, EventStatus
 from app.models.reminder import Reminder, ReminderChannel, ReminderStatus
 from app.models.user import User
@@ -306,39 +306,28 @@ async def _evaluate_documents(session: AsyncSession):
     today = date.today()
     window_end = today + timedelta(days=max(DOCUMENT_WINDOWS))
 
-    # Get all document-type assets
     result = await session.execute(
-        select(Asset).where(
-            Asset.asset_type == AssetType.document,
-            Asset.deleted_at.is_(None),
+        select(Document).where(
+            Document.deleted_at.is_(None),
+            Document.expiry_date.isnot(None),
+            Document.expiry_date >= today,
+            Document.expiry_date <= window_end,
         )
     )
     docs = result.scalars().all()
 
     for doc in docs:
-        attrs = doc.attributes or {}
-        expiry_str = attrs.get("expiry_date") or attrs.get("expiration_date")
-        if not expiry_str:
-            continue
-
-        try:
-            expiry_date = date.fromisoformat(expiry_str)
-        except (ValueError, TypeError):
-            continue
-
-        days_until = (expiry_date - today).days
+        days_until = (doc.expiry_date - today).days
 
         for window in DOCUMENT_WINDOWS:
             if days_until == window:
-                await _send_document_reminder(session, doc, attrs, expiry_date, days_until)
-                break  # one reminder per document per day
+                await _send_document_reminder(session, doc, days_until)
+                break
 
 
 async def _send_document_reminder(
     session: AsyncSession,
-    doc: Asset,
-    attrs: dict,
-    expiry_date: date,
+    doc: Document,
     days_until: int,
 ):
     """Send a document expiry reminder to the user."""
@@ -353,8 +342,9 @@ async def _send_document_reminder(
     if not contact_id:
         return
 
-    doc_type = attrs.get("document_type", "documento")
+    doc_type = doc.document_type.value if doc.document_type else "documento"
     doc_name = doc.name
+    expiry_date = doc.expiry_date
     emoji = "🔴" if days_until <= 7 else "🟡" if days_until <= 15 else "🟢"
     ds = "HOY" if days_until == 0 else f"mañana" if days_until == 1 else f"en {days_until} días"
 
@@ -754,10 +744,12 @@ async def _build_digest(session, user, today, weekday):
     # Document expiries next 30 days
     doc_until = today + timedelta(days=30)
     result = await session.execute(
-        select(Asset).where(
-            Asset.user_id == user.id,
-            Asset.asset_type == AssetType.document,
-            Asset.deleted_at.is_(None),
+        select(Document).where(
+            Document.user_id == user.id,
+            Document.expiry_date.isnot(None),
+            Document.expiry_date >= today,
+            Document.expiry_date <= doc_until,
+            Document.deleted_at.is_(None),
         )
     )
     docs = result.scalars().all()
@@ -794,16 +786,9 @@ async def _build_digest(session, user, today, weekday):
     if docs:
         doc_warnings = []
         for d in docs:
-            attrs = d.attributes or {}
-            exp = attrs.get("expiry_date") or attrs.get("expiration_date")
-            if exp:
-                try:
-                    exp_date = date.fromisoformat(exp)
-                    days_left = (exp_date - today).days
-                    if days_left <= 30:
-                        doc_warnings.append(f"  📄 {d.name}: vence {exp_date} ({days_left} días)")
-                except (ValueError, TypeError):
-                    pass
+            if d.expiry_date:
+                days_left = (d.expiry_date - today).days
+                doc_warnings.append(f"  📄 {d.name}: vence {d.expiry_date} ({days_left} días)")
         if doc_warnings:
             parts.append("\n📄 Documentos por vencer:")
             parts.extend(doc_warnings[:5])
