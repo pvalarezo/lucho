@@ -180,19 +180,18 @@ journalctl --user -u lucho-api -f
 
 ## 6. Skills Ecuador
 
-7 skills precargadas que el LLM consulta bajo demanda:
+Conocimiento precargado sobre Ecuador: cultura, trámites, impuestos, tránsito. 7 skills en 4 dominios. El LLM las consulta antes de usar `web_search`, ahorrando APIs externas.
 
-| Skill | Dominio | Se carga... |
-|-------|--------|-------------|
-| `idioms.md` | Cultura | Siempre (modismos ecuatorianos) |
-| `cuisine.md` | Cultura | Si pregunta de comida |
-| `holidays.md` | Cultura | Si pregunta de feriados |
-| `documents.md` | Legal | Si pregunta de trámites |
-| `invoicing.md` | Tax | Si pregunta de facturación/SRI |
-| `driving-restrictions.md` | Tránsito | Si pregunta de pico y placa |
-| `registration.md` | Tránsito | Si pregunta de matriculación |
+> 📄 Documentación completa: [`docs/skills_ecuador.md`](skills_ecuador.md)
 
-**Código**: `app/agent/skills/`
+| Dominio | Skills |
+|---------|--------|
+| Cultura | `idioms.md` (siempre), `cuisine.md`, `holidays.md` |
+| Legal | `documents.md` |
+| Tax | `invoicing.md` |
+| Tránsito | `driving-restrictions.md`, `registration.md` |
+
+**Código**: `app/agent/skills/__init__.py` — `load_skills_for_message()`
 
 ---
 
@@ -228,50 +227,15 @@ Consulta la API de ANT/SRI para datos oficiales de un vehículo por placa.
 
 ## 8. Conocimiento General
 
-Lucho puede responder preguntas de cultura general, clima, noticias, definiciones, y cualquier tema que el usuario pregunte — usando `web_search` (DuckDuckGo, gratis, sin restricciones).
+Lucho responde preguntas de cultura general usando `web_search` (DuckDuckGo, gratis). Pero primero verifica si tiene una skill ecuatoriana relacionada (sección 6).
 
-### 8.1 Cuándo buscar en internet
+> 📄 Documentación completa: [`docs/skills_ecuador.md`](skills_ecuador.md)
 
-```
-¿El usuario pregunta algo que NO está en sus datos personales?
-  → SÍ → web_search OBLIGATORIO
-  → NO → search_my_data
-```
-
-Ejemplos que disparan `web_search`:
-- "¿qué es el RUC?"
-- "¿cuánto está el pasaje Quito-Guayaquil?"
-- "¿quién ganó el partido ayer?"
-- "receta de encebollado"
-- "mejores restaurantes en Cuenca"
-- "¿qué dice la nueva ley de facturación?"
-
-### 8.2 Skills Ecuador como fuente primaria
-
-Antes de buscar en internet, Lucho verifica si tiene una skill ecuatoriana relacionada:
-- Cultura: modismos, gastronomía, feriados
-- Legal: trámites, documentos
-- Tax: facturación electrónica, SRI
-- Tránsito: pico y placa, matriculación
-
-Si la skill cubre el tema → responde con datos locales sin consumir API de búsqueda.
-Si no → `web_search`.
-
-### 8.3 Formato de respuesta
-
-```
-1. Responder en 1-2 líneas con los datos encontrados
-2. NUNCA inventar si web_search no encontró nada → "No encontré info sobre eso."
-3. SIEMPRE cerrar ofreciendo guardar algo relacionado:
-   "¿Querés que guarde algo de esto?" o "¿Tenés algo que quieras organizar?"
-```
-
-### 8.4 Lo que NUNCA hace
-
-- Dar asesoría legal, fiscal o médica (aunque web_search encuentre info)
-- Inventar información si la búsqueda no arroja resultados
-- Responder sin buscar — si no son datos del usuario, DEBE usar web_search
-- Divagar — máximo 2 líneas, luego redirigir a organización
+**Reglas**:
+- Si no son datos del usuario → `web_search` OBLIGATORIO
+- Si hay skill ecuatoriana → usar skill (gratis, sin API)
+- Responder en 1-2 líneas, cerrar ofreciendo guardar algo
+- NUNCA inventar, NUNCA asesoría legal/fiscal/médica
 
 ---
 
