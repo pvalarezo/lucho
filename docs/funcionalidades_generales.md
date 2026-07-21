@@ -214,19 +214,68 @@ Lucho: update_last(entity_type="event", field="target_date", new_value="...T16:0
 
 ### 7.2 `get_my_summary` — Resumen rápido
 
-Genera un resumen textual de los datos del usuario (vehículos, eventos, pendientes). El LLM decide si usarlo o no según el contexto. Menos usado que las búsquedas específicas.
+Genera un resumen textual de los datos del usuario (vehículos, eventos, pendientes).
 
 ### 7.3 `send_photo` — Envío de archivos
 
-Envía al usuario una foto o documento desde MinIO usando el `file_key`. El LLM lo llama automáticamente cuando un resultado de búsqueda incluye `file_key`.
+Envía al usuario una foto o documento desde MinIO usando el `file_key`.
 
 ### 7.4 `check_vehicle_info` — Consulta externa
 
-Consulta la API de ANT/SRI para obtener datos oficiales de un vehículo por placa: marca, modelo, año, multas, estado de matriculación. Documentado en el módulo de Vehículos.
+Consulta la API de ANT/SRI para datos oficiales de un vehículo por placa.
 
 ---
 
-## 8. Zona Horaria
+## 8. Conocimiento General
+
+Lucho puede responder preguntas de cultura general, clima, noticias, definiciones, y cualquier tema que el usuario pregunte — usando `web_search` (DuckDuckGo, gratis, sin restricciones).
+
+### 8.1 Cuándo buscar en internet
+
+```
+¿El usuario pregunta algo que NO está en sus datos personales?
+  → SÍ → web_search OBLIGATORIO
+  → NO → search_my_data
+```
+
+Ejemplos que disparan `web_search`:
+- "¿qué es el RUC?"
+- "¿cuánto está el pasaje Quito-Guayaquil?"
+- "¿quién ganó el partido ayer?"
+- "receta de encebollado"
+- "mejores restaurantes en Cuenca"
+- "¿qué dice la nueva ley de facturación?"
+
+### 8.2 Skills Ecuador como fuente primaria
+
+Antes de buscar en internet, Lucho verifica si tiene una skill ecuatoriana relacionada:
+- Cultura: modismos, gastronomía, feriados
+- Legal: trámites, documentos
+- Tax: facturación electrónica, SRI
+- Tránsito: pico y placa, matriculación
+
+Si la skill cubre el tema → responde con datos locales sin consumir API de búsqueda.
+Si no → `web_search`.
+
+### 8.3 Formato de respuesta
+
+```
+1. Responder en 1-2 líneas con los datos encontrados
+2. NUNCA inventar si web_search no encontró nada → "No encontré info sobre eso."
+3. SIEMPRE cerrar ofreciendo guardar algo relacionado:
+   "¿Querés que guarde algo de esto?" o "¿Tenés algo que quieras organizar?"
+```
+
+### 8.4 Lo que NUNCA hace
+
+- Dar asesoría legal, fiscal o médica (aunque web_search encuentre info)
+- Inventar información si la búsqueda no arroja resultados
+- Responder sin buscar — si no son datos del usuario, DEBE usar web_search
+- Divagar — máximo 2 líneas, luego redirigir a organización
+
+---
+
+## 9. Zona Horaria
 
 **Regla no negociable (AGENTS.md §2.4)**:
 - Todo se almacena en hora local Ecuador (America/Guayaquil, UTC-5)
