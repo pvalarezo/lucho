@@ -826,13 +826,19 @@ async def handle_save_event(session, user_id: str, args: dict) -> dict:
             certainty="certain",
             recurrence_rule=recurrence_rule,
         )
+
+        # Schedule ad-hoc reminder if the event has a specific time (not just a date)
+        from app.services.scheduler import schedule_event_reminder
+        if event.target_date.hour != 0 or event.target_date.minute != 0:
+            schedule_event_reminder(str(event.id), event.target_date)
+
         recur_msg = f", se repite {recurrence}" if recurrence_rule else ""
         photo_msg = " (con foto adjunta)" if file_key else ""
         return {
             "success": True,
             "message": f"Evento '{title}' agendado para {target_date}{recur_msg}{photo_msg}. Te recordaré antes.",
             "event_id": str(event.id),
-            "target_date": target_date,
+            "target_date": str(event.target_date),
             "file_key": file_key if file_key else None,
         }
     except Exception as exc:

@@ -1,7 +1,7 @@
 """Pydantic schemas for Event and Reminder."""
 
 import uuid
-from datetime import date, datetime
+from datetime import datetime
 from pydantic import BaseModel
 
 from app.models.event import EventCertainty, EventStatus
@@ -12,7 +12,7 @@ class EventCreate(BaseModel):
     asset_id: uuid.UUID | None = None
     title: str
     description: str | None = None
-    target_date: date
+    target_date: datetime
     certainty: EventCertainty = EventCertainty.certain
     recurrence_rule: dict | None = None
 
@@ -20,7 +20,7 @@ class EventCreate(BaseModel):
 class EventUpdate(BaseModel):
     title: str | None = None
     description: str | None = None
-    target_date: date | None = None
+    target_date: datetime | None = None
     certainty: EventCertainty | None = None
     recurrence_rule: dict | None = None
     status: EventStatus | None = None
@@ -32,7 +32,7 @@ class EventRead(BaseModel):
     asset_id: uuid.UUID | None
     title: str
     description: str | None
-    target_date: date
+    target_date: datetime
     certainty: EventCertainty
     recurrence_rule: dict | None
     status: EventStatus

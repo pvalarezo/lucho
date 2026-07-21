@@ -2,15 +2,16 @@
 
 Design rules:
 - target_date is a real indexed column — cron filters on it every day
+- target_date is TIMESTAMPTZ — stores date+time for sub-day reminders ("avísame en 5 min")
 - certainty: 'certain' (legal dates) or 'estimated' (maintenance, reminders)
 - recurrence_rule as JSONB (RFC 5545 subset or simplified structure)
 - status tracks lifecycle
 """
 
 import uuid as _uuid
-from datetime import date, datetime
+from datetime import datetime
 
-from sqlalchemy import String, Date, DateTime, ForeignKey, Enum, Text
+from sqlalchemy import String, DateTime, ForeignKey, Enum, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import UUID
@@ -47,8 +48,8 @@ class Event(UUIDMixin, TimestampMixin, Base):
     title: Mapped[str] = mapped_column(String(512), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    target_date: Mapped[date] = mapped_column(
-        Date, nullable=False, index=True
+    target_date: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
     )
 
     certainty: Mapped[EventCertainty] = mapped_column(

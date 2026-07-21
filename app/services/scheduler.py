@@ -18,6 +18,7 @@ from datetime import date, datetime, timezone, timedelta
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.date import DateTrigger
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -108,21 +109,25 @@ async def _evaluate_vehicle_assets(session: AsyncSession):
 # =============================================================================
 
 async def _evaluate_events(session: AsyncSession):
-    """Check events due within reminder window and send notifications."""
+    """Check events due within reminder window and send notifications.
+
+    Uses date-only comparison (ignoring time) for the day-based windows.
+    Ad-hoc sub-day reminders ("avísame en 5 min") are handled by schedule_event_reminder().
+    """
     today = date.today()
     window_end = today + timedelta(days=max(EVENT_WINDOWS))
 
     result = await session.execute(
         select(Event).where(
             Event.status == EventStatus.upcoming,
-            Event.target_date >= today,
-            Event.target_date <= window_end,
+            Event.target_date >= datetime.combine(today, datetime.min.time(), tzinfo=timezone.utc),
+            Event.target_date <= datetime.combine(window_end, datetime.max.time(), tzinfo=timezone.utc),
         )
     )
     events = result.scalars().all()
 
     for event in events:
-        days_until = (event.target_date - today).days
+        days_until = (event.target_date.date() - today).days
         for window in EVENT_WINDOWS:
             if days_until == window:
                 # Guard: avoid sending duplicate reminders for the same event+window
@@ -143,9 +148,7 @@ async def _evaluate_events(session: AsyncSession):
                     days_before=window,
                     channel=ReminderChannel.telegram,
                     status=ReminderStatus.sent,
-                    scheduled_for=datetime.combine(
-                        event.target_date, datetime.min.time(), tzinfo=timezone.utc
-                    ) - timedelta(days=window),
+                    scheduled_for=event.target_date - timedelta(days=window),
                 )
                 session.add(reminder)
                 break  # one reminder per event per day
@@ -171,13 +174,21 @@ async def _send_event_reminder(
     emoji = "🔴" if days_until == 0 else "🟡" if days_until <= 3 else "🟢"
     ds = "HOY" if days_until == 0 else f"mañana" if days_until == 1 else f"en {days_until} días"
 
+    # Format datetime nicely: show time only if it's not midnight
+    target = event.target_date
+    if target.hour == 0 and target.minute == 0:
+        date_str = target.strftime("%Y-%m-%d")
+    else:
+        date_str = target.strftime("%Y-%m-%d %H:%M")
+        ds = f"{ds} a las {target.strftime('%H:%M')}" if days_until <= 0 else ds
+
     msg = (
         f"{emoji} *Recordatorio de evento*\n\n"
         f"📌 *{event.title}*\n"
     )
     if event.description:
         msg += f"📝 {event.description}\n"
-    msg += f"📅 Fecha: {ds} ({event.target_date})\n\n"
+    msg += f"📅 Fecha: {ds} ({date_str})\n\n"
     msg += "Si ya pasó o querés cambiarlo, decime y lo actualizo."
 
     sent = await send_notification(
@@ -192,7 +203,7 @@ async def _send_event_reminder(
     # WhatsApp template (for proactive reminders outside 24h window)
     if user.whatsapp_id:
         await _send_event_reminder_whatsapp(
-            user.whatsapp_id, emoji, event.title, ds, str(event.target_date)
+            user.whatsapp_id, emoji, event.title, ds, date_str
         )
 
 
@@ -210,6 +221,74 @@ async def _send_event_reminder_whatsapp(
         language_code="es",
         body_params=[emoji, event_title, days_text, target_date_str, event_title],
     )
+
+
+# =============================================================================
+# AD-HOC EVENT REMINDER — "avísame en 5 minutos"
+# =============================================================================
+
+async def _ad_hoc_event_reminder(event_id_str: str):
+    """One-shot job: load event from DB and send reminder at exact time.
+
+    Scheduled via DateTrigger when an event is created with a specific time.
+    """
+    import uuid as _uuid
+
+    async with async_session() as session:
+        try:
+            result = await session.execute(
+                select(Event).where(Event.id == _uuid.UUID(event_id_str))
+            )
+            event = result.scalar_one_or_none()
+            if not event or event.status != EventStatus.upcoming:
+                logger.info("Ad-hoc event reminder skipped: event %s not found or not upcoming", event_id_str)
+                return
+
+            today = date.today()
+            days_until = (event.target_date.date() - today).days
+            days_until = max(days_until, 0)  # clamp: if time already passed, treat as today
+
+            await _send_event_reminder(session, event, days_until)
+            logger.info("Ad-hoc event reminder sent: %s", event.title)
+
+        except Exception as exc:
+            logger.exception("Ad-hoc event reminder failed for event %s: %s", event_id_str, exc)
+
+
+def schedule_event_reminder(event_id: str, target_datetime: datetime):
+    """Schedule a one-shot reminder for an event at its exact target_datetime.
+
+    Called from handle_save_event() when the user specifies a time
+    (e.g., "recuérdame la reunión a las 3pm" or "avísame en 5 minutos").
+
+    The daily 8AM cron handles day-level reminders (15/7/3/0 days before).
+    This function handles sub-day precision.
+    """
+    # Ensure target_datetime is timezone-aware
+    if target_datetime.tzinfo is None:
+        target_datetime = target_datetime.replace(tzinfo=timezone.utc)
+
+    # Don't schedule if already in the past
+    now = datetime.now(timezone.utc)
+    if target_datetime <= now:
+        logger.warning("Skipping ad-hoc reminder for event %s: target time already passed (%s)", event_id, target_datetime)
+        return
+
+    job_id = f"event_ad_hoc_{event_id}"
+
+    # Remove existing job for this event if any (e.g., event was updated)
+    if scheduler.get_job(job_id):
+        scheduler.remove_job(job_id)
+
+    scheduler.add_job(
+        _ad_hoc_event_reminder,
+        trigger=DateTrigger(run_date=target_datetime),
+        args=[event_id],
+        id=job_id,
+        name=f"Ad-hoc reminder: event {event_id}",
+        replace_existing=True,
+    )
+    logger.info("Scheduled ad-hoc reminder for event %s at %s", event_id, target_datetime.isoformat())
 
 
 # =============================================================================
@@ -465,12 +544,17 @@ async def _evaluate_pico_y_placa(session: AsyncSession):
 
 async def _ensure_event(session, user_id, asset_id, title, target_date, certainty="certain"):
     """Create an event if one doesn't already exist for this title + date."""
+    # Compare dates only (ignore time) for vehicle auto-events
+    target_day = target_date.date() if isinstance(target_date, datetime) else target_date
+    target_day_start = datetime.combine(target_day, datetime.min.time(), tzinfo=timezone.utc)
+
     result = await session.execute(
         select(Event).where(
             Event.user_id == user_id,
             Event.asset_id == asset_id,
             Event.title == title,
-            Event.target_date == target_date,
+            Event.target_date >= target_day_start,
+            Event.target_date < target_day_start + timedelta(days=1),
             Event.status == EventStatus.upcoming,
         )
     )
@@ -487,7 +571,7 @@ async def _ensure_event(session, user_id, asset_id, title, target_date, certaint
         user_id=user_id,
         asset_id=asset_id,
         title=title,
-        target_date=target_date,
+        target_date=target_day_start,
         certainty=cert,
         status=EventStatus.upcoming,
     )
@@ -569,12 +653,14 @@ async def _build_digest(session, user, today, weekday):
 
     # Deadlines next 7 days
     until = today + timedelta(days=7)
+    today_start = datetime.combine(today, datetime.min.time(), tzinfo=timezone.utc)
+    until_end = datetime.combine(until, datetime.max.time(), tzinfo=timezone.utc)
     result = await session.execute(
         select(Event).where(
             Event.user_id == user.id,
             Event.status == EventStatus.upcoming,
-            Event.target_date >= today,
-            Event.target_date <= until,
+            Event.target_date >= today_start,
+            Event.target_date <= until_end,
         ).order_by(Event.target_date)
     )
     deadlines = result.scalars().all()
@@ -611,9 +697,12 @@ async def _build_digest(session, user, today, weekday):
     if deadlines:
         parts.append("\n📅 Próximos 7 días:")
         for d in deadlines:
-            days_left = (d.target_date - today).days
+            days_left = (d.target_date.date() - today).days
             emoji = "🔴" if days_left == 0 else "🟡" if days_left <= 3 else "🟢"
-            ds = "HOY" if days_left == 0 else f"{d.target_date} ({days_left} días)"
+            date_label = d.target_date.strftime("%Y-%m-%d")
+            if d.target_date.hour != 0 or d.target_date.minute != 0:
+                date_label += f" {d.target_date.strftime('%H:%M')}"
+            ds = "HOY" if days_left == 0 else f"{date_label} ({days_left} días)"
             parts.append(f"  {emoji} {d.title}: {ds}")
 
     if docs:

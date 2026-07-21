@@ -119,7 +119,7 @@ Responde ÚNICAMENTE un objeto JSON."""
 
         table_prompts = {
             "asset": 'Extrae: {"asset_type": "vehicle|credit_card|warranty|subscription|document|insurance|tax|other", "name": "nombre descriptivo", "attributes": {campos específicos}, "notes": "notas o null}. Vehicle: plate, brand, model, year. Credit_card: bank, last_four_digits. Warranty: product, store, purchase_date, warranty_months.',
-            "event": 'Extrae: {"title": "título corto", "description": "descripción o null", "target_date": "YYYY-MM-DD", "certainty": "certain|estimated", "recurrence_rule": null o {"freq": "daily|weekly|monthly|yearly", "interval": 1, "days": []}}.',
+            "event": 'Extrae: {"title": "título corto", "description": "descripción o null", "target_date": "YYYY-MM-DD" o "YYYY-MM-DDTHH:MM:SS", "certainty": "certain|estimated", "recurrence_rule": null o {"freq": "daily|weekly|monthly|yearly", "interval": 1, "days": []}}. Si el usuario menciona hora ("a las 3pm", "en 5 minutos"), usá formato con hora. Si no, solo fecha.',
             "list_item": 'Extrae: {"list_name": "nombre de la lista", "items": ["ítem1", "ítem2"], "quantity": "cantidad o null"}.',
             "note": 'Extrae: {"topic_name": "tema corto", "content": "contenido completo"}.',
             "correction": 'Extrae: {"original_target": "qué se está corrigiendo", "corrected_fields": {"campo": "nuevo valor"}}.',

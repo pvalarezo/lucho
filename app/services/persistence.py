@@ -7,7 +7,7 @@ the actual database writes, resolving entities, and enforcing business rules.
 
 import logging
 import uuid
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -91,21 +91,23 @@ async def persist_event(
     session: AsyncSession,
     user_id: uuid.UUID,
     title: str,
-    target_date: date | str,
+    target_date: datetime | str,
     description: str | None = None,
     certainty: str = "certain",
     recurrence_rule: dict | None = None,
     asset_id: uuid.UUID | None = None,
 ) -> Event:
     """Create an event for the user."""
-    # Parse date if string
+    # Parse date if string (supports ISO datetime with or without time)
     if isinstance(target_date, str):
         try:
-            target_date = date.fromisoformat(target_date)
+            target_date = datetime.fromisoformat(target_date)
+            if target_date.tzinfo is None:
+                target_date = target_date.replace(tzinfo=timezone.utc)
         except (ValueError, TypeError):
-            target_date = date.today() + timedelta(days=1)  # default: tomorrow
+            target_date = datetime.now(timezone.utc) + timedelta(days=1)  # default: tomorrow
     elif target_date is None:
-        target_date = date.today() + timedelta(days=1)
+        target_date = datetime.now(timezone.utc) + timedelta(days=1)
 
     # Resolve certainty enum
     try:

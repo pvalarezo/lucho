@@ -10,7 +10,7 @@ search parameters into a Pydantic model, and this service runs a pre-written que
 
 import logging
 import uuid
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy import text, select, func
 from sqlalchemy.orm import joinedload
@@ -158,7 +158,7 @@ async def upcoming_deadlines(
     "¿qué me falta pagar este mes?"
     Returns events with upcoming target_dates.
     """
-    today = date.today()
+    today = datetime.now(timezone.utc)
     until = today + timedelta(days=days_ahead)
 
     result = await session.execute(
@@ -174,7 +174,7 @@ async def upcoming_deadlines(
 
     deadlines = []
     for event in result.scalars():
-        days_left = (event.target_date - today).days
+        days_left = (event.target_date.date() - today.date()).days
         deadlines.append({
             "id": str(event.id),
             "title": event.title,
