@@ -49,7 +49,17 @@ Leer completamente antes de cualquier intervención en el código.
 - Usar **Git** con **tags** para cada versión
 - Todo commit, tag y push se hace contra el repositorio configurado para el proyecto
 
-### 2.4 Archivos de Control y Seguimiento
+### 2.4 Zona Horaria (NO NEGOCIABLE)
+
+- **Toda fecha/hora se almacena y manipula en hora local de Ecuador (UTC-5, America/Guayaquil).**
+- **Cero conversiones de zona horaria** en el código de aplicación.
+- `events.target_date` es `TIMESTAMP WITHOUT TIME ZONE` — naive datetime, hora Ecuador.
+- `persist_event` recibe datetime naive del LLM y lo guarda directo, sin `replace(tzinfo=)` ni `astimezone()`.
+- `schedule_event_reminder` usa `datetime.now()` (hora sistema) y `DateTrigger` sin TZ.
+- PostgreSQL, el SO Linux y APScheduler corren en `America/Guayaquil`.
+- Si el proyecto se expande a otros países, la zona horaria debe ser configurable por usuario, pero NUNCA se debe forzar UTC en la capa de datos.
+
+### 2.5 Archivos de Control y Seguimiento
 
 Archivos obligatorios en la raíz del proyecto. El agente debe leerlos al iniciar y actualizarlos al finalizar cada sesión:
 
@@ -187,12 +197,16 @@ Costo controlado: no todo mensaje dispara el modelo más caro.
 
 ## 10. Fase Actual
 
-**Fase 1 — MVP técnico (Telegram primero)**
+**Fase 2 — Beta Cerrada (v2.11.2)**
 
-Entregables:
-- Modelo de datos base: `assets`, `events`, `reminders` para 2 verticales (vehicular + gastos SRI)
-- Bot de Telegram + backend FastAPI
-- Pipeline de extracción de dos modelos (Haiku + Sonnet)
-- Capa de confirmación editable
-- Motor de reglas determinista + APScheduler (pico y placa + matriculación)
-- Núcleo transversal + "Lucho piensa" en versión mínima
+Entregables completados:
+- WhatsApp Templates: 4/5 aprobados y probados
+- Scheduler: ad-hoc reminders sub-día ("avísame en 5 min") vía DateTrigger
+- System prompt reforzado anti-alucinaciones con DeepSeek
+- Hora local Ecuador en todo el stack (sin conversiones TZ)
+- Recordatorios de eventos funcionales con envío WhatsApp directo
+
+Pendiente:
+- Módulo de Finanzas Personales
+- `event_reminder` template en Meta
+- `project_reminder` traducción español

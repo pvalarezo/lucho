@@ -10,7 +10,10 @@ Estado actual de cada fase, módulo y entregable. Fase 1 completada con rediseñ
 ### Versiones
 | Tag | Fecha | Descripción |
 |-----|-------|-------------|
-| v2.10.1 | 2026-07-21 | WhatsApp Templates: 4/4 verificados y probados con envío real. `project_reminder` usa `language_code="en"` temporal (pendiente aprobación `es`). Script `test_whatsapp_templates.py`. Scheduler 100% operativo multicanal. |
+| v2.11.2 | 2026-07-21 | Hora local Ecuador: `TIMESTAMPTZ` → `TIMESTAMP`, cero conversiones TZ. System prompt incluye hora actual. Ad-hoc reminders 100% funcionales. |
+| v2.11.1 | 2026-07-21 | System prompt reforzado: reglas no negociables PRIMERO, tabla tool↔intención, palabras prohibidas explícitas. DeepSeek ahora cumple tool calling. |
+| v2.11.0 | 2026-07-21 | Ad-hoc event reminders: `events.target_date` migrado a `TIMESTAMPTZ` con hora. `schedule_event_reminder()` vía `DateTrigger`. `_send_event_reminder` arreglado (antes solo creaba DB records sin enviar). |
+| v2.10.1 | 2026-07-21 | WhatsApp Templates: 4/4 verificados y probados con envío real. `project_reminder` usa `language_code="en"` temporal. Script `test_whatsapp_templates.py`. |
 | v2.10.0 | 2026-07-20 | Módulo de Vehículos independiente (`vehicles` + `vehicle_maintenances`), 22 tools total. Flujo post-pago (cédula→email→nombre→políticas). Scheduler conectado a WhatsApp templates (4 tipos). Límite vehículos parametrizable por plan. Tests: 307/307 (100%). |
 | v2.9.4 | 2026-07-19 | WhatsApp multimedia: descarga imágenes/audio/docs → MinIO, transcripción Whisper. Stickers, inyección file_key, foto sin instrucción. System prompt regla #0 reforzada. Template send_template_message con body_params. |
 | v2.9.3 | 2026-07-18 | Suscripción (planes, trial 7 días), onboarding 3 pasos, WhatsApp (reacción, typing, debounce 3s). Tablas: subscription_plans, user_profiles. |
@@ -74,7 +77,7 @@ Estado actual de cada fase, módulo y entregable. Fase 1 completada con rediseñ
 | Tarea de proyecto | `project_reminder` | 6 params (en ⚠️) | 8:00 AM |
 | Pico y placa | `pico_y_placa` | 2 params (es) | 8:00 AM |
 | Daily digest | `daily_digest` | 1 param (es) | 8:00 AM |
-| **Eventos / Citas** 🆕 | **`event_reminder`** | **5 params (pendiente crear en Meta)** | **8:00 AM** |
+| **Eventos / Citas** 🆕 | **`event_reminder`** | **5 params (es, pendiente crear en Meta)** | **8:00 AM + ad-hoc** |
 
 ### Flujo de Suscripción — ✅ Completo
 ```
@@ -100,7 +103,7 @@ Nuevo usuario → Onboarding (pasos 0→1→2) → Trial 7 días
 - Pendiente: aprobación `project_reminder` en español → revertir `language_code="en"` a `"es"`
 - Pendiente: crear y aprobar `event_reminder` en Meta
 
-### Tests — 307/307 (100%) ✅
+### Tests — 308/308 (100%) ✅
 
 ---
 
@@ -121,6 +124,9 @@ Nuevo usuario → Onboarding (pasos 0→1→2) → Trial 7 días
 - [x] Flujo post-pago: 4 pasos + user_profiles
 - [x] Módulo de Vehículos independiente
 - [x] Scheduler conectado a WhatsApp templates
+- [x] Ad-hoc reminders: "avísame en X minutos" funcional ✅
+- [x] System prompt reforzado anti-alucinaciones
+- [x] Hora local Ecuador en todo el stack (cero conversiones TZ)
 - [x] Límite vehículos parametrizable por plan
 
 ### Pendientes Fase 2:

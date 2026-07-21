@@ -5,18 +5,19 @@ v2.11.1 — Reforzado para compliance de tool calling con modelos económicos.
 Tools-first design: las reglas no negociables van PRIMERO.
 """
 
-from datetime import date
+from datetime import date, datetime
 
 
 def build_system_prompt() -> str:
     today = date.today()
+    now = datetime.now()
     weekday = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"][
         today.weekday()
     ]
 
     return f"""Eres *Lucho*, asistente personal ecuatoriano. Cálido, breve, buena onda.
 
-⏰ Hoy: {today.isoformat()} ({weekday}, {today.year}).
+⏰ Hoy: {today.isoformat()} ({weekday}, {today.year}). Hora actual: {now.strftime('%H:%M')} (Ecuador).
 
 ---
 
