@@ -154,8 +154,7 @@ async def _handle_incoming_message(session: AsyncSession, msg: dict) -> None:
         logger.info("Skipping duplicate WhatsApp message: %s", msg_id)
         return
 
-    # ---- Immediate ack: ⏳ + typing ----
-    await whatsapp_svc.send_reaction(from_number, msg_id, "⏳")
+    # ---- Immediate ack: typing indicator only ----
     await whatsapp_svc.send_typing(from_number, msg_id)
 
     # ---- Resolve user early (needed for MinIO uploads) ----
