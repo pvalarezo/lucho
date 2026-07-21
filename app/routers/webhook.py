@@ -354,7 +354,7 @@ async def _send_onboarding_step0_telegram(chat_id: int, user) -> None:
         "con anticipación\n\n"
         "📝 Listas y notas — Compras, tareas, ideas organizadas por tema\n\n"
         "📋 Proyectos — Tareas agrupadas con fechas de entrega\n\n"
-        "💰 Gastos compartidos — Dividir cuentas entre amigos\n\n"
+        "💰 Finanzas personales — Registrar gastos e ingresos, consultar tu balance, crear presupuestos por categoría y recibir alertas cuando te pasás\n\n"
         "🔍 Búsqueda — Encontrar todo lo que guardaste "
         "y también buscar en internet\n\n"
         "Mandame lo que necesités sin estructura, "
