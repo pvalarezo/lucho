@@ -191,6 +191,56 @@ Lucho
 
 ---
 
+## Template 5: `event_reminder` 🆕
+
+**Recordatorio de evento/cita** (reuniones, citas médicas, cumpleaños, etc.)
+
+| Campo | Valor |
+|-------|-------|
+| Nombre | `event_reminder` |
+| Categoría | `UTILITY` |
+| Idioma | `es` (Spanish) |
+
+### Header (tipo Texto)
+
+```
+Recordatorio de evento 📌
+```
+
+### Body
+
+```
+Hola. Te recuerdo que:
+
+📌 {{1}} {{2}}
+📅 Fecha: {{3}} ({{4}})
+
+Si ya pasó o querés cambiarlo, responde "actualizar {{5}}".
+```
+
+### Variables
+
+| # | Muestra | Descripción |
+|---|---------|-------------|
+| {{1}} | 🔴 | Emoji de urgencia (🔴 HOY, 🟡 ≤3 días, 🟢 >3) |
+| {{2}} | Cita con el dentista | Título del evento |
+| {{3}} | HOY | Texto descriptivo (HOY, mañana, en 7 días) |
+| {{4}} | 2026-07-22 | Fecha del evento (ISO) |
+| {{5}} | Cita con el dentista | Título del evento (igual que {{2}}, repetido por regla de Meta) |
+
+> ⚠️ `{{2}}` y `{{5}}` tienen el mismo valor (título del evento). Meta no permite repetir la misma variable en el body.
+
+### Ejemplo renderizado
+
+> Hola. Te recuerdo que:
+>
+> 📌 🔴 Cita con el dentista
+> 📅 Fecha: HOY (2026-07-22)
+>
+> Si ya pasó o querés cambiarlo, responde "actualizar Cita con el dentista".
+
+---
+
 ## Resumen para creación rápida
 
 | # | Nombre | Header | Body vars | Categoría |
@@ -199,6 +249,7 @@ Lucho
 | 2 | `project_reminder` | Recordatorio de proyecto 📋 | 6 | UTILITY |
 | 3 | `pico_y_placa` | Pico y Placa 🚗 | 2 | UTILITY |
 | 4 | `daily_digest` | Buenos días ☀️ | 1 | UTILITY |
+| 5 | `event_reminder` 🆕 | Recordatorio de evento 📌 | 5 | UTILITY |
 
 ---
 

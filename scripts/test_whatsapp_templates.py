@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """
-Test WhatsApp templates — send all 4 approved templates to a test phone number.
+Test WhatsApp templates — send all 5 approved templates to a test phone number.
 
 Usage:
-    python scripts/test_whatsapp_templates.py 593993832368
-    python scripts/test_whatsapp_templates.py 593993832368 --template document_reminder
-    python scripts/test_whatsapp_templates.py 593993832368 --template pico_y_placa
-    python scripts/test_whatsapp_templates.py 593993832368 --template project_reminder
-    python scripts/test_whatsapp_templates.py 593993832368 --template daily_digest
+    python3 scripts/test_whatsapp_templates.py 593993832368
+    python3 scripts/test_whatsapp_templates.py 593993832368 --template document_reminder
+    python3 scripts/test_whatsapp_templates.py 593993832368 --template pico_y_placa
+    python3 scripts/test_whatsapp_templates.py 593993832368 --template project_reminder
+    python3 scripts/test_whatsapp_templates.py 593993832368 --template daily_digest
+    python3 scripts/test_whatsapp_templates.py 593993832368 --template event_reminder
 """
 
 import asyncio
@@ -84,6 +85,28 @@ async def test_pico_y_placa(phone: str):
     return result
 
 
+async def test_event_reminder(phone: str):
+    """Test the event_reminder template (5 body params)."""
+    print("\n📌 Testing: event_reminder")
+    result = await whatsapp_svc.send_template_message(
+        phone=phone,
+        template_name="event_reminder",
+        language_code="es",
+        body_params=[
+            "🔴",                       # {{1}} emoji
+            "Cita con el dentista",     # {{2}} event_title
+            "HOY",                      # {{3}} days_text
+            "2026-07-22",               # {{4}} target_date
+            "Cita con el dentista",     # {{5}} event_title (repeat, Meta requirement)
+        ],
+    )
+    status = "✅ SENT" if result else "❌ FAILED"
+    print(f"  Result: {status}")
+    if result:
+        print(f"  Message ID: {result.get('messages', [{}])[0].get('id', 'N/A')}")
+    return result
+
+
 async def test_daily_digest(phone: str):
     """Test the daily_digest template (1 body param)."""
     print("\n☀️ Testing: daily_digest")
@@ -111,8 +134,8 @@ async def test_daily_digest(phone: str):
 async def main():
     if len(sys.argv) < 2:
         print("Usage: python scripts/test_whatsapp_templates.py <phone_number> [--template <name>]")
-        print("  Templates: document_reminder, project_reminder, pico_y_placa, daily_digest")
-        print("  Without --template, sends ALL 4 templates.")
+        print("  Templates: document_reminder, project_reminder, pico_y_placa, daily_digest, event_reminder")
+        print("  Without --template, sends ALL 5 templates.")
         sys.exit(1)
 
     phone = sys.argv[1]
@@ -125,7 +148,7 @@ async def main():
     print(f"\n{'='*60}")
     print(f"  WhatsApp Template Test")
     print(f"  Phone: {phone}")
-    print(f"  Template(s): {specific_template or 'ALL (4)'}")
+    print(f"  Template(s): {specific_template or 'ALL (5)'}")
     print(f"{'='*60}")
 
     results = {}
@@ -138,6 +161,9 @@ async def main():
 
     if not specific_template or specific_template == "pico_y_placa":
         results["pico_y_placa"] = await test_pico_y_placa(phone)
+
+    if not specific_template or specific_template == "event_reminder":
+        results["event_reminder"] = await test_event_reminder(phone)
 
     if not specific_template or specific_template == "daily_digest":
         results["daily_digest"] = await test_daily_digest(phone)

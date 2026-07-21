@@ -104,11 +104,11 @@ async def _evaluate_vehicle_assets(session: AsyncSession):
 
 
 # =============================================================================
-# EVENTS — reminders via reminders table
+# EVENTS — reminders (Telegram + WhatsApp template)
 # =============================================================================
 
 async def _evaluate_events(session: AsyncSession):
-    """Check events due within reminder window and create reminders."""
+    """Check events due within reminder window and send notifications."""
     today = date.today()
     window_end = today + timedelta(days=max(EVENT_WINDOWS))
 
@@ -125,30 +125,91 @@ async def _evaluate_events(session: AsyncSession):
         days_until = (event.target_date - today).days
         for window in EVENT_WINDOWS:
             if days_until == window:
-                await _create_reminder(session, event, days_before=window)
+                # Guard: avoid sending duplicate reminders for the same event+window
+                dupe = await session.execute(
+                    select(Reminder).where(
+                        Reminder.event_id == event.id,
+                        Reminder.days_before == window,
+                    )
+                )
+                if dupe.scalar_one_or_none():
+                    continue
+
+                await _send_event_reminder(session, event, days_until)
+
+                # Record in reminders table for idempotency
+                reminder = Reminder(
+                    event_id=event.id,
+                    days_before=window,
+                    channel=ReminderChannel.telegram,
+                    status=ReminderStatus.sent,
+                    scheduled_for=datetime.combine(
+                        event.target_date, datetime.min.time(), tzinfo=timezone.utc
+                    ) - timedelta(days=window),
+                )
+                session.add(reminder)
+                break  # one reminder per event per day
 
 
-async def _create_reminder(session: AsyncSession, event: Event, days_before: int):
-    """Create a reminder for an event if not already scheduled."""
-    result = await session.execute(
-        select(Reminder).where(
-            Reminder.event_id == event.id,
-            Reminder.days_before == days_before,
-        )
+async def _send_event_reminder(
+    session: AsyncSession,
+    event: Event,
+    days_until: int,
+):
+    """Send an event reminder to the user (Telegram + WhatsApp template)."""
+    user_result = await session.execute(
+        select(User).where(User.id == event.user_id)
     )
-    if result.scalar_one_or_none():
+    user = user_result.scalar_one_or_none()
+    if not user:
         return
 
-    reminder = Reminder(
-        event_id=event.id,
-        days_before=days_before,
-        channel=ReminderChannel.telegram,
-        status=ReminderStatus.pending,
-        scheduled_for=datetime.combine(
-            event.target_date, datetime.min.time(), tzinfo=timezone.utc
-        ) - timedelta(days=days_before),
+    contact_id, channel = await resolve_user_contact(user)
+    if not contact_id:
+        return
+
+    emoji = "🔴" if days_until == 0 else "🟡" if days_until <= 3 else "🟢"
+    ds = "HOY" if days_until == 0 else f"mañana" if days_until == 1 else f"en {days_until} días"
+
+    msg = (
+        f"{emoji} *Recordatorio de evento*\n\n"
+        f"📌 *{event.title}*\n"
     )
-    session.add(reminder)
+    if event.description:
+        msg += f"📝 {event.description}\n"
+    msg += f"📅 Fecha: {ds} ({event.target_date})\n\n"
+    msg += "Si ya pasó o querés cambiarlo, decime y lo actualizo."
+
+    sent = await send_notification(
+        user_id=str(event.user_id),
+        contact_id=contact_id,
+        message=msg,
+        channel=channel,
+    )
+    if sent:
+        logger.info("Event reminder sent: %s (%d days)", event.title, days_until)
+
+    # WhatsApp template (for proactive reminders outside 24h window)
+    if user.whatsapp_id:
+        await _send_event_reminder_whatsapp(
+            user.whatsapp_id, emoji, event.title, ds, str(event.target_date)
+        )
+
+
+async def _send_event_reminder_whatsapp(
+    phone: str,
+    emoji: str,
+    event_title: str,
+    days_text: str,
+    target_date_str: str,
+):
+    """Send event reminder via WhatsApp template (5 body params)."""
+    await whatsapp_svc.send_template_message(
+        phone=phone,
+        template_name="event_reminder",
+        language_code="es",
+        body_params=[emoji, event_title, days_text, target_date_str, event_title],
+    )
 
 
 # =============================================================================

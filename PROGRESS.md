@@ -70,11 +70,11 @@ Estado actual de cada fase, módulo y entregable. Fase 1 completada con rediseñ
 
 | Recordatorio | Template | body_params | Horario |
 |-------------|----------|-------------|---------|
-| Documento por vencer | `document_reminder` | 6 params ({{2}}={{6}}) | 8:00 AM |
-| Tarea de proyecto | `project_reminder` | 6 params ({{3}}={{6}}) | 8:00 AM |
-| Pico y placa | `pico_y_placa` | 2 params | 8:00 AM |
-| Daily digest | `daily_digest` | 1 param (LLM) | 8:00 AM |
-| Eventos (citas) | `send_notification` | Texto directo | 8:00 AM |
+| Documento por vencer | `document_reminder` | 6 params (es) | 8:00 AM |
+| Tarea de proyecto | `project_reminder` | 6 params (en ⚠️) | 8:00 AM |
+| Pico y placa | `pico_y_placa` | 2 params (es) | 8:00 AM |
+| Daily digest | `daily_digest` | 1 param (es) | 8:00 AM |
+| **Eventos / Citas** 🆕 | **`event_reminder`** | **5 params (pendiente crear en Meta)** | **8:00 AM** |
 
 ### Flujo de Suscripción — ✅ Completo
 ```
@@ -90,13 +90,15 @@ Nuevo usuario → Onboarding (pasos 0→1→2) → Trial 7 días
                                    Pendiente: pago (Fase 3)
 ```
 
-### Meta Live — ✅ 3/4 templates aprobados en español
+### Meta Live — ✅ 4/5 templates aprobados
 - `document_reminder` (es): ✅ aprobado y probado
 - `project_reminder` (en): ⚠️ aprobado solo en inglés, `language_code="en"` temporal
 - `pico_y_placa` (es): ✅ aprobado y probado
 - `daily_digest` (es): ✅ aprobado y probado
+- `event_reminder` (es): 🆕 **PENDIENTE crear en Meta** — 5 params
 - `initial_greeting`: traducción español `es`
 - Pendiente: aprobación `project_reminder` en español → revertir `language_code="en"` a `"es"`
+- Pendiente: crear y aprobar `event_reminder` en Meta
 
 ### Tests — 307/307 (100%) ✅
 
