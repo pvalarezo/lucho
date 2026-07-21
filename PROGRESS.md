@@ -10,7 +10,9 @@ Estado actual de cada fase, módulo y entregable. Fase 1 completada con rediseñ
 ### Versiones
 | Tag | Fecha | Descripción |
 |-----|-------|-------------|
-| v2.11.2 | 2026-07-21 | Hora local Ecuador: `TIMESTAMPTZ` → `TIMESTAMP`, cero conversiones TZ. System prompt incluye hora actual. Ad-hoc reminders 100% funcionales. |
+| v2.12.4 | 2026-07-21 | Onboarding: "Finanzas personales" reemplaza "Gastos compartidos". Sin ⏳, solo "..." typing. System prompt completo con 26 tools. |
+| v2.12.0 | 2026-07-21 | Módulo de Finanzas Personales: `transactions` + `budgets`. 5 tools (add/list/get_balance/set/check_budget). `shared_expenses` eliminado. 26 tools totales. |
+| v2.11.2 | 2026-07-21 | Hora local Ecuador: `TIMESTAMPTZ` → `TIMESTAMP`, cero conversiones TZ. Ad-hoc reminders funcionales. |
 | v2.11.1 | 2026-07-21 | System prompt reforzado: reglas no negociables PRIMERO, tabla tool↔intención, palabras prohibidas explícitas. DeepSeek ahora cumple tool calling. |
 | v2.11.0 | 2026-07-21 | Ad-hoc event reminders: `events.target_date` migrado a `TIMESTAMPTZ` con hora. `schedule_event_reminder()` vía `DateTrigger`. `_send_event_reminder` arreglado (antes solo creaba DB records sin enviar). |
 | v2.10.1 | 2026-07-21 | WhatsApp Templates: 4/4 verificados y probados con envío real. `project_reminder` usa `language_code="en"` temporal. Script `test_whatsapp_templates.py`. |
@@ -42,32 +44,36 @@ Estado actual de cada fase, módulo y entregable. Fase 1 completada con rediseñ
 ### Base de Datos — 22 tablas
 `users`, `user_profiles`, `messages`, `assets`, `events`, `reminders`, `topics`, `notes`, `lists`, `list_items`, `projects`, `project_tasks`, `contacts`, `caregiver_links`, `shared_expenses`, `shared_expense_participants`, `subscription_plans`, `subscriptions`, `payments`, `subscription_invoices`, **`vehicles`** 🆕, **`vehicle_maintenances`** 🆕
 
-### Tools del Agente — 22 tools
+### Tools del Agente — 26 tools
 
 | # | Tool | Módulo | Escritura |
 |---|------|--------|-----------|
-| 1 | `save_vehicle` | Vehículos 🆕 | ✍️ |
-| 2 | `list_my_vehicles` | Vehículos 🆕 | 👁️ |
-| 3 | `add_maintenance` | Vehículos 🆕 | ✍️ |
-| 4 | `list_maintenances` | Vehículos 🆕 | 👁️ |
+| 1 | `save_vehicle` | Vehículos | ✍️ |
+| 2 | `list_my_vehicles` | Vehículos | 👁️ |
+| 3 | `add_maintenance` | Vehículos | ✍️ |
+| 4 | `list_maintenances` | Vehículos | 👁️ |
 | 5 | `save_document` | Documentos | ✍️ |
 | 6 | `save_event` | Eventos | ✍️ |
 | 7 | `save_list` | Listas | ✍️ |
 | 8 | `save_note` | Notas | ✍️ |
-| 9 | `save_expense` | Gastos | ✍️ |
-| 10 | `search_my_data` | Búsqueda | 👁️ |
-| 11 | `search_conversation` | Búsqueda | 👁️ |
-| 12 | `web_search` | Búsqueda | 👁️ |
-| 13 | `analyze_image` | OCR/Visión | 👁️+✍️ |
-| 14 | `get_my_summary` | Resumen | 👁️ |
-| 15 | `save_project_task` | Proyectos | ✍️ |
-| 16 | `list_project_tasks` | Proyectos | 👁️ |
-| 17 | `complete_project_task` | Proyectos | ✍️ |
-| 18 | `update_last` | Correcciones | ✍️ |
-| 19 | `save_contact` | Contactos | ✍️ |
-| 20 | `list_contacts` | Contactos | 👁️ |
-| 21 | `check_vehicle_info` | Vehículos | 👁️ |
-| 22 | `send_photo` | Archivos | ✍️ |
+| 9 | `search_my_data` | Búsqueda | 👁️ |
+| 10 | `search_conversation` | Búsqueda | 👁️ |
+| 11 | `web_search` | Búsqueda | 👁️ |
+| 12 | `analyze_image` | OCR/Visión | 👁️+✍️ |
+| 13 | `get_my_summary` | Resumen | 👁️ |
+| 14 | `save_project_task` | Proyectos | ✍️ |
+| 15 | `list_project_tasks` | Proyectos | 👁️ |
+| 16 | `complete_project_task` | Proyectos | ✍️ |
+| 17 | `update_last` | Correcciones | ✍️ |
+| 18 | `save_contact` | Contactos | ✍️ |
+| 19 | `list_contacts` | Contactos | 👁️ |
+| 20 | `check_vehicle_info` | Vehículos | 👁️ |
+| 21 | `send_photo` | Archivos | ✍️ |
+| 22 | `add_transaction` 🆕 | Finanzas | ✍️ |
+| 23 | `list_transactions` 🆕 | Finanzas | 👁️ |
+| 24 | `get_balance` 🆕 | Finanzas | 👁️ |
+| 25 | `set_budget` 🆕 | Finanzas | ✍️ |
+| 26 | `check_budget` 🆕 | Finanzas | 👁️ |
 
 ### Scheduler — ✅ Conectado a WhatsApp Templates
 
@@ -77,7 +83,8 @@ Estado actual de cada fase, módulo y entregable. Fase 1 completada con rediseñ
 | Tarea de proyecto | `project_reminder` | 6 params (en ⚠️) | 8:00 AM |
 | Pico y placa | `pico_y_placa` | 2 params (es) | 8:00 AM |
 | Daily digest | `daily_digest` | 1 param (es) | 8:00 AM |
-| **Eventos / Citas** 🆕 | **`event_reminder`** | **5 params (es, pendiente crear en Meta)** | **8:00 AM + ad-hoc** |
+| **Eventos / Citas** | **`event_reminder`** | **5 params (es, pendiente crear en Meta)** | **8:00 AM + ad-hoc** |
+| **Presupuestos** 🆕 | **`budget_alert`** | **5 params (pendiente crear en Meta)** | **8:00 AM** |
 
 ### Flujo de Suscripción — ✅ Completo
 ```
@@ -103,7 +110,7 @@ Nuevo usuario → Onboarding (pasos 0→1→2) → Trial 7 días
 - Pendiente: aprobación `project_reminder` en español → revertir `language_code="en"` a `"es"`
 - Pendiente: crear y aprobar `event_reminder` en Meta
 
-### Tests — 308/308 (100%) ✅
+### Tests — 348/348 (100%) ✅
 
 ---
 
@@ -127,7 +134,10 @@ Nuevo usuario → Onboarding (pasos 0→1→2) → Trial 7 días
 - [x] Ad-hoc reminders: "avísame en X minutos" funcional ✅
 - [x] System prompt reforzado anti-alucinaciones
 - [x] Hora local Ecuador en todo el stack (cero conversiones TZ)
+- [x] Módulo de Finanzas Personales ✅
 - [x] Límite vehículos parametrizable por plan
+- [x] Formato WhatsApp (sin tablas, solo emojis+bullets)
+- [x] Onboarding actualizado con todas las funcionalidades
 
 ### Pendientes Fase 2:
 - [ ] Módulo de Finanzas Personales 🆕
