@@ -351,7 +351,7 @@ async def _send_project_reminder_whatsapp(
     await whatsapp_svc.send_template_message(
         phone=phone,
         template_name="project_reminder",
-        language_code="es",
+        language_code="en",  # TODO: revert to "es" when Spanish translation is approved
         body_params=[emoji, project_name, task_content, days_text, due_date_str, task_content],
     )
 

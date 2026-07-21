@@ -2,9 +2,9 @@
 
 ---
 
-## Sesión finalizada — 2026-07-20
+## Sesión finalizada — 2026-07-21
 
-**v2.10.0 — Módulo de Vehículos, Post-pago, Scheduler Templates**
+**v2.10.1 — WhatsApp Templates verificados + test script**
 
 ### Entregables completados en esta sesión:
 
@@ -77,10 +77,14 @@
 
 ### 🟡 ESPERA
 
-**2. Templates en Meta** — esperando aprobación (24-48h)
+**2. Templates en Meta** — 3/4 aprobados en español
 - [x] 4 plantillas creadas
 - [x] `initial_greeting` traducido a español
-- [ ] Verificar aprobación y probar envío real
+- [x] `document_reminder` (es) — ✅ aprobado y probado
+- [x] `pico_y_placa` (es) — ✅ aprobado y probado
+- [x] `daily_digest` (es) — ✅ aprobado y probado
+- [x] `project_reminder` (en) — ⚠️ aprobado solo en inglés, usando `language_code="en"` temporal
+- [ ] Esperar aprobación de `project_reminder` en español para revertir a `language_code="es"`
 
 ### 🟢 FASE 2
 
@@ -91,10 +95,17 @@
 - Whisper local ($0), skills adicionales, dashboard
 - Fase 3: pagos reales (Kushki/PayPhone), facturación SRI
 - Activar Anthropic Sonnet cuando se configure API key
+- Revertir `project_reminder` a `language_code="es"` cuando Meta apruebe la traducción
 
 ---
 
 ## Comandos rápidos
+
+```bash
+# Probar templates WhatsApp
+python3 scripts/test_whatsapp_templates.py 593993832368
+python3 scripts/test_whatsapp_templates.py 593993832368 --template document_reminder
+```
 
 ```bash
 # Arrancar servicios

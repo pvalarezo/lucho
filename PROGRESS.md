@@ -10,6 +10,7 @@ Estado actual de cada fase, módulo y entregable. Fase 1 completada con rediseñ
 ### Versiones
 | Tag | Fecha | Descripción |
 |-----|-------|-------------|
+| v2.10.1 | 2026-07-21 | WhatsApp Templates: 4/4 verificados y probados con envío real. `project_reminder` usa `language_code="en"` temporal (pendiente aprobación `es`). Script `test_whatsapp_templates.py`. Scheduler 100% operativo multicanal. |
 | v2.10.0 | 2026-07-20 | Módulo de Vehículos independiente (`vehicles` + `vehicle_maintenances`), 22 tools total. Flujo post-pago (cédula→email→nombre→políticas). Scheduler conectado a WhatsApp templates (4 tipos). Límite vehículos parametrizable por plan. Tests: 307/307 (100%). |
 | v2.9.4 | 2026-07-19 | WhatsApp multimedia: descarga imágenes/audio/docs → MinIO, transcripción Whisper. Stickers, inyección file_key, foto sin instrucción. System prompt regla #0 reforzada. Template send_template_message con body_params. |
 | v2.9.3 | 2026-07-18 | Suscripción (planes, trial 7 días), onboarding 3 pasos, WhatsApp (reacción, typing, debounce 3s). Tablas: subscription_plans, user_profiles. |
@@ -89,11 +90,13 @@ Nuevo usuario → Onboarding (pasos 0→1→2) → Trial 7 días
                                    Pendiente: pago (Fase 3)
 ```
 
-### Meta Live — ⏳ Templates en revisión
-- 4 plantillas creadas: `document_reminder`, `project_reminder`, `pico_y_placa`, `daily_digest`
-- Categoría: UTILITY (menos `daily_digest` que se recreó como UTILITY)
-- `initial_greeting`: ya tiene traducción español `es`
-- Esperando aprobación (24-48h)
+### Meta Live — ✅ 3/4 templates aprobados en español
+- `document_reminder` (es): ✅ aprobado y probado
+- `project_reminder` (en): ⚠️ aprobado solo en inglés, `language_code="en"` temporal
+- `pico_y_placa` (es): ✅ aprobado y probado
+- `daily_digest` (es): ✅ aprobado y probado
+- `initial_greeting`: traducción español `es`
+- Pendiente: aprobación `project_reminder` en español → revertir `language_code="en"` a `"es"`
 
 ### Tests — 307/307 (100%) ✅
 
