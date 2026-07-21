@@ -20,7 +20,6 @@ from app.services.persistence import (
     persist_event,
     persist_list_items,
     persist_note,
-    persist_shared_expense,
 )
 from app.services.search import (
     semantic_search,
@@ -194,37 +193,6 @@ TOOL_SAVE_NOTE = {
                 },
             },
             "required": ["topic", "content"],
-        },
-    },
-}
-
-TOOL_SAVE_EXPENSE = {
-    "type": "function",
-    "function": {
-        "name": "save_expense",
-        "description": "Registrar un gasto compartido entre varias personas. Calcula automáticamente cuánto paga cada persona.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "description": {
-                    "type": "string",
-                    "description": "Descripción del gasto. Ej: 'Cena en La Parrilla'.",
-                },
-                "total_amount": {
-                    "type": "number",
-                    "description": "Monto total del gasto en dólares. Ej: 60.00.",
-                },
-                "participants": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "Nombres de los participantes. Ej: ['Patricio', 'María', 'Juan'].",
-                },
-                "date": {
-                    "type": "string",
-                    "description": "Fecha del gasto en formato YYYY-MM-DD. Si no se menciona, usar la fecha actual.",
-                },
-            },
-            "required": ["description", "total_amount", "participants"],
         },
     },
 }
@@ -613,6 +581,157 @@ TOOL_LIST_MAINTENANCES = {
 }
 
 
+# =============================================================================
+# FINANCE TOOLS — transactions and budgets
+# =============================================================================
+
+TOOL_ADD_TRANSACTION = {
+    "type": "function",
+    "function": {
+        "name": "add_transaction",
+        "description": "Registrar un gasto o ingreso. Usar cuando el usuario dice 'gasté', 'pagué', 'compré' (expense) o 'recibí', 'cobré', 'me pagaron' (income).",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "type": {
+                    "type": "string",
+                    "enum": ["expense", "income"],
+                    "description": "'expense' si es un gasto, 'income' si es un ingreso.",
+                },
+                "amount": {
+                    "type": "number",
+                    "description": "Monto en dólares (positivo). Ej: 20.50.",
+                },
+                "category": {
+                    "type": "string",
+                    "enum": ["food", "transport", "housing", "health", "entertainment", "services",
+                             "education", "clothing", "other_expense", "salary", "business", "gift",
+                             "investment", "other_income"],
+                    "description": "Categoría. Mapear según lo que dijo el usuario: almuerzo→food, gasolina→transport, luz→services, sueldo→salary, etc.",
+                },
+                "description": {
+                    "type": "string",
+                    "description": "Descripción corta. Ej: 'Almuerzo con cliente', 'Pago de luz mayo'.",
+                },
+                "transaction_date": {
+                    "type": "string",
+                    "description": "Fecha YYYY-MM-DD. Si no la menciona, es hoy. Si dice 'ayer', usar fecha de ayer.",
+                },
+                "payment_method": {
+                    "type": "string",
+                    "enum": ["cash", "debit", "credit", "transfer"],
+                    "description": "Método de pago. Opcional.",
+                },
+            },
+            "required": ["type", "amount", "category", "description"],
+        },
+    },
+}
+
+TOOL_LIST_TRANSACTIONS = {
+    "type": "function",
+    "function": {
+        "name": "list_transactions",
+        "description": "Consultar gastos e ingresos del usuario. Usar cuando pregunta '¿cuánto gasté?', '¿en qué gasté?', 'mis gastos de esta semana', 'mis ingresos'.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "type": {
+                    "type": "string",
+                    "enum": ["expense", "income", "all"],
+                    "description": "Filtrar por tipo. Default: 'all'.",
+                },
+                "category": {
+                    "type": "string",
+                    "description": "Filtrar por categoría. Opcional.",
+                },
+                "period": {
+                    "type": "string",
+                    "enum": ["today", "yesterday", "this_week", "last_week", "this_month", "last_month"],
+                    "description": "Período. Default: 'this_month'.",
+                },
+                "group_by": {
+                    "type": "string",
+                    "enum": ["none", "category", "day"],
+                    "description": "Agrupar resultados. Default: 'none'.",
+                },
+            },
+            "required": [],
+        },
+    },
+}
+
+TOOL_GET_BALANCE = {
+    "type": "function",
+    "function": {
+        "name": "get_balance",
+        "description": "Obtener balance financiero: total de ingresos, gastos y saldo del mes. Usar cuando pregunta '¿cómo voy?', '¿cuánto tengo?', 'mi balance'.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "period": {
+                    "type": "string",
+                    "enum": ["this_month", "last_month", "this_year"],
+                    "description": "Período. Default: 'this_month'.",
+                },
+            },
+            "required": [],
+        },
+    },
+}
+
+TOOL_SET_BUDGET = {
+    "type": "function",
+    "function": {
+        "name": "set_budget",
+        "description": "Configurar un presupuesto por categoría. Usar cuando dice 'ponme un presupuesto', 'mi presupuesto de comida es', 'solo quiero gastar X en Y'.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string",
+                    "enum": ["food", "transport", "housing", "health", "entertainment", "services",
+                             "education", "clothing", "other_expense"],
+                    "description": "Categoría a presupuestar (solo gastos).",
+                },
+                "amount": {
+                    "type": "number",
+                    "description": "Monto máximo del presupuesto.",
+                },
+                "period": {
+                    "type": "string",
+                    "enum": ["monthly", "weekly"],
+                    "description": "Período. Default: 'monthly'.",
+                },
+                "alert_threshold": {
+                    "type": "integer",
+                    "description": "Porcentaje al que alertar (ej: 80). Default: 80.",
+                },
+            },
+            "required": ["category", "amount"],
+        },
+    },
+}
+
+TOOL_CHECK_BUDGET = {
+    "type": "function",
+    "function": {
+        "name": "check_budget",
+        "description": "Revisar estado de presupuestos. Usar cuando dice '¿cómo voy con el presupuesto?', '¿me pasé del presupuesto de comida?'.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string",
+                    "description": "Categoría específica. Si no se pasa, muestra todas.",
+                },
+            },
+            "required": [],
+        },
+    },
+}
+
+
 # All available tools (exported for the agent loop)
 ALL_TOOLS = [
     TOOL_SAVE_VEHICLE,
@@ -623,7 +742,6 @@ ALL_TOOLS = [
     TOOL_SAVE_EVENT,
     TOOL_SAVE_LIST,
     TOOL_SAVE_NOTE,
-    TOOL_SAVE_EXPENSE,
     TOOL_SEARCH_DATA,
     TOOL_SEARCH_CONVERSATION,
     TOOL_ANALYZE_IMAGE,
@@ -637,6 +755,11 @@ ALL_TOOLS = [
     TOOL_CHECK_VEHICLE_INFO,
     TOOL_SEND_PHOTO,
     TOOL_WEB_SEARCH,
+    TOOL_ADD_TRANSACTION,
+    TOOL_LIST_TRANSACTIONS,
+    TOOL_GET_BALANCE,
+    TOOL_SET_BUDGET,
+    TOOL_CHECK_BUDGET,
 ]
 
 # Map tool names to their schemas for quick lookup
@@ -901,42 +1024,6 @@ async def handle_save_note(session, user_id: str, args: dict) -> dict:
     except Exception as exc:
         logger.exception("Failed to save note: %s", exc)
         return {"success": False, "message": "No pude guardar la nota."}
-
-
-async def handle_save_expense(session, user_id: str, args: dict) -> dict:
-    """Save a shared expense."""
-    import uuid
-
-    description = (args.get("description") or "gasto").strip()
-    total_amount = float(args.get("total_amount") or 0)
-    participants = args.get("participants") or []
-
-    if total_amount <= 0:
-        return {"success": False, "message": "Necesito el monto del gasto."}
-    if not participants:
-        return {"success": False, "message": "Necesito saber entre cuántas personas."}
-
-    per_person = total_amount / len(participants)
-
-    try:
-        expense = await persist_shared_expense(
-            session=session,
-            user_id=uuid.UUID(user_id),
-            description=description,
-            total_amount=total_amount,
-            participants=participants,
-            split_type="equal",
-        )
-        return {
-            "success": True,
-            "message": f"Gasto '{description}' registrado: ${total_amount:.2f} entre {len(participants)} = ${per_person:.2f} c/u.",
-            "total": total_amount,
-            "participants": len(participants),
-            "per_person": round(per_person, 2),
-        }
-    except Exception as exc:
-        logger.exception("Failed to save expense: %s", exc)
-        return {"success": False, "message": "No pude guardar el gasto."}
 
 
 async def handle_search_data(session, user_id: str, args: dict) -> dict:
@@ -1862,6 +1949,356 @@ async def handle_list_maintenances(session, user_id: str, args: dict) -> dict:
     }
 
 
+# =============================================================================
+# FINANCE HANDLERS
+# =============================================================================
+
+async def handle_add_transaction(session, user_id: str, args: dict) -> dict:
+    """Register an expense or income."""
+    import uuid as _uuid_mod
+    from app.services.persistence import persist_transaction
+
+    txn_type = args.get("type", "expense")
+    amount = args.get("amount", 0)
+    category = args.get("category", "other_expense")
+    description = args.get("description", "")
+    transaction_date = args.get("transaction_date")
+    payment_method = args.get("payment_method")
+
+    if not amount or float(amount) <= 0:
+        return {"success": False, "message": "Necesito el monto para registrar el gasto."}
+
+    try:
+        txn = await persist_transaction(
+            session=session,
+            user_id=_uuid_mod.UUID(user_id),
+            type=txn_type,
+            amount=float(amount),
+            category=category,
+            description=description,
+            transaction_date=transaction_date,
+            payment_method=payment_method,
+        )
+        emoji = "💸" if txn.type.value == "expense" else "💰"
+        cat_label = txn.category.value.replace("_", " ").title()
+        return {
+            "success": True,
+            "message": f"{emoji} Registrado: {description or cat_label} — ${amount:.2f} ({cat_label}).",
+            "transaction_id": str(txn.id),
+            "amount": amount,
+            "category": txn.category.value,
+            "type": txn.type.value,
+        }
+    except Exception as exc:
+        logger.exception("Failed to add transaction: %s", exc)
+        return {"success": False, "message": "No pude registrar el gasto. ¿Intentamos de nuevo?"}
+
+
+async def handle_list_transactions(session, user_id: str, args: dict) -> dict:
+    """Query transactions by period and category."""
+    import uuid as _uuid_mod
+    from datetime import date, datetime, timedelta
+    from sqlalchemy import select, func
+    from app.models.transaction import Transaction
+
+    txn_type = args.get("type", "all")
+    category = args.get("category")
+    period = args.get("period", "this_month")
+    group_by = args.get("group_by", "none")
+
+    today = date.today()
+
+    # Calculate date range
+    if period == "today":
+        start = datetime.combine(today, datetime.min.time())
+        end = datetime.combine(today, datetime.max.time())
+        period_label = "hoy"
+    elif period == "yesterday":
+        yesterday = today - timedelta(days=1)
+        start = datetime.combine(yesterday, datetime.min.time())
+        end = datetime.combine(yesterday, datetime.max.time())
+        period_label = "ayer"
+    elif period == "this_week":
+        start = datetime.combine(today - timedelta(days=today.weekday()), datetime.min.time())
+        end = datetime.combine(start.date() + timedelta(days=6), datetime.max.time())
+        period_label = "esta semana"
+    elif period == "last_week":
+        this_monday = today - timedelta(days=today.weekday())
+        start = datetime.combine(this_monday - timedelta(days=7), datetime.min.time())
+        end = datetime.combine(this_monday - timedelta(days=1), datetime.max.time())
+        period_label = "la semana pasada"
+    elif period == "last_month":
+        first_of_this_month = today.replace(day=1)
+        start = datetime.combine((first_of_this_month - timedelta(days=1)).replace(day=1), datetime.min.time())
+        end = datetime.combine(first_of_this_month - timedelta(days=1), datetime.max.time())
+        period_label = "el mes pasado"
+    else:  # this_month
+        start = datetime.combine(today.replace(day=1), datetime.min.time())
+        end = datetime.combine(today, datetime.max.time())
+        period_label = "este mes"
+
+    # Build query
+    filters = [
+        Transaction.user_id == _uuid_mod.UUID(user_id),
+        Transaction.transaction_date >= start,
+        Transaction.transaction_date <= end,
+    ]
+    if txn_type != "all":
+        filters.append(Transaction.type == txn_type)
+    if category:
+        filters.append(Transaction.category == category)
+
+    try:
+        if group_by == "category":
+            result = await session.execute(
+                select(
+                    Transaction.category,
+                    Transaction.type,
+                    func.sum(Transaction.amount).label("total"),
+                    func.count(Transaction.id).label("count"),
+                )
+                .where(*filters)
+                .group_by(Transaction.category, Transaction.type)
+                .order_by(func.sum(Transaction.amount).desc())
+            )
+            rows = result.all()
+            items = [
+                {
+                    "category": r.category.value if hasattr(r.category, 'value') else r.category,
+                    "type": r.type.value if hasattr(r.type, 'value') else r.type,
+                    "total": float(r.total),
+                    "count": r.count,
+                }
+                for r in rows
+            ]
+            total = sum(i["total"] for i in items)
+            return {
+                "success": True,
+                "period": period_label,
+                "total": total,
+                "by_category": items,
+            }
+        else:
+            result = await session.execute(
+                select(Transaction)
+                .where(*filters)
+                .order_by(Transaction.transaction_date.desc())
+                .limit(50)
+            )
+            txns = result.scalars().all()
+            items = [
+                {
+                    "id": str(t.id),
+                    "type": t.type.value,
+                    "amount": float(t.amount),
+                    "category": t.category.value,
+                    "description": t.description,
+                    "date": t.transaction_date.strftime("%Y-%m-%d"),
+                    "payment_method": t.payment_method,
+                }
+                for t in txns
+            ]
+            total = sum(i["amount"] for i in items)
+            return {
+                "success": True,
+                "period": period_label,
+                "count": len(items),
+                "total": total,
+                "transactions": items[:20],
+            }
+    except Exception as exc:
+        logger.exception("Failed to list transactions: %s", exc)
+        return {"success": False, "message": "No pude consultar tus gastos. ¿Intentamos de nuevo?"}
+
+
+async def handle_get_balance(session, user_id: str, args: dict) -> dict:
+    """Get financial balance: income, expenses, net."""
+    import uuid as _uuid_mod
+    from datetime import date, datetime
+    from sqlalchemy import select, func
+    from app.models.transaction import Transaction, TransactionType
+
+    period = args.get("period", "this_month")
+    today = date.today()
+
+    if period == "last_month":
+        first_of_this_month = today.replace(day=1)
+        start = datetime.combine((first_of_this_month - timedelta(days=1)).replace(day=1), datetime.min.time())
+        end = datetime.combine(first_of_this_month - timedelta(days=1), datetime.max.time())
+        period_label = "el mes pasado"
+    elif period == "this_year":
+        from datetime import timedelta
+        start = datetime.combine(today.replace(month=1, day=1), datetime.min.time())
+        end = datetime.combine(today, datetime.max.time())
+        period_label = "este año"
+    else:
+        start = datetime.combine(today.replace(day=1), datetime.min.time())
+        end = datetime.combine(today, datetime.max.time())
+        period_label = "este mes"
+
+    try:
+        # Income total
+        income_result = await session.execute(
+            select(func.coalesce(func.sum(Transaction.amount), 0))
+            .where(
+                Transaction.user_id == _uuid_mod.UUID(user_id),
+                Transaction.type == TransactionType.income,
+                Transaction.transaction_date >= start,
+                Transaction.transaction_date <= end,
+            )
+        )
+        income = float(income_result.scalar_one())
+
+        # Expense total
+        expense_result = await session.execute(
+            select(func.coalesce(func.sum(Transaction.amount), 0))
+            .where(
+                Transaction.user_id == _uuid_mod.UUID(user_id),
+                Transaction.type == TransactionType.expense,
+                Transaction.transaction_date >= start,
+                Transaction.transaction_date <= end,
+            )
+        )
+        expenses = float(expense_result.scalar_one())
+
+        balance = income - expenses
+
+        # Top expense categories
+        top_result = await session.execute(
+            select(
+                Transaction.category,
+                func.sum(Transaction.amount).label("total"),
+            )
+            .where(
+                Transaction.user_id == _uuid_mod.UUID(user_id),
+                Transaction.type == TransactionType.expense,
+                Transaction.transaction_date >= start,
+                Transaction.transaction_date <= end,
+            )
+            .group_by(Transaction.category)
+            .order_by(func.sum(Transaction.amount).desc())
+            .limit(5)
+        )
+        top_categories = [
+            {"category": r.category.value, "total": float(r.total)}
+            for r in top_result.all()
+        ]
+
+        return {
+            "success": True,
+            "period": period_label,
+            "income": income,
+            "expenses": expenses,
+            "balance": balance,
+            "top_expense_categories": top_categories,
+        }
+    except Exception as exc:
+        logger.exception("Failed to get balance: %s", exc)
+        return {"success": False, "message": "No pude calcular tu balance. ¿Intentamos de nuevo?"}
+
+
+async def handle_set_budget(session, user_id: str, args: dict) -> dict:
+    """Create or update a budget for a category."""
+    import uuid as _uuid_mod
+    from app.services.persistence import persist_budget
+
+    category = args.get("category", "")
+    amount = args.get("amount", 0)
+    period = args.get("period", "monthly")
+    alert_threshold = args.get("alert_threshold", 80)
+
+    if not category or float(amount) <= 0:
+        return {"success": False, "message": "Necesito la categoría y el monto del presupuesto."}
+
+    try:
+        budget = await persist_budget(
+            session=session,
+            user_id=_uuid_mod.UUID(user_id),
+            category=category,
+            amount=float(amount),
+            period=period,
+            alert_threshold=int(alert_threshold),
+        )
+        cat_label = budget.category.value.replace("_", " ").title()
+        period_label = "mensual" if budget.period.value == "monthly" else "semanal"
+        return {
+            "success": True,
+            "message": f"Presupuesto {period_label}: {cat_label} ${float(amount):.2f}. Te aviso al {alert_threshold}%.",
+            "budget_id": str(budget.id),
+            "category": budget.category.value,
+            "amount": float(budget.amount),
+        }
+    except Exception as exc:
+        logger.exception("Failed to set budget: %s", exc)
+        return {"success": False, "message": "No pude configurar el presupuesto. ¿Intentamos de nuevo?"}
+
+
+async def handle_check_budget(session, user_id: str, args: dict) -> dict:
+    """Check budget status and spending progress."""
+    import uuid as _uuid_mod
+    from datetime import date, datetime
+    from sqlalchemy import select, func
+    from app.models.transaction import Budget, Transaction, TransactionType, TransactionCategory
+
+    category = args.get("category")
+    today = date.today()
+    start = datetime.combine(today.replace(day=1), datetime.min.time())
+    end = datetime.combine(today, datetime.max.time())
+
+    try:
+        # Get active budgets
+        budget_filters = [
+            Budget.user_id == _uuid_mod.UUID(user_id),
+            Budget.is_active == True,
+        ]
+        if category:
+            try:
+                cat_enum = TransactionCategory(category)
+                budget_filters.append(Budget.category == cat_enum)
+            except ValueError:
+                return {"success": False, "message": f"No conozco la categoría '{category}'."}
+
+        budget_result = await session.execute(
+            select(Budget).where(*budget_filters)
+        )
+        budgets = budget_result.scalars().all()
+
+        if not budgets:
+            msg = f"No tenés presupuesto para '{category}'." if category else "No tenés presupuestos configurados."
+            return {"success": True, "message": msg, "budgets": []}
+
+        items = []
+        for budget in budgets:
+            # Get spending for this category this month
+            spent_result = await session.execute(
+                select(func.coalesce(func.sum(Transaction.amount), 0))
+                .where(
+                    Transaction.user_id == _uuid_mod.UUID(user_id),
+                    Transaction.type == TransactionType.expense,
+                    Transaction.category == budget.category,
+                    Transaction.transaction_date >= start,
+                    Transaction.transaction_date <= end,
+                )
+            )
+            spent = float(spent_result.scalar_one())
+            percentage = round((spent / float(budget.amount)) * 100) if float(budget.amount) > 0 else 0
+            over_budget = percentage >= 100
+            near_limit = not over_budget and percentage >= budget.alert_threshold
+
+            items.append({
+                "category": budget.category.value,
+                "budget": float(budget.amount),
+                "spent": spent,
+                "remaining": max(float(budget.amount) - spent, 0),
+                "percentage": percentage,
+                "over_budget": over_budget,
+                "near_limit": near_limit,
+            })
+
+        return {"success": True, "budgets": items}
+    except Exception as exc:
+        logger.exception("Failed to check budget: %s", exc)
+        return {"success": False, "message": "No pude revisar tus presupuestos. ¿Intentamos de nuevo?"}
 TOOL_HANDLERS: dict[str, Any] = {
     "save_vehicle": handle_save_vehicle,
     "list_my_vehicles": handle_list_my_vehicles,
@@ -1871,7 +2308,6 @@ TOOL_HANDLERS: dict[str, Any] = {
     "save_event": handle_save_event,
     "save_list": handle_save_list,
     "save_note": handle_save_note,
-    "save_expense": handle_save_expense,
     "search_my_data": handle_search_data,
     "get_my_summary": handle_get_summary,
     "update_last": handle_update_last,
@@ -1885,6 +2321,11 @@ TOOL_HANDLERS: dict[str, Any] = {
     "list_contacts": handle_list_contacts,
     "send_photo": handle_send_photo,
     "web_search": handle_web_search,
+    "add_transaction": handle_add_transaction,
+    "list_transactions": handle_list_transactions,
+    "get_balance": handle_get_balance,
+    "set_budget": handle_set_budget,
+    "check_budget": handle_check_budget,
 }
 
 
@@ -1913,3 +2354,5 @@ async def execute_tool(session, user_id: str, tool_name: str, tool_args: dict) -
     except Exception as exc:
         logger.exception("Tool '%s' failed: %s", tool_name, exc)
         return {"success": False, "message": "Tuve un error. ¿Intentamos de nuevo?"}
+
+

@@ -78,20 +78,22 @@ check(len(LUCHO_SYSTEM_PROMPT_SHORT) < 700, f"Short prompt is short ({len(LUCHO_
 # ════════════════════════════════════════════════════════
 # 2. TOOL SCHEMAS (18 tools)
 # ════════════════════════════════════════════════════════
-section("2. Tool Schemas (22 tools)")
+section("2. Tool Schemas (26 tools)")
 
 from app.agent.tools import ALL_TOOLS, TOOL_SCHEMAS
 
-check(len(ALL_TOOLS) == 22, f"Exactly 22 tools (found {len(ALL_TOOLS)})")
-check(len(TOOL_SCHEMAS) == 22, f"TOOL_SCHEMAS has 22 entries (found {len(TOOL_SCHEMAS)})")
+check(len(ALL_TOOLS) == 26, f"Exactly 26 tools (found {len(ALL_TOOLS)})")
+check(len(TOOL_SCHEMAS) == 26, f"TOOL_SCHEMAS has 26 entries (found {len(TOOL_SCHEMAS)})")
 
 expected_tools = [
     "save_vehicle", "list_my_vehicles", "add_maintenance", "list_maintenances",
     "save_document", "save_event", "save_list", "save_note",
-    "save_expense", "search_my_data", "search_conversation", "analyze_image",
+    "search_my_data", "search_conversation", "analyze_image",
     "get_my_summary", "save_project_task", "list_project_tasks",
     "complete_project_task", "update_last", "save_contact", "list_contacts",
     "check_vehicle_info", "send_photo", "web_search",
+    "add_transaction", "list_transactions", "get_balance",
+    "set_budget", "check_budget",
 ]
 
 tool_names = [t["function"]["name"] for t in ALL_TOOLS]
@@ -130,7 +132,6 @@ handler_map = {
     "save_event": "handle_save_event",
     "save_list": "handle_save_list",
     "save_note": "handle_save_note",
-    "save_expense": "handle_save_expense",
     "search_my_data": "handle_search_data",
     "search_conversation": "handle_search_conversation",
     "analyze_image": "handle_analyze_image",
@@ -147,6 +148,11 @@ handler_map = {
     "list_my_vehicles": "handle_list_my_vehicles",
     "add_maintenance": "handle_add_maintenance",
     "list_maintenances": "handle_list_maintenances",
+    "add_transaction": "handle_add_transaction",
+    "list_transactions": "handle_list_transactions",
+    "get_balance": "handle_get_balance",
+    "set_budget": "handle_set_budget",
+    "check_budget": "handle_check_budget",
 }
 
 for tool_name, handler_name in handler_map.items():

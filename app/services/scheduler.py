@@ -19,7 +19,7 @@ from datetime import date, datetime, timezone, timedelta
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import async_session
@@ -62,6 +62,7 @@ async def run_daily_rules():
             await _evaluate_documents(session)
             await _evaluate_project_tasks(session)
             await _evaluate_pico_y_placa(session)
+            await _evaluate_budgets(session)
             await session.commit()
             logger.info("Daily reminder evaluation complete.")
         except Exception as exc:
@@ -537,6 +538,91 @@ async def _evaluate_pico_y_placa(session: AsyncSession):
             body_params=[plate, f"hoy {today_name.lower()}"],
         )
         logger.info("Pico y placa reminder sent: %s on %s", plate, today_name)
+
+
+# =============================================================================
+# BUDGET ALERTS
+# =============================================================================
+
+async def _evaluate_budgets(session: AsyncSession):
+    """Check budgets and alert users who are near or over their spending limits."""
+    from datetime import date, datetime
+    from app.models.transaction import Budget, Transaction, TransactionType, TransactionCategory
+
+    today = date.today()
+    start = datetime.combine(today.replace(day=1), datetime.min.time())
+    end = datetime.combine(today, datetime.max.time())
+
+    result = await session.execute(
+        select(Budget).where(Budget.is_active == True)
+    )
+    budgets = result.scalars().all()
+
+    for budget in budgets:
+        # Get spending for this category this month
+        spent_result = await session.execute(
+            select(func.sum(Transaction.amount))
+            .where(
+                Transaction.user_id == budget.user_id,
+                Transaction.type == TransactionType.expense,
+                Transaction.category == budget.category,
+                Transaction.transaction_date >= start,
+                Transaction.transaction_date <= end,
+            )
+        )
+        spent = float(spent_result.scalar_one() or 0)
+
+        if float(budget.amount) == 0:
+            continue
+
+        percentage = round((spent / float(budget.amount)) * 100)
+
+        # Only alert if threshold reached
+        if percentage < budget.alert_threshold:
+            continue
+
+        # Check if already alerted today (stored in attributes)
+        attrs = budget.attributes or {}
+        last_alert_date = attrs.get("last_alert_date")
+        if last_alert_date == today.isoformat():
+            continue
+
+        # Load user
+        user_result = await session.execute(
+            select(User).where(User.id == budget.user_id)
+        )
+        user = user_result.scalar_one_or_none()
+        if not user:
+            continue
+
+        contact_id, channel = await resolve_user_contact(user)
+        if not contact_id:
+            continue
+
+        cat_label = budget.category.value.replace("_", " ").title()
+        remaining = max(float(budget.amount) - spent, 0)
+        emoji = "🔴" if percentage >= 100 else "⚠️"
+
+        msg = (
+            f"{emoji} *Alerta de presupuesto*\n\n"
+            f"📊 {cat_label}: ${spent:.0f} de ${float(budget.amount):.0f} ({percentage}%)\n"
+            f"{'🚫 Ya te pasaste del presupuesto.' if percentage >= 100 else f'Te quedan ${remaining:.0f}.'}\n\n"
+            f"¿Querés ajustar el presupuesto o revisar tus gastos?"
+        )
+
+        sent = await send_notification(
+            user_id=str(budget.user_id),
+            contact_id=contact_id,
+            message=msg,
+            channel=channel,
+        )
+        if sent:
+            logger.info("Budget alert sent: %s for %s (%d%%)", 
+                       cat_label, budget.user_id, percentage)
+            # Mark alerted
+            if not budget.attributes:
+                budget.attributes = {}
+            budget.attributes["last_alert_date"] = today.isoformat()
 
 
 # =============================================================================

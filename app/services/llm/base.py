@@ -80,7 +80,6 @@ Si el mensaje es SOLO conversación (saludos, agradecimientos, despedidas, "cóm
 
 7. **correction**: El usuario está CORRIGIENDO lo que Lucho acaba de entender mal.
 
-8. **shared_expense**: El usuario está registrando un gasto compartido entre varias personas.
 
 9. **tool**: El usuario quiere EJECUTAR una acción externa — consultar multas de tránsito, verificar estado de un trámite, etc. NO es una búsqueda de datos guardados, es una consulta a un sistema externo.
 
@@ -94,7 +93,6 @@ IMPORTANTE — GUARDRAILS:
 
 Responde ÚNICAMENTE un objeto JSON con:
 {
-  "target_table": "conversation|asset|event|list_item|note|meta|search|correction|shared_expense|tool",
   "tool_name": "nombre de la herramienta (solo si target_table=tool)",
   "reasoning": "una frase corta explicando por qué"
 }"""
@@ -123,7 +121,7 @@ Responde ÚNICAMENTE un objeto JSON."""
             "list_item": 'Extrae: {"list_name": "nombre de la lista", "items": ["ítem1", "ítem2"], "quantity": "cantidad o null"}.',
             "note": 'Extrae: {"topic_name": "tema corto", "content": "contenido completo"}.',
             "correction": 'Extrae: {"original_target": "qué se está corrigiendo", "corrected_fields": {"campo": "nuevo valor"}}.',
-            "shared_expense": 'Extrae: {"description": "descripción", "amount": 0.0, "currency": "USD", "participants": ["nombre1"], "split_type": "equal|custom", "date": "YYYY-MM-DD o null"}.',
+            "transaction": 'Extrae: {"type": "expense|income", "amount": 0.00, "category": "CATEGORIA", "description": "descripción", "transaction_date": "YYYY-MM-DD o null si es hoy"}. GASTO: food, transport, housing, health, entertainment, services, education, clothing, other_expense. INGRESO: salary, business, gift, investment, other_income. "gasté/pagué"→expense, "recibí/cobré"→income.',
             "search": 'Extrae: {"search_type": "vehicle|list|deadline|note|pending|general", "entity_name": "nombre de lo que busca (ej: carro, compras, SOAT)", "specific_field": "campo específico o null"}. Usa search_type=vehicle si pregunta por carro, vehículo, placa, SOAT, matriculación. Usa list/pending si pregunta por compras, pendientes, tareas. Usa deadline si pregunta por fechas, vencimientos. Usa note si pregunta por ideas, notas, temas.',
             "meta": 'Extrae: {"response_type": "help"}.',
             "tool": 'Extrae: {"tool_name": "check_plate_fines", "params": {"plate": "ABC-1234"}}. Determina qué herramienta usar y sus parámetros.',

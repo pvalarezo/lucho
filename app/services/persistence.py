@@ -18,7 +18,7 @@ from app.models.list import List, ListItem, ItemStatus, ListType
 from app.models.topic import Topic, Note
 from app.models.project import Project, ProjectTask, TaskStatus
 from app.models.contact import Contact
-from app.models.shared_expense import SharedExpense, SharedExpenseParticipant, SplitType, ParticipantStatus
+from app.models.transaction import Transaction, Budget, TransactionType, TransactionCategory, BudgetPeriod
 
 logger = logging.getLogger(__name__)
 
@@ -273,59 +273,6 @@ async def persist_project_task(
 
 # ---- Shared Expenses ----
 
-async def persist_shared_expense(
-    session: AsyncSession,
-    user_id: uuid.UUID,
-    description: str,
-    total_amount: float,
-    participants: list[str],
-    split_type: str = "equal",
-    currency: str = "USD",
-    expense_date: date | None = None,
-) -> SharedExpense:
-    """Create a shared expense with participants."""
-    if not description:
-        description = "gasto compartido"
-    if not participants:
-        participants = ["otro"]
-
-    try:
-        st = SplitType(split_type)
-    except ValueError:
-        st = SplitType.equal
-
-    if expense_date is None:
-        expense_date = date.today()
-
-    per_person = total_amount / len(participants) if participants else total_amount
-
-    expense = SharedExpense(
-        user_id=user_id,
-        description=description,
-        total_amount=total_amount,
-        currency=currency,
-        split_type=st,
-        expense_date=expense_date,
-    )
-    session.add(expense)
-    await session.flush()
-
-    for name in participants:
-        participant = SharedExpenseParticipant(
-            expense_id=expense.id,
-            name=name.strip(),
-            amount=per_person,
-        )
-        session.add(participant)
-
-    await session.flush()
-    logger.info(
-        "Created shared expense: %s $%.2f / %d people = $%.2f c/u",
-        description, total_amount, len(participants), per_person,
-    )
-    return expense
-
-
 # ---- Contacts ----
 
 async def persist_contact(
@@ -349,3 +296,115 @@ async def persist_contact(
     await session.flush()
     logger.info("Created contact: %s", name)
     return contact
+
+
+# =============================================================================
+# FINANCE — transactions and budgets
+# =============================================================================
+
+async def persist_transaction(
+    session: AsyncSession,
+    user_id: uuid.UUID,
+    type: str,
+    amount: float,
+    category: str,
+    description: str | None = None,
+    transaction_date: datetime | str | None = None,
+    payment_method: str | None = None,
+    notes: str | None = None,
+) -> Transaction:
+    """Create a transaction (expense or income)."""
+    from app.models.transaction import TransactionType, TransactionCategory
+
+    # Resolve type enum
+    try:
+        type_enum = TransactionType(type)
+    except ValueError:
+        type_enum = TransactionType.expense
+
+    # Resolve category enum
+    try:
+        cat_enum = TransactionCategory(category)
+    except ValueError:
+        cat_enum = TransactionCategory.other_expense if type_enum == TransactionType.expense else TransactionCategory.other_income
+
+    # Parse date
+    if isinstance(transaction_date, str):
+        try:
+            transaction_date = datetime.fromisoformat(transaction_date)
+        except (ValueError, TypeError):
+            transaction_date = datetime.now()
+    elif transaction_date is None:
+        transaction_date = datetime.now()
+
+    txn = Transaction(
+        user_id=user_id,
+        type=type_enum,
+        amount=amount,
+        category=cat_enum,
+        description=description,
+        transaction_date=transaction_date,
+        payment_method=payment_method,
+        notes=notes,
+    )
+    session.add(txn)
+    await session.flush()
+    logger.info("Created %s transaction %s: %.2f (%s)", type, txn.id, amount, category)
+    return txn
+
+
+async def persist_budget(
+    session: AsyncSession,
+    user_id: uuid.UUID,
+    category: str,
+    amount: float,
+    period: str = "monthly",
+    alert_threshold: int = 80,
+) -> Budget:
+    """Create or update a budget for a category."""
+    from app.models.transaction import TransactionCategory, BudgetPeriod, Budget
+    from sqlalchemy import update
+
+    # Resolve category
+    try:
+        cat_enum = TransactionCategory(category)
+    except ValueError:
+        raise ValueError(f"Invalid category: {category}")
+
+    # Resolve period
+    try:
+        period_enum = BudgetPeriod(period)
+    except ValueError:
+        period_enum = BudgetPeriod.monthly
+
+    # Check if active budget exists for this user+category
+    result = await session.execute(
+        select(Budget).where(
+            Budget.user_id == user_id,
+            Budget.category == cat_enum,
+            Budget.is_active == True,
+        )
+    )
+    existing = result.scalar_one_or_none()
+
+    if existing:
+        # Update existing
+        existing.amount = amount
+        existing.period = period_enum
+        existing.alert_threshold = alert_threshold
+        await session.flush()
+        logger.info("Updated budget for user %s, category %s: %.2f", user_id, category, amount)
+        return existing
+
+    # Create new
+    budget = Budget(
+        user_id=user_id,
+        category=cat_enum,
+        amount=amount,
+        period=period_enum,
+        alert_threshold=alert_threshold,
+    )
+    session.add(budget)
+    await session.flush()
+    logger.info("Created budget for user %s, category %s: %.2f", user_id, category, amount)
+    return budget
