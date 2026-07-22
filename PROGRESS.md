@@ -10,6 +10,8 @@ Estado actual de cada fase, módulo y entregable.
 ### Versiones
 | Tag | Fecha | Descripción |
 |-----|-------|-------------|
+| v2.24.6 | 2026-07-22 | Fix: onboarding_step=0 al completar, evita choque con post-pago. + guard en post-pago. |
+| v2.24.5 | 2026-07-22 | Onboarding: paso de acento regional (costeño/serrano/amazónico/neutral). |
 | v2.24.1 | 2026-07-22 | Datos reales: RUC 0195160252001, Produbanco, WhatsApp +593 98 422 3245. |
 | v2.24.0 | 2026-07-22 | Acentos regionales: costeño, serrano, amazónico, neutral. 45 tools, 512 tests. |
 | v2.23.0 | 2026-07-22 | Landing page holalucho.com — Tailwind, 8 secciones, responsive. |
@@ -108,6 +110,16 @@ Estado actual de cada fase, módulo y entregable.
 - Scheduler diario: marca expired + pre-aviso 3 días
 - check_access: mensaje amigable con link de renovación
 - Notificaciones por Telegram y WhatsApp
+
+---
+
+### Despliegue VPS — v2.24.2 ✅
+- VPS Debian 13: 4 vCPU, 8 GB RAM, 148 GB SSD, IP 147.93.2.206
+- PostgreSQL 17 + pgvector, Redis, MinIO
+- API 4 workers via systemd
+- Nginx + SSL Let's Encrypt (holalucho.com, www, api)
+- WhatsApp Cloud API webhook probado y funcionando
+- Landing page servida desde Nginx
 
 ---
 

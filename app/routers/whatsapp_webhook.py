@@ -500,14 +500,14 @@ async def _process_pending_messages(session: AsyncSession, phone: str) -> None:
                 session.add(profile)
 
             await _send_onboarding_step2(phone, user.preferred_name or name, accent)
-            user.onboarding_step = 3
+            user.onboarding_step = 0
             user.onboarding_complete = True
             await _mark_all_processed(session, pending)
             await session.commit()
             return
 
     # ---- Post-pago flow (steps 3-6, trial expired data collection) ----
-    if 3 <= user.onboarding_step <= 6:
+    if not user.onboarding_complete and 3 <= user.onboarding_step <= 6:
         result = await user_svc.advance_post_pago_step(
             session, str(user.id), user.onboarding_step, combined_text
         )

@@ -2,7 +2,13 @@
 
 ---
 
-## Sesión finalizada — 2026-07-22 (sesión extendida, ~18 horas)
+## Sesión finalizada — 2026-07-22 — Despliegue VPS
+
+**v2.24.2 desplegado en VPS Debian 13 (147.93.2.206) — 4 vCPU, 8 GB RAM, 148 GB SSD**
+
+---
+
+## Sesión anterior — 2026-07-22 (sesión extendida, ~18 horas)
 
 **v2.24.1 — Revisión 9 módulos + Monetización + Landing + Acentos + Español ecuatoriano**
 
@@ -39,7 +45,37 @@
 
 ---
 
+### Entregables del despliegue VPS
+
+| Componente | Estado |
+|------------|:---:|
+| PostgreSQL 17 + pgvector + 27 tablas | ✅ |
+| Redis | ✅ |
+| MinIO (bucket lucho) | ✅ |
+| API FastAPI (4 workers en systemd) | ✅ |
+| Nginx + Let's Encrypt SSL (3 dominios) | ✅ |
+| Landing holalucho.com | ✅ |
+| WhatsApp Cloud API webhook | ✅ probado |
+| Planes de suscripción seed | ✅ |
+
+### URLs correctas de webhooks
+
+| Servicio | URL |
+|----------|-----|
+| WhatsApp | `https://api.holalucho.com/whatsapp/webhook` |
+| Telegram | `https://api.holalucho.com/telegram/webhook` |
+| PayPhone | `https://api.holalucho.com/webhooks/payphone` |
+| DeUna | `https://api.holalucho.com/webhooks/deuna` |
+
+---
+
 ## Próxima sesión — Prioridades
+
+### 🔴 Credenciales pendientes
+- [ ] `ANTHROPIC_API_KEY` — Claude (actualmente usa OpenAI)
+- [ ] `PAYPHONE_CLIENT_ID/SECRET/STORE_ID`
+- [ ] `DEUNA_API_KEY/MERCHANT_ID`
+- [ ] `KEY49_API_KEY` — facturación SRI
 
 ### 🔴 Templates Meta
 - [ ] `event_reminder` (es) — 5 params
@@ -48,8 +84,7 @@
 
 ### 🟡 Operaciones
 - [ ] Métricas: % extracción correcta, retención D7/D30
-- [ ] Key49 API key real
-- [ ] DeUna credenciales reales
+- [ ] Configurar Telegram webhook
 
 ### 🟢 Fase 3
 - [ ] APIs Ecuador: clima, noticias, CNE
