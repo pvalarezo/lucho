@@ -1,8 +1,9 @@
 # Lucho — Guía de Despliegue en VPS Linux (Debian 13)
 
-> **Sin Docker** · Debian 13 (Trixie) · IP pública · PostgreSQL + Redis + MinIO + Nginx
+> **Sin Docker** · Debian 13 (Trixie) · Mismo VPS: landing page + API
+> **Dominio**: `holalucho.com` · **API**: `api.holalucho.com`
 > **🤖 Pi-ready**: Todas las secciones son ejecutables secuencialmente por un agente Pi.
-> **⏱️ Tiempo estimado**: 20-30 minutos con Pi, 45-60 minutos manual.
+> **⏱️ Tiempo estimado**: 25-35 minutos con Pi.
 
 ---
 
@@ -14,8 +15,9 @@ Antes de empezar, Pi necesita que le proporciones estos datos. Creá un archivo
 ```bash
 # ── Pedile a Patricio estos datos antes de desplegar ──
 
-# Dominio (sin https://)
-DOMAIN=lucho.tudominio.com
+# Dominio
+DOMAIN=holalucho.com
+API_DOMAIN=api.holalucho.com
 
 # PostgreSQL
 DB_PASSWORD=cambiar_por_password_seguro_32_chars
@@ -321,63 +323,136 @@ sudo systemctl status lucho-api
 
 ---
 
-## 6. Configurar Nginx + SSL
+## 6. Configurar Nginx + Landing Page + SSL
 
-### 6.1 Nginx reverse proxy
+### 6.1 Arquitectura
+
+```
+                  ┌─────────────────────────────────┐
+                  │         VPS Debian 13            │
+                  │                                  │
+Internet ────────▶│  Nginx (puerto 80/443)          │
+                  │  ├─ holalucho.com → /var/www/   │  ← Landing page
+                  │  └─ api.holalucho.com → :8000   │  ← Lucho API
+                  │                                  │
+                  │  PostgreSQL :5432  Redis :6379  │
+                  │  MinIO :9000                     │
+                  └─────────────────────────────────┘
+```
+
+### 6.2 Crear landing page
 
 ```bash
-# Reemplazar TU_DOMINIO.com con tu dominio real
-sudo tee /etc/nginx/sites-available/lucho <<EOF
+sudo mkdir -p /var/www/holalucho
+sudo chown -R lucho:lucho /var/www/holalucho
+
+# Landing page simple (reemplazar con tu HTML real)
+cat > /var/www/holalucho/index.html <<'LANDING'
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lucho — Tu asistente personal</title>
+    <style>
+        body { font-family: -apple-system, sans-serif; display: flex; justify-content: center;
+               align-items: center; min-height: 100vh; margin: 0; background: #0f172a; color: #e2e8f0; }
+        main { text-align: center; padding: 2rem; }
+        h1 { font-size: 3rem; color: #38bdf8; }
+        p { font-size: 1.2rem; opacity: 0.8; }
+    </style>
+</head>
+<body>
+    <main>
+        <h1>🚀 Lucho</h1>
+        <p>Tu asistente personal de segundo cerebro por WhatsApp.</p>
+        <p>Próximamente...</p>
+    </main>
+</body>
+</html>
+LANDING
+
+echo "✅ Landing page creada en /var/www/holalucho"
+```
+
+### 6.3 Nginx multi-dominio (NO INTERACTIVO)
+
+```bash
+sudo tee /etc/nginx/sites-available/holalucho <<'NGX_EOF'
+# ── Landing page: holalucho.com ──
 server {
     listen 80;
-    server_name TU_DOMINIO.com api.TU_DOMINIO.com;
+    server_name holalucho.com www.holalucho.com;
+    root /var/www/holalucho;
+    index index.html;
 
-    # Webhook endpoints (necesitan cliente real de las pasarelas)
+    location / {
+        try_files $uri $uri/ =404;
+    }
+
+    # Cache estáticos
+    location ~* \.(jpg|jpeg|png|gif|ico|css|js|svg|woff2)$ {
+        expires 30d;
+        add_header Cache-Control "public, immutable";
+    }
+}
+
+# ── Lucho API: api.holalucho.com ──
+server {
+    listen 80;
+    server_name api.holalucho.com;
+
+    # Webhooks — necesitan IP real del cliente
     location /webhooks/ {
         proxy_pass http://127.0.0.1:8000;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
         proxy_read_timeout 30s;
     }
 
-    # API y webhooks de mensajería
+    # API + mensajería
     location / {
         proxy_pass http://127.0.0.1:8000;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
         proxy_read_timeout 60s;
     }
 
     client_max_body_size 20M;
 }
+NGX_EOF
 
-# Redirigir tráfico HTTP a HTTPS (después de certbot)
-# server {
-#     listen 80;
-#     server_name TU_DOMINIO.com;
-#     return 301 https://\$server_name\$request_uri;
-# }
-EOF
-
-sudo ln -s /etc/nginx/sites-available/lucho /etc/nginx/sites-enabled/
+sudo ln -sf /etc/nginx/sites-available/holalucho /etc/nginx/sites-enabled/
 sudo rm -f /etc/nginx/sites-enabled/default
-sudo nginx -t
-sudo systemctl reload nginx
+sudo nginx -t && sudo systemctl reload nginx
+
+echo "✅ Nginx configurado: holalucho.com + api.holalucho.com"
 ```
 
-### 6.2 SSL con Let's Encrypt
+### 6.4 SSL con Let's Encrypt (todos los subdominios)
 
 ```bash
-# Obtener certificados
-sudo certbot --nginx -d TU_DOMINIO.com -d api.TU_DOMINIO.com
+# Obtener certificados para todos los subdominios de una vez
+sudo certbot --nginx -d holalucho.com -d www.holalucho.com -d api.holalucho.com --non-interactive --agree-tos --email patriciovalarezo@gmail.com
 
-# Renovación automática
+# Verificar renovación automática
 sudo certbot renew --dry-run
+
+echo "✅ SSL configurado para holalucho.com, www.holalucho.com, api.holalucho.com"
 ```
+
+### 6.5 URLs de Webhooks (para configurar en cada plataforma)
+
+| Servicio | Webhook URL |
+|----------|-------------|
+| Telegram | `https://api.holalucho.com/webhooks/telegram` |
+| WhatsApp | `https://api.holalucho.com/webhooks/whatsapp` |
+| PayPhone | `https://api.holalucho.com/webhooks/payphone` |
+| DeUna | `https://api.holalucho.com/webhooks/deuna` |
 
 ---
 
@@ -448,11 +523,38 @@ else
     echo "  ⚠️  Nginx podría no estar configurado aún"
 fi
 
-# 7. Puerto público
+# 6. Nginx — landing page
+echo ""
+echo "── Landing Page ──"
+LANDING_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:80 2>/dev/null)
+if [ "$LANDING_CODE" = "200" ]; then
+    echo "  ✅ Landing page responde (HTTP $LANDING_CODE)"
+else
+    echo "  ⚠️  Landing page: HTTP $LANDING_CODE"
+fi
+
+# 7. Nginx — API
+echo ""
+echo "── Nginx API ──"
+API_CODE=$(curl -s -o /dev/null -w "%{http_code}" -H "Host: api.holalucho.com" http://localhost:80/health 2>/dev/null)
+if [ "$API_CODE" = "200" ]; then
+    echo "  ✅ API vía Nginx responde (HTTP $API_CODE)"
+else
+    echo "  ⚠️  API vía Nginx: HTTP $API_CODE"
+fi
+
+# 8. Puerto público
 echo ""
 echo "── Red ──"
 PUBLIC_IP=$(curl -s ifconfig.me 2>/dev/null || echo "desconocida")
 echo "  IP pública: $PUBLIC_IP"
+echo "  Landing: https://holalucho.com"
+echo "  API: https://api.holalucho.com"
+echo "  Webhooks:"
+echo "    Telegram:  https://api.holalucho.com/webhooks/telegram"
+echo "    WhatsApp:  https://api.holalucho.com/webhooks/whatsapp"
+echo "    PayPhone:  https://api.holalucho.com/webhooks/payphone"
+echo "    DeUna:    https://api.holalucho.com/webhooks/deuna"
 
 # 8. Espacio en disco
 echo ""
@@ -492,7 +594,21 @@ sudo journalctl --vacuum-time=7d
 
 ---
 
-## 9. Estructura de Archivos en el VPS
+## 9. Configurar DNS
+
+Antes de ejecutar certbot, asegurate de que estos registros DNS apunten a la IP del VPS:
+
+| Tipo | Nombre | Valor |
+|------|--------|-------|
+| A | `holalucho.com` | IP del VPS |
+| CNAME | `www.holalucho.com` | `holalucho.com` |
+| A | `api.holalucho.com` | IP del VPS |
+
+> 🤖 **Pi**: verificá con `dig holalucho.com +short` que resuelva a la IP correcta antes de ejecutar certbot.
+
+---
+
+## 11. Estructura de Archivos en el VPS
 
 ```
 /home/lucho/
@@ -518,7 +634,7 @@ sudo journalctl --vacuum-time=7d
 
 ---
 
-## 10. Troubleshooting
+## 12. Troubleshooting
 
 ### La API no inicia
 
@@ -558,7 +674,7 @@ sudo journalctl -u minio -n 20
 
 ---
 
-## 11. Checklist de Seguridad
+## 13. Checklist de Seguridad
 
 - [ ] `.env` con permisos 600 (`chmod 600 .env`)
 - [ ] PostgreSQL solo escucha en localhost (`listen_addresses = 'localhost'`)
