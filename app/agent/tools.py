@@ -364,7 +364,7 @@ TOOL_SEARCH_DATA = {
     "type": "function",
     "function": {
         "name": "search_my_data",
-        "description": "Buscar en TODOS los datos del usuario: vehículos, documentos, eventos, notas, listas, gastos. Usar cuando el usuario pregunta por algo que ya guardó (¿cuándo vence mi SOAT?, ¿qué tengo pendiente?, ¿cuál es mi pico y placa?, buscá mis notas de...).",
+        "description": "Buscar en TODOS los datos del usuario: vehículos, documentos, eventos, notas, listas, gastos. Usar cuando el usuario pregunta por algo que ya guardó (¿cuándo vence mi SOAT?, ¿qué tengo pendiente?, ¿cuál es mi pico y placa?, busca mis notas de...).",
         "parameters": {
             "type": "object",
             "properties": {
@@ -1279,9 +1279,9 @@ async def handle_save_vehicle(session, user_id: str, args: dict) -> dict:
         return {
             "success": False,
             "message": (
-                f"Ya tenés {existing_count} vehículo(s) registrado(s). "
+                f"Ya tienes {existing_count} vehículo(s) registrado(s). "
                 f"Tu plan permite máximo {max_vehicles}. "
-                "Si querés reemplazar uno, primero eliminalo y luego agregá el nuevo. "
+                "Si quieres reemplazar uno, primero elimínalo y luego agregá el nuevo. "
                 "Decime 'eliminar vehículo [placa]' y lo borro."
             ),
         }
@@ -1297,7 +1297,7 @@ async def handle_save_vehicle(session, user_id: str, args: dict) -> dict:
     if dup_result.scalar_one_or_none():
         return {
             "success": False,
-            "message": f"El vehículo con placa {plate} ya está registrado. Si querés actualizarlo, decime 'actualizar vehículo {plate}'.",
+            "message": f"El vehículo con placa {plate} ya está registrado. Si quieres actualizarlo, dime 'actualizar vehículo {plate}'.",
         }
 
     # ---- Compute vehicle rules (pico y placa, matriculación) ----
@@ -1424,7 +1424,7 @@ async def handle_list_my_documents(session, user_id: str, args: dict) -> dict:
         type_msg = f" de tipo '{doc_type}'" if doc_type else ""
         return {
             "success": True,
-            "message": f"No tenés documentos{type_msg} guardados todavía. Mandame una foto o decime 'guardame mi cédula' y lo archivo.",
+            "message": f"No tienes documentos{type_msg} guardados todavía. Mándame una foto o dime 'guardame mi cédula' y lo archivo.",
             "documents": [],
             "total": 0,
         }
@@ -1498,7 +1498,7 @@ async def handle_list_my_documents(session, user_id: str, args: dict) -> dict:
         type_msg = f" de tipo '{doc_type}'" if doc_type else ""
         return {
             "success": True,
-            "message": f"No tenés documentos{type_msg} {status_msg}.".strip(),
+            "message": f"No tienes documentos{type_msg} {status_msg}.".strip(),
             "documents": [],
             "total": 0,
         }
@@ -1637,7 +1637,7 @@ async def handle_list_my_events(session, user_id: str, args: dict) -> dict:
             "overdue": "vencidos",
             "all": "",
         }.get(status_filter, "")
-        return {"success": True, "message": f"No tenés eventos {status_msg}.".strip(), "events": [], "total": 0}
+        return {"success": True, "message": f"No tienes eventos {status_msg}.".strip(), "events": [], "total": 0}
 
     event_list = []
     for e in events:
@@ -1719,7 +1719,7 @@ async def handle_list_items(session, user_id: str, args: dict) -> dict:
     lists = list_result.scalars().all()
 
     if not lists:
-        msg = f"No tenés la lista '{list_name}'." if list_name else "No tenés listas todavía. Mandame 'lista de compras: leche, pan' y te la creo."
+        msg = f"No tienes la lista '{list_name}'." if list_name else "No tienes listas todavía. Mándame 'lista de compras: leche, pan' y te la creo."
         return {"success": True, "message": msg, "lists": [], "total": 0}
 
     # ---- Query items for those lists -------
@@ -1786,7 +1786,7 @@ async def handle_complete_item(session, user_id: str, args: dict) -> dict:
     mark_all = args.get("mark_all", False)
 
     if not item_texts and not mark_all:
-        return {"success": False, "message": "¿Qué ítems querés marcar como completados?"}
+        return {"success": False, "message": "¿Qué ítems quieres marcar como completados?"}
 
     # ---- Find target lists -------
     list_query = select(List).where(List.user_id == uid)
@@ -1796,7 +1796,7 @@ async def handle_complete_item(session, user_id: str, args: dict) -> dict:
     lists = list_result.scalars().all()
 
     if not lists:
-        msg = f"No tenés la lista '{list_name}'." if list_name else "No tenés listas."
+        msg = f"No tienes la lista '{list_name}'." if list_name else "No tienes listas."
         return {"success": False, "message": msg}
 
     list_ids = [lst.id for lst in lists]
@@ -1865,7 +1865,7 @@ async def handle_delete_list(session, user_id: str, args: dict) -> dict:
     list_name = (args.get("list_name") or "").strip()
 
     if not list_name:
-        return {"success": False, "message": "¿Qué lista querés eliminar?"}
+        return {"success": False, "message": "¿Qué lista quieres eliminar?"}
 
     # Find the list
     result = await session.execute(
@@ -1874,7 +1874,7 @@ async def handle_delete_list(session, user_id: str, args: dict) -> dict:
     lst = result.scalar_one_or_none()
 
     if not lst:
-        return {"success": True, "message": f"No tenés una lista llamada '{list_name}'."}
+        return {"success": True, "message": f"No tienes una lista llamada '{list_name}'."}
 
     # Count items before deleting
     count_result = await session.execute(
@@ -1945,7 +1945,7 @@ async def handle_list_my_notes(session, user_id: str, args: dict) -> dict:
     topics = topic_result.scalars().all()
 
     if not topics:
-        msg = f"No tenés notas en '{topic_filter}'." if topic_filter else "No tenés notas guardadas todavía. Mandame 'anota: ...' y te la guardo."
+        msg = f"No tienes notas en '{topic_filter}'." if topic_filter else "No tienes notas guardadas todavía. Mándame 'anota: ...' y te la guardo."
         return {"success": True, "message": msg, "topics": [], "total": 0}
 
     # ---- Query notes for those topics -------
@@ -1959,7 +1959,7 @@ async def handle_list_my_notes(session, user_id: str, args: dict) -> dict:
     all_notes = notes_result.scalars().all()
 
     if not all_notes:
-        msg = f"El tema '{topic_filter}' no tiene notas." if topic_filter else "No tenés notas guardadas."
+        msg = f"El tema '{topic_filter}' no tiene notas." if topic_filter else "No tienes notas guardadas."
         return {"success": True, "message": msg, "topics": [], "total": 0}
 
     # ---- Group notes by topic -------
@@ -2006,7 +2006,7 @@ async def handle_delete_note(session, user_id: str, args: dict) -> dict:
     )
     topic = topic_result.scalar_one_or_none()
     if not topic:
-        return {"success": True, "message": f"No tenés el tema '{topic_name}'."}
+        return {"success": True, "message": f"No tienes el tema '{topic_name}'."}
 
     # Find matching notes
     notes_result = await session.execute(
@@ -2041,7 +2041,7 @@ async def handle_search_data(session, user_id: str, args: dict) -> dict:
     search_type = (args.get("search_type") or "all").strip()
 
     if not query:
-        return {"success": False, "message": "¿Qué querés que busque?", "results": []}
+        return {"success": False, "message": "¿Qué quieres que busque?", "results": []}
 
     uid = uuid.UUID(user_id)
     results_parts: list[str] = []
@@ -2319,7 +2319,7 @@ async def handle_search_conversation(session, user_id: str, args: dict) -> dict:
     limit = min(int(args.get("limit") or 5), 15)
 
     if not query:
-        return {"success": False, "message": "¿Qué querés que busque en el historial?"}
+        return {"success": False, "message": "¿Qué quieres que busque en el historial?"}
 
     uid = uuid_mod.UUID(user_id)
     pattern = f"%{query}%"
@@ -2414,7 +2414,7 @@ async def handle_save_project_task(session, user_id: str, args: dict) -> dict:
     content = (args.get("content") or "").strip()
 
     if not content:
-        return {"success": False, "message": "¿Qué tarea querés agregar al proyecto?"}
+        return {"success": False, "message": "¿Qué tarea quieres agregar al proyecto?"}
 
     due_date = None
     if args.get("due_date"):
@@ -2462,7 +2462,7 @@ async def handle_list_project_tasks(session, user_id: str, args: dict) -> dict:
     projects = result.scalars().all()
 
     if not projects:
-        return {"success": True, "message": "No tenés proyectos todavía. Decime 'crear proyecto X' y empezamos.", "projects": []}
+        return {"success": True, "message": "No tienes proyectos todavía. Decime 'crear proyecto X' y empezamos.", "projects": []}
 
     output = []
     for proj in projects:
@@ -2596,7 +2596,7 @@ async def handle_archive_project(session, user_id: str, args: dict) -> dict:
     project_name = (args.get("project_name") or "").strip()
 
     if not project_name:
-        return {"success": False, "message": "¿Qué proyecto querés archivar?"}
+        return {"success": False, "message": "¿Qué proyecto quieres archivar?"}
 
     result = await session.execute(
         select(Project).where(
@@ -2614,7 +2614,7 @@ async def handle_archive_project(session, user_id: str, args: dict) -> dict:
 
     return {
         "success": True,
-        "message": f"📁 Proyecto '{project_name}' archivado. Tus tareas no se pierden — si querés reabrirlo, avisame.",
+        "message": f"📁 Proyecto '{project_name}' archivado. Tus tareas no se pierden — si quieres reabrirlo, avísame.",
     }
 
 
@@ -2683,7 +2683,7 @@ async def handle_list_contacts(session, user_id: str, args: dict) -> dict:
     contacts = result.scalars().all()
 
     if not contacts:
-        return {"success": True, "message": "No tenés contactos guardados. Decime 'guardá el contacto X' y empiezo.", "contacts": []}
+        return {"success": True, "message": "No tienes contactos guardados. Decime 'guardá el contacto X' y empiezo.", "contacts": []}
 
     contact_list = []
     for c in contacts:
@@ -2722,7 +2722,7 @@ async def handle_delete_contact(session, user_id: str, args: dict) -> dict:
     name = (args.get("name") or "").strip()
 
     if not name:
-        return {"success": False, "message": "¿Qué contacto querés eliminar?"}
+        return {"success": False, "message": "¿Qué contacto quieres eliminar?"}
 
     result = await session.execute(
         select(Contact).where(Contact.user_id == uid, Contact.name == name)
@@ -2730,7 +2730,7 @@ async def handle_delete_contact(session, user_id: str, args: dict) -> dict:
     contact = result.scalar_one_or_none()
 
     if not contact:
-        return {"success": True, "message": f"No tenés un contacto llamado '{name}'."}
+        return {"success": True, "message": f"No tienes un contacto llamado '{name}'."}
 
     await session.delete(contact)
     await session.flush()
@@ -2749,7 +2749,7 @@ async def handle_send_photo(session, user_id: str, args: dict) -> dict:
 
     file_key = (args.get("file_key") or "").strip()
     if not file_key:
-        return {"success": False, "message": "No encuentro esa foto. ¿Cuál querés ver?"}
+        return {"success": False, "message": "No encuentro esa foto. ¿Cuál quieres ver?"}
 
     # Extract filename from key
     filename = file_key.split("/")[-1] if "/" in file_key else file_key
@@ -2782,7 +2782,7 @@ async def handle_web_search(session, user_id: str, args: dict) -> dict:
     max_results = min(int(args.get("max_results") or 5), 8)
 
     if not query:
-        return {"success": False, "message": "¿Qué querés que busque?"}
+        return {"success": False, "message": "¿Qué quieres que busque?"}
 
     logger.info("Web search query: %s (max %d results)", query, max_results)
 
@@ -2837,7 +2837,7 @@ async def handle_list_my_vehicles(session, user_id: str, args: dict) -> dict:
     if not vehicles:
         return {
             "success": True,
-            "message": "No tenés vehículos registrados todavía. Mandame la placa y te lo guardo.",
+            "message": "No tienes vehículos registrados todavía. Mándame la placa y te lo guardo.",
             "vehicles": [],
         }
 
@@ -2971,7 +2971,7 @@ async def handle_list_maintenances(session, user_id: str, args: dict) -> dict:
 
     vehicle_ref = (args.get("vehicle_id_or_plate") or "").upper().strip().replace("-", "")
     if not vehicle_ref:
-        return {"success": False, "message": "¿De cuál vehículo querés ver los mantenimientos? Decime la placa."}
+        return {"success": False, "message": "¿De cuál vehículo quieres ver los mantenimientos? Decime la placa."}
 
     user_uuid = uuid_mod.UUID(user_id)
 
@@ -3055,7 +3055,7 @@ async def handle_delete_vehicle(session, user_id: str, args: dict) -> dict:
     plate = (args.get("plate") or "").upper().strip().replace("-", "")
 
     if not plate:
-        return {"success": False, "message": "¿Qué vehículo querés eliminar? Decime la placa."}
+        return {"success": False, "message": "¿Qué vehículo quieres eliminar? Decime la placa."}
 
     result = await session.execute(
         select(Vehicle).where(
@@ -3066,7 +3066,7 @@ async def handle_delete_vehicle(session, user_id: str, args: dict) -> dict:
     )
     vehicle = result.scalar_one_or_none()
     if not vehicle:
-        return {"success": True, "message": f"No tenés un vehículo con placa {plate}."}
+        return {"success": True, "message": f"No tienes un vehículo con placa {plate}."}
 
     vehicle.deleted_at = datetime.now(timezone.utc)
     await session.flush()
@@ -3097,7 +3097,7 @@ async def handle_update_vehicle(session, user_id: str, args: dict) -> dict:
     )
     vehicle = result.scalar_one_or_none()
     if not vehicle:
-        return {"success": True, "message": f"No tenés un vehículo con placa {plate}."}
+        return {"success": True, "message": f"No tienes un vehículo con placa {plate}."}
 
     changed = []
 
@@ -3545,7 +3545,7 @@ async def handle_list_my_quotes(session, user_id: str, args: dict) -> dict:
     quotes = result.scalars().all()
 
     if not quotes:
-        return {"success": True, "message": "No tenés cotizaciones en este período. Decime 'cotización para...' y creamos una.", "quotes": [], "total": 0}
+        return {"success": True, "message": "No tienes cotizaciones en este período. Decime 'cotización para...' y creamos una.", "quotes": [], "total": 0}
 
     total_amount = sum(q.total for q in quotes)
     quote_list = [
@@ -3616,7 +3616,7 @@ async def handle_save_billing_client(session, user_id: str, args: dict) -> dict:
 
     return {
         "success": True,
-        "message": f"Cliente '{name}' {action}. Ahora podés decir 'cotización para {name}'.",
+        "message": f"Cliente '{name}' {action}. Ahora puedes decir 'cotización para {name}'.",
         "client_name": name,
         "id_number": id_number,
     }
@@ -3984,7 +3984,7 @@ async def handle_check_budget(session, user_id: str, args: dict) -> dict:
         budgets = budget_result.scalars().all()
 
         if not budgets:
-            msg = f"No tenés presupuesto para '{category}'." if category else "No tenés presupuestos configurados."
+            msg = f"No tienes presupuesto para '{category}'." if category else "No tienes presupuestos configurados."
             return {"success": True, "message": msg, "budgets": []}
 
         items = []
