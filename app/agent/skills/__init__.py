@@ -66,22 +66,31 @@ def load_skill_content(relative_path: str) -> str:
     return full_path.read_text(encoding="utf-8").strip()
 
 
-def load_skills_for_message(user_message: str) -> str:
+def load_skills_for_message(user_message: str, accent: str | None = None) -> str:
     """
     Load relevant skills for a user message.
 
+    Args:
+        user_message: The user's message text.
+        accent: User's accent preference ('costeno', 'serrano', 'amazonico', None=neutral).
+
     Returns a combined context string (or empty if no skills match).
-    This is injected into the agent as user-message context.
     """
     message_lower = user_message.lower()
     loaded_paths: list[str] = []
     loaded_contents: list[str] = []
 
-    # 1. Always-loaded skills
+    # 1. Always-loaded skills — use accent-specific idioms if set
     for skill_path in ALWAYS_SKILLS:
-        content = load_skill_content(skill_path)
+        # Replace general idioms with accent-specific if user has preference
+        actual_path = skill_path
+        if skill_path == "culture/idioms.md" and accent and accent != "neutral":
+            accent_path = f"accents/{accent}.md"
+            if (SKILLS_DIR / accent_path).exists():
+                actual_path = accent_path
+        content = load_skill_content(actual_path)
         if content:
-            loaded_paths.append(skill_path)
+            loaded_paths.append(actual_path)
             loaded_contents.append(content)
 
     # 2. On-demand skills (keyword match)

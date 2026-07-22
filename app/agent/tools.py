@@ -1033,6 +1033,25 @@ TOOL_SAVE_BILLING_PRODUCT = {
     },
 }
 
+TOOL_SET_ACCENT = {
+    "type": "function",
+    "function": {
+        "name": "set_accent",
+        "description": "Cambiar el acento o forma de hablar de Lucho. Usar cuando el usuario dice 'háblame como costeño', 'cambia a quiteño', 'modo guayaco', 'acento serrano', 'háblame neutro'.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "accent": {
+                    "type": "string",
+                    "enum": ["costeno", "serrano", "amazonico", "neutral"],
+                    "description": "Acento: 'costeno' (costa/peninsular), 'serrano' (sierra/quiteño), 'amazonico' (amazonía), 'neutral' (ecuatoriano estándar).",
+                },
+            },
+            "required": ["accent"],
+        },
+    },
+}
+
 
 # =============================================================================
 # FINANCE TOOLS — transactions and budgets
@@ -1199,6 +1218,7 @@ ALL_TOOLS = [
     TOOL_LIST_MY_QUOTES,
     TOOL_SAVE_BILLING_CLIENT,
     TOOL_SAVE_BILLING_PRODUCT,
+    TOOL_SET_ACCENT,
     TOOL_SAVE_DOCUMENT,
     TOOL_LIST_MY_DOCUMENTS,
     TOOL_SAVE_EVENT,
@@ -3669,6 +3689,56 @@ async def handle_save_billing_product(session, user_id: str, args: dict) -> dict
     }
 
 
+async def handle_set_accent(session, user_id: str, args: dict) -> dict:
+    """Set the user's accent preference."""
+    import uuid as uuid_mod
+    from sqlalchemy import select
+    from app.models.user_profile import UserProfile
+
+    uid = uuid_mod.UUID(user_id)
+    accent = (args.get("accent") or "neutral").strip()
+
+    valid_accents = ["costeno", "serrano", "amazonico", "neutral"]
+    if accent not in valid_accents:
+        return {"success": False, "message": f"Acento '{accent}' no disponible. Usa: costeño, serrano, amazónico o neutral."}
+
+    result = await session.execute(
+        select(UserProfile).where(UserProfile.user_id == uid)
+    )
+    profile = result.scalar_one_or_none()
+
+    if profile:
+        profile.accent = accent
+        action = "cambiado"
+    else:
+        profile = UserProfile(user_id=uid, accent=accent)
+        session.add(profile)
+        action = "configurado"
+
+    await session.flush()
+
+    accent_names = {
+        "costeno": "costeño 🏖️",
+        "serrano": "serrano 🏔️",
+        "amazonico": "amazónico 🌿",
+        "neutral": "neutral ecuatoriano 🇪🇨",
+    }
+    display = accent_names.get(accent, accent)
+
+    greetings = {
+        "costeno": "¡Habla mijo! ¿Qué necesitas?",
+        "serrano": "¡De ley veci! ¿Qué necesitas?",
+        "amazonico": "¡De ley pana! ¿Qué necesitas?",
+        "neutral": "¡Perfecto! ¿Qué necesitas?",
+    }
+
+    return {
+        "success": True,
+        "message": f"Acento {action} a {display}. {greetings.get(accent, '')}",
+        "accent": accent,
+    }
+
+
 # =============================================================================
 # FINANCE HANDLERS
 # =============================================================================
@@ -4032,6 +4102,7 @@ TOOL_HANDLERS: dict[str, Any] = {
     "list_my_quotes": handle_list_my_quotes,
     "save_billing_client": handle_save_billing_client,
     "save_billing_product": handle_save_billing_product,
+    "set_accent": handle_set_accent,
     "save_document": handle_save_document,
     "list_my_documents": handle_list_my_documents,
     "save_event": handle_save_event,

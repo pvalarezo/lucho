@@ -4,7 +4,7 @@
 
 ## 1. Onboarding de Nuevos Usuarios
 
-### 1.1 Flujo (3 pasos)
+### 1.1 Flujo (4 pasos)
 
 ```
 Paso 0: Bienvenida
@@ -16,12 +16,24 @@ Paso 0: Bienvenida
 Paso 1: Nombre
   ↓
   Usuario responde con su nombre ("Pato", "Juan")
-  "¡Perfecto Pato! Tienes 7 días de prueba GRATIS..."
+  "¡Perfecto Pato! ¿Con qué acento quieres que te hable?"
   ↓
-Paso 2: Trial activo
+Paso 2: Acento 🆕
+  ↓
+  ┌──────────────────────────────────────┐
+  │ 1. Costeño 🏖️ — "¡Habla mijo!"     │
+  │ 2. Serrano 🏔️ — "¡De ley veci!"    │
+  │ 3. Amazónico 🌿 — "¡De ley pana!"   │
+  │ 4. Neutral 🇪🇨 — Ecuatoriano estándar│
+  └──────────────────────────────────────┘
+  Usuario: "2"
+  "¡De ley veci! Tienes 7 días de prueba GRATIS..."
+  ↓
+Paso 3: Trial activo
   ↓
   Acceso completo por 7 días sin datos de pago
   Al expirar → flujo post-pago (cédula, email, nombre, políticas)
+  El acento se puede cambiar en cualquier momento: "cambia a costeño"
 ```
 
 ### 1.2 Estados
@@ -180,7 +192,7 @@ journalctl --user -u lucho-api -f
 
 ## 6. Skills Ecuador
 
-Conocimiento precargado sobre Ecuador: cultura, trámites, impuestos, tránsito. 7 skills en 4 dominios. El LLM las consulta antes de usar `web_search`, ahorrando APIs externas.
+Conocimiento precargado sobre Ecuador: cultura, trámites, impuestos, tránsito, y **acentos regionales**. El LLM las consulta antes de usar `web_search`, ahorrando APIs externas.
 
 > 📄 Documentación completa: [`docs/skills_ecuador.md`](skills_ecuador.md)
 
@@ -190,6 +202,30 @@ Conocimiento precargado sobre Ecuador: cultura, trámites, impuestos, tránsito.
 | Legal | `documents.md` |
 | Tax | `invoicing.md` |
 | Tránsito | `driving-restrictions.md`, `registration.md` |
+| **Acentos** 🆕 | `costeno.md`, `serrano.md`, `amazonico.md` |
+
+### 6.1 Acentos Regionales 🆕
+
+Lucho puede hablar con acento costeño, serrano o amazónico. El usuario elige en el onboarding y puede cambiar en cualquier momento con `set_accent`.
+
+| Acento | Archivo | Región | Ejemplo |
+|--------|---------|--------|---------|
+| Costeño 🏖️ | `accents/costeno.md` | Costa y Península | "¡Habla mijo!" |
+| Serrano 🏔️ | `accents/serrano.md` | Sierra | "¡De ley veci!" |
+| Amazónico 🌿 | `accents/amazonico.md` | Amazonía | "¡De ley pana!" |
+| Neutral 🇪🇨 | (por defecto) | General | Español ecuatoriano estándar |
+
+**Cambiar en cualquier momento**:
+```
+"háblame como costeño" → set_accent("costeno")
+"modo serrano" → set_accent("serrano")
+"acento neutral" → set_accent("neutral")
+```
+
+**Implementación**:
+- `UserProfile.accent` — preferencia guardada en DB
+- `load_skills_for_message()` carga el archivo de acento correspondiente
+- Si el acento es "neutral", usa `culture/idioms.md` (modismos generales)
 
 **Código**: `app/agent/skills/__init__.py` — `load_skills_for_message()`
 

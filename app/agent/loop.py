@@ -63,7 +63,22 @@ async def process_message(
     history = await _load_conversation_history(session, user_id)
 
     # Load Ecuadorian domain skills relevant to this message
-    skills_context = load_skills_for_message(user_message)
+    # Check user's accent preference
+    accent = None
+    try:
+        from sqlalchemy import select
+        from app.models.user_profile import UserProfile
+        import uuid as _uuid
+        profile_result = await session.execute(
+            select(UserProfile).where(UserProfile.user_id == _uuid.UUID(user_id))
+        )
+        profile = profile_result.scalar_one_or_none()
+        if profile and profile.accent and profile.accent != 'neutral':
+            accent = profile.accent
+    except Exception:
+        pass
+
+    skills_context = load_skills_for_message(user_message, accent=accent)
 
     # Build the conversation with system prompt + skills
     system_prompt = build_system_prompt()

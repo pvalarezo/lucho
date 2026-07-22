@@ -82,8 +82,8 @@ section("2. Tool Schemas (26 tools)")
 
 from app.agent.tools import ALL_TOOLS, TOOL_SCHEMAS
 
-check(len(ALL_TOOLS) == 44, f"Exactly 44 tools (found {len(ALL_TOOLS)})")
-check(len(TOOL_SCHEMAS) == 44, f"TOOL_SCHEMAS has 44 entries (found {len(TOOL_SCHEMAS)})")
+check(len(ALL_TOOLS) == 45, f"Exactly 45 tools (found {len(ALL_TOOLS)})")
+check(len(TOOL_SCHEMAS) == 45, f"TOOL_SCHEMAS has 45 entries (found {len(TOOL_SCHEMAS)})")
 
 expected_tools = [
     "save_vehicle", "list_my_vehicles", "add_maintenance", "list_maintenances",
@@ -172,7 +172,7 @@ from app.agent.skills import (
 )
 
 skills = list_available_skills()
-check(len(skills) == 7, f"7 skills available (found {len(skills)})")
+check(len(skills) == 10, f"10 skills available (found {len(skills)})")
 
 expected_skills = [
     "culture/cuisine.md",

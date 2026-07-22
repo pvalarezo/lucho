@@ -23,6 +23,9 @@ class UserProfile(UUIDMixin, TimestampMixin, Base):
     phone: Mapped[str | None] = mapped_column(String(32), nullable=True)
     address: Mapped[str | None] = mapped_column(String(512), nullable=True)
 
+    # Accent preference: 'neutral', 'costeno', 'serrano', 'amazonico'
+    accent: Mapped[str | None] = mapped_column(String(32), nullable=True, default='neutral')
+
     privacy_policy_accepted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     privacy_policy_accepted_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
