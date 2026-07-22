@@ -75,6 +75,11 @@ class Settings(BaseSettings):
     DEUNA_API_KEY: str = ""
     DEUNA_MERCHANT_ID: str = ""
 
+    # ---- Key49 (Facturación electrónica SRI — AURACORE) ----
+    KEY49_API_KEY: str = ""
+    KEY49_ESTABLISHMENT: str = "001"
+    KEY49_ISSUE_POINT: str = "001"
+
     # ---- Feature Flags ----
     CONTEXTUAL_RESPONSES: bool = True  # LLM-powered conversational answers
 

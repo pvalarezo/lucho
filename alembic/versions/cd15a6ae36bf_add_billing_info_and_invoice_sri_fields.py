@@ -40,13 +40,18 @@ def upgrade() -> None:
     )
     op.create_index('idx_billing_info_user_default', 'billing_info', ['user_id', 'is_default'], unique=False)
     op.create_index(op.f('ix_billing_info_user_id'), 'billing_info', ['user_id'], unique=False)
+
+    # Create invoice_status ENUM before using it
+    invoice_status_enum = sa.Enum('issued', 'authorized', 'cancelled', name='invoice_status')
+    invoice_status_enum.create(op.get_bind(), checkfirst=True)
+
     op.add_column('subscription_invoices', sa.Column('billing_name', sa.String(length=256), nullable=True))
     op.add_column('subscription_invoices', sa.Column('billing_id_number', sa.String(length=32), nullable=True))
     op.add_column('subscription_invoices', sa.Column('billing_id_type', sa.String(length=16), nullable=True))
     op.add_column('subscription_invoices', sa.Column('billing_email', sa.String(length=256), nullable=True))
     op.add_column('subscription_invoices', sa.Column('billing_phone', sa.String(length=32), nullable=True))
     op.add_column('subscription_invoices', sa.Column('billing_address', sa.String(length=512), nullable=True))
-    op.add_column('subscription_invoices', sa.Column('status', sa.Enum('issued', 'authorized', 'cancelled', name='invoice_status'), nullable=False))
+    op.add_column('subscription_invoices', sa.Column('status', invoice_status_enum, nullable=False, server_default='issued'))
     op.add_column('subscription_invoices', sa.Column('sri_access_key', sa.String(length=64), nullable=True))
     op.add_column('subscription_invoices', sa.Column('sri_authorization_date', sa.DateTime(timezone=True), nullable=True))
     op.add_column('user_profiles', sa.Column('phone', sa.String(length=32), nullable=True))

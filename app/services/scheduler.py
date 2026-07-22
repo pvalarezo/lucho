@@ -64,6 +64,7 @@ async def run_daily_rules():
             await _evaluate_pico_y_placa(session)
             await _evaluate_budgets(session)
             await _evaluate_subscriptions(session)
+            await _poll_key49_invoices(session)
             await session.commit()
             logger.info("Daily reminder evaluation complete.")
         except Exception as exc:
@@ -738,6 +739,49 @@ async def _evaluate_subscriptions(session: AsyncSession):
         if sent:
             logger.info("Pre-expiry warning sent: user=%s, plan=%s, days_left=%d",
                        sub.user_id, plan_name, days_left)
+
+
+# =============================================================================
+# KEY49 POLLING — check pending SRI authorizations
+# =============================================================================
+
+async def _poll_key49_invoices(session: AsyncSession):
+    """
+    Poll Key49 for invoices that are still pending SRI authorization.
+    Updates invoice status and access_key when authorized.
+    """
+    from app.models.subscription import SubscriptionInvoice, InvoiceStatus
+    from app.services import key49 as key49_svc
+
+    result = await session.execute(
+        select(SubscriptionInvoice).where(
+            SubscriptionInvoice.key49_id.isnot(None),
+            SubscriptionInvoice.status == InvoiceStatus.issued,
+        ).limit(20)
+    )
+    pending = result.scalars().all()
+
+    for invoice in pending:
+        k49_data = await key49_svc.poll_authorization(invoice.key49_id)
+        if not k49_data:
+            continue
+
+        status = k49_data.get("status", "")
+        access_key = k49_data.get("access_key")
+
+        if status == "AUTHORIZED" or status == "NOTIFIED":
+            invoice.status = InvoiceStatus.authorized
+            invoice.sri_access_key = access_key or invoice.sri_access_key
+            invoice.sri_authorization_date = datetime.now(timezone.utc)
+            logger.info("Invoice %s authorized by SRI: access_key=%s",
+                       invoice.invoice_number, access_key)
+        elif status == "REJECTED" or status == "FAILED":
+            invoice.status = InvoiceStatus.cancelled
+            sri_msgs = k49_data.get("sri_messages", [])
+            logger.warning("Invoice %s rejected: %s", invoice.invoice_number, sri_msgs)
+
+    if pending:
+        await session.flush()
 
 
 # =============================================================================

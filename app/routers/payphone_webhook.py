@@ -177,9 +177,47 @@ async def _create_invoice(session, payment, subscription) -> SubscriptionInvoice
         )
 
     session.add(invoice)
+    await session.flush()
     logger.info("Invoice created: %s for user=%s, amount=%.2f",
                 invoice.invoice_number, payment.user_id, payment.amount)
+
+    # Submit to Key49 for SRI authorization (non-blocking — scheduler polls)
+    await _submit_to_key49(session, invoice)
+
     return invoice
+
+
+async def _submit_to_key49(session, invoice: SubscriptionInvoice):
+    """Submit invoice to Key49 for SRI authorization (fire and forget)."""
+    from app.services import key49 as key49_svc
+
+    # Map id_type to SRI code
+    id_type_map = {"cedula": "05", "ruc": "04", "pasaporte": "06", "consumidor_final": "07"}
+    sri_id_type = id_type_map.get(invoice.billing_id_type, "05")
+
+    # Calculate unit price (amount is with IVA, need base)
+    base_amount = round(float(invoice.amount) / 1.15, 2)
+
+    result = await key49_svc.create_invoice(
+        sequence_number=invoice.invoice_number.split("-")[-1] if "-" in (invoice.invoice_number or "") else "000000001",
+        recipient_name=invoice.billing_name or "Consumidor Final",
+        recipient_id=invoice.billing_id_number or "9999999999999",
+        recipient_id_type=sri_id_type,
+        recipient_email=invoice.billing_email or "",
+        recipient_phone=invoice.billing_phone,
+        recipient_address=invoice.billing_address,
+        description=f"Suscripción Lucho — {invoice.invoice_number}",
+        unit_price=base_amount,
+        payment_method="20",  # Transferencia
+    )
+
+    if result:
+        invoice.key49_id = result.key49_id
+        if result.access_key:
+            invoice.sri_access_key = result.access_key
+        await session.flush()
+        logger.info("Key49 submission: invoice=%s, key49_id=%s, status=%s",
+                   invoice.invoice_number, result.key49_id, result.status)
 
 
 async def _notify_activation(session, subscription):
