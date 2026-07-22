@@ -1,6 +1,58 @@
 # Lucho — Guía de Despliegue en VPS Linux (Debian 13)
 
 > **Sin Docker** · Debian 13 (Trixie) · IP pública · PostgreSQL + Redis + MinIO + Nginx
+> **🤖 Pi-ready**: Todas las secciones son ejecutables secuencialmente por un agente Pi.
+> **⏱️ Tiempo estimado**: 20-30 minutos con Pi, 45-60 minutos manual.
+
+---
+
+## 0. Pre-vuelo para Pi 🤖
+
+Antes de empezar, Pi necesita que le proporciones estos datos. Creá un archivo
+`/home/lucho/deploy_vars.env` en el VPS con este contenido:
+
+```bash
+# ── Pedile a Patricio estos datos antes de desplegar ──
+
+# Dominio (sin https://)
+DOMAIN=lucho.tudominio.com
+
+# PostgreSQL
+DB_PASSWORD=cambiar_por_password_seguro_32_chars
+
+# MinIO
+MINIO_PASSWORD=cambiar_por_password_seguro_32_chars
+
+# Telegram Bot (de @BotFather)
+TELEGRAM_BOT_TOKEN=123456:ABC-DEF1234ghikl
+
+# WhatsApp Cloud API (de Meta Business)
+WHATSAPP_PHONE_NUMBER_ID=123456789
+WHATSAPP_ACCESS_TOKEN=EAAx...
+WHATSAPP_VERIFY_TOKEN=lucho_verify_token_32_chars
+
+# Anthropic (Claude API)
+ANTHROPIC_API_KEY=sk-ant-...
+
+# OpenAI (Whisper + Embeddings)
+OPENAI_API_KEY=sk-...
+
+# PayPhone (cuenta comercio Ecuador)
+PAYPHONE_CLIENT_ID=...
+PAYPHONE_CLIENT_SECRET=...
+PAYPHONE_STORE_ID=...
+PAYPHONE_WEBHOOK_SECRET=...
+
+# DeUna (Pichincha)
+DEUNA_API_KEY=...
+DEUNA_MERCHANT_ID=...
+
+# Key49 (facturación SRI)
+KEY49_API_KEY=k49_...
+```
+
+> 🤖 **Pi**: leé este archivo con `source deploy_vars.env` antes de ejecutar cualquier comando.
+> Las variables se usarán en los templates de configuración más abajo.
 
 ---
 
@@ -66,14 +118,16 @@ cd pgvector
 make
 sudo make install
 
-# Crear base de datos y usuario
+# Crear base de datos y usuario (NO INTERACTIVO)
 sudo -u postgres psql <<EOF
-CREATE USER lucho WITH PASSWORD 'TU_PASSWORD_SEGURO';
+CREATE USER lucho WITH PASSWORD '${DB_PASSWORD}';
 CREATE DATABASE lucho OWNER lucho;
 \c lucho
 CREATE EXTENSION IF NOT EXISTS vector;
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 EOF
+
+echo "✅ PostgreSQL 17 + pgvector listo"
 ```
 
 ### 3.3 Redis
@@ -87,23 +141,23 @@ sudo systemctl enable --now redis-server
 
 ```bash
 # Descargar binario
-wget https://dl.min.io/server/minio/release/linux-amd64/minio -O /usr/local/bin/minio
-chmod +x /usr/local/bin/minio
+sudo wget -q https://dl.min.io/server/minio/release/linux-amd64/minio -O /usr/local/bin/minio
+sudo chmod +x /usr/local/bin/minio
 
 # Crear directorio de datos
 sudo mkdir -p /data/minio
 sudo chown lucho:lucho /data/minio
 
-# Crear archivo de entorno
-cat > /etc/default/minio <<EOF
+# Crear archivo de entorno (NO INTERACTIVO)
+sudo tee /etc/default/minio <<EOF
 MINIO_ROOT_USER=lucho_admin
-MINIO_ROOT_PASSWORD=TU_MINIO_PASSWORD_SEGURO
+MINIO_ROOT_PASSWORD=${MINIO_PASSWORD}
 MINIO_VOLUMES="/data/minio"
 MINIO_OPTS="--console-address :9001"
 EOF
 
 # Crear systemd service para MinIO
-sudo tee /etc/systemd/system/minio.service <<EOF
+sudo tee /etc/systemd/system/minio.service <<'SVC_EOF'
 [Unit]
 Description=MinIO
 After=network.target
@@ -112,23 +166,24 @@ After=network.target
 User=lucho
 Group=lucho
 EnvironmentFile=/etc/default/minio
-ExecStart=/usr/local/bin/minio server \$MINIO_VOLUMES \$MINIO_OPTS
+ExecStart=/usr/local/bin/minio server $MINIO_VOLUMES $MINIO_OPTS
 Restart=always
 
 [Install]
 WantedBy=multi-user.target
-EOF
+SVC_EOF
 
 sudo systemctl daemon-reload
 sudo systemctl enable --now minio
 
-# Crear bucket para Lucho
-# (después de instalar minio-client)
-wget https://dl.min.io/client/mc/release/linux-amd64/mc -O /usr/local/bin/mc
-chmod +x /usr/local/bin/mc
-mc alias set local http://localhost:9000 lucho_admin TU_MINIO_PASSWORD_SEGURO
+# Instalar minio-client y crear bucket (NO INTERACTIVO)
+sudo wget -q https://dl.min.io/client/mc/release/linux-amd64/mc -O /usr/local/bin/mc
+sudo chmod +x /usr/local/bin/mc
+mc alias set local http://localhost:9000 lucho_admin "${MINIO_PASSWORD}"
 mc mb local/lucho
 mc anonymous set download local/lucho
+
+echo "✅ MinIO listo — consola en http://$(hostname -I | awk '{print $1}'):9001"
 ```
 
 ---
@@ -152,59 +207,72 @@ pip install -U pip wheel
 pip install -r requirements.txt
 ```
 
-### 4.3 Configurar variables de entorno
+### 4.3 Configurar variables de entorno (NO INTERACTIVO)
 
 ```bash
-cp .env.example .env
-nano .env
-```
+# Generar .env desde template
+cat > /home/lucho/app/.env <<EOF
+# ── Generado por Pi el $(date) ──
 
-**Variables mínimas para producción:**
+# Base de Datos
+DATABASE_URL=postgresql+asyncpg://lucho:${DB_PASSWORD}@localhost:5432/lucho
 
-```bash
-# ---- Base de Datos ----
-DATABASE_URL=postgresql+asyncpg://lucho:TU_PASSWORD_SEGURO@localhost:5432/lucho
-
-# ---- Redis ----
+# Redis
 REDIS_URL=redis://localhost:6379/0
 
-# ---- MinIO ----
+# MinIO
 MINIO_ENDPOINT=localhost:9000
 MINIO_ACCESS_KEY=lucho_admin
-MINIO_SECRET_KEY=TU_MINIO_PASSWORD_SEGURO
+MINIO_SECRET_KEY=${MINIO_PASSWORD}
 MINIO_BUCKET=lucho
 
-# ---- Telegram ----
-TELEGRAM_BOT_TOKEN=TU_BOT_TOKEN
+# Telegram
+TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
 
-# ---- WhatsApp ----
-WHATSAPP_PHONE_NUMBER_ID=TU_PHONE_NUMBER_ID
-WHATSAPP_ACCESS_TOKEN=TU_ACCESS_TOKEN
-WHATSAPP_VERIFY_TOKEN=TU_VERIFY_TOKEN
+# WhatsApp
+WHATSAPP_PHONE_NUMBER_ID=${WHATSAPP_PHONE_NUMBER_ID}
+WHATSAPP_ACCESS_TOKEN=${WHATSAPP_ACCESS_TOKEN}
+WHATSAPP_VERIFY_TOKEN=${WHATSAPP_VERIFY_TOKEN}
+WHATSAPP_API_VERSION=v22.0
 
-# ---- LLM ----
+# LLM
 LLM_PROVIDER=anthropic
-ANTHROPIC_API_KEY=TU_API_KEY
-OPENAI_API_KEY=TU_OPENAI_KEY
+ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+ANTHROPIC_HAIKU_MODEL=claude-3-5-haiku-latest
+ANTHROPIC_SONNET_MODEL=claude-3-5-sonnet-latest
+OPENAI_API_KEY=${OPENAI_API_KEY}
+EMBEDDING_PROVIDER=openai
+OPENAI_EMBEDDING_MODEL=text-embedding-3-small
 
-# ---- PayPhone ----
-PAYPHONE_CLIENT_ID=TU_CLIENT_ID
-PAYPHONE_CLIENT_SECRET=TU_CLIENT_SECRET
-PAYPHONE_STORE_ID=TU_STORE_ID
-PAYPHONE_WEBHOOK_SECRET=TU_WEBHOOK_SECRET
+# PayPhone
+PAYPHONE_CLIENT_ID=${PAYPHONE_CLIENT_ID}
+PAYPHONE_CLIENT_SECRET=${PAYPHONE_CLIENT_SECRET}
+PAYPHONE_STORE_ID=${PAYPHONE_STORE_ID}
+PAYPHONE_API_URL=https://api.payphone.app
+PAYPHONE_WEBHOOK_SECRET=${PAYPHONE_WEBHOOK_SECRET}
 
-# ---- DeUna ----
-DEUNA_API_KEY=TU_API_KEY
-DEUNA_MERCHANT_ID=TU_MERCHANT_ID
+# DeUna
+DEUNA_API_KEY=${DEUNA_API_KEY}
+DEUNA_MERCHANT_ID=${DEUNA_MERCHANT_ID}
 
-# ---- Key49 ----
-KEY49_API_KEY=TU_K49_API_KEY
+# Key49
+KEY49_API_KEY=${KEY49_API_KEY}
 KEY49_ESTABLISHMENT=001
 KEY49_ISSUE_POINT=001
 
-# ---- App ----
+# Vehículos
+VEHICLE_INFO_API_URL=http://131.161.221.131:2356/v1/info/all/vehicle/
+VEHICLE_INFO_API_TOKEN=
+
+# App
 DEBUG=false
 LOG_LEVEL=INFO
+CONTEXTUAL_RESPONSES=true
+IVA_RATE=15.0
+EOF
+
+chmod 600 /home/lucho/app/.env
+echo "✅ .env generado con permisos seguros"
 ```
 
 ### 4.4 Migrar base de datos
@@ -313,21 +381,86 @@ sudo certbot renew --dry-run
 
 ---
 
-## 7. Verificar Despliegue
+## 7. Verificar Despliegue (script para Pi)
 
 ```bash
-# API
-curl http://localhost:8000/health
+#!/bin/bash
+# verify_deploy.sh — ejecutar después del despliegue para validar todo
 
-# Servicios
-sudo systemctl status lucho-api
-sudo systemctl status postgresql
-sudo systemctl status redis-server
-sudo systemctl status minio
-sudo systemctl status nginx
+echo "🔍 Verificando despliegue de Lucho..."
+echo ""
 
-# Logs
-sudo journalctl -u lucho-api -f
+# 1. Servicios del sistema
+echo "── Servicios ──"
+for svc in postgresql redis-server minio nginx lucho-api; do
+    if systemctl is-active --quiet $svc 2>/dev/null; then
+        echo "  ✅ $svc está corriendo"
+    else
+        echo "  ❌ $svc NO está corriendo"
+    fi
+done
+
+# 2. API responde
+echo ""
+echo "── API ──"
+HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/health 2>/dev/null)
+if [ "$HTTP_CODE" = "200" ]; then
+    echo "  ✅ API responde (HTTP $HTTP_CODE)"
+else
+    echo "  ❌ API no responde (HTTP $HTTP_CODE)"
+fi
+
+# 3. PostgreSQL
+echo ""
+echo "── Base de Datos ──"
+if sudo -u postgres psql -lqt 2>/dev/null | grep -q lucho; then
+    echo "  ✅ Base de datos 'lucho' existe"
+else
+    echo "  ❌ Base de datos no encontrada"
+fi
+
+# 4. Redis
+echo ""
+echo "── Redis ──"
+if redis-cli ping 2>/dev/null | grep -q PONG; then
+    echo "  ✅ Redis responde"
+else
+    echo "  ❌ Redis no responde"
+fi
+
+# 5. MinIO
+echo ""
+echo "── MinIO ──"
+MINIO_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:9000 2>/dev/null)
+if [ "$MINIO_CODE" = "403" ] || [ "$MINIO_CODE" = "200" ]; then
+    echo "  ✅ MinIO responde (HTTP $MINIO_CODE)"
+else
+    echo "  ❌ MinIO no responde"
+fi
+
+# 6. Nginx
+echo ""
+echo "── Nginx ──"
+NGINX_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:80 2>/dev/null)
+if [ -n "$NGINX_CODE" ]; then
+    echo "  ✅ Nginx responde (HTTP $NGINX_CODE)"
+else
+    echo "  ⚠️  Nginx podría no estar configurado aún"
+fi
+
+# 7. Puerto público
+echo ""
+echo "── Red ──"
+PUBLIC_IP=$(curl -s ifconfig.me 2>/dev/null || echo "desconocida")
+echo "  IP pública: $PUBLIC_IP"
+
+# 8. Espacio en disco
+echo ""
+echo "── Disco ──"
+df -h / | tail -1 | awk '{print "  " $3 " usado de " $2 " (" $5 ")"}'
+
+echo ""
+echo "✅ Verificación completada."
 ```
 
 ---
