@@ -130,7 +130,21 @@ reminder_status: 'pending', 'sent', 'acknowledged', 'failed'
 3. El job ad-hoc dispara `_send_event_reminder()` a la hora exacta
 4. El CRON diario (8AM) evalúa las ventanas largas (15/7/3/0 días)
 
-### 4.2 `update_last` — Modificar o cancelar evento (existente)
+### 4.2 `list_my_events` — ✅ Implementado
+
+```json
+{
+  "name": "list_my_events",
+  "description": "Listar eventos con filtros por estado y período.",
+  "parameters": {
+    "status": "'upcoming', 'done', 'cancelled', 'overdue', 'all'. Default: 'upcoming'.",
+    "period": "'today', 'tomorrow', 'this_week', 'next_week', 'this_month', 'all'. Default: 'all' (90 días)."
+  },
+  "required": []
+}
+```
+
+### 4.3 `update_last` — Modificar o cancelar evento (existente)
 
 El tool `update_last` permite modificar el último evento guardado. El LLM puede usarlo cuando el usuario dice "cancelá la cita", "cambia la fecha", "ya fui al dentista".
 
@@ -236,25 +250,25 @@ Mismo contenido, WhatsApp renderiza *negrita* y soporta emojis.
 5. **Eventos de vehículos**: `_evaluate_vehicle_assets` crea eventos automáticos de matriculación → se integran al mismo flujo.
 6. **Hora local**: Nunca UTC. `datetime.now()` = hora Ecuador. `target_date` = TIMESTAMP WITHOUT TZ.
 7. **Sub-día**: Si el evento es hoy con hora → job ad-hoc. Si es mañana o después → solo CRON diario.
-8. **Eventos pasados**: Si `target_date < today` y `status=upcoming`, el scheduler podría marcarlos `overdue` (pendiente implementar).
+8. **Eventos pasados**: Si `target_date < today` y `status=upcoming`, el scheduler diario los marca automáticamente `overdue`.
 
 ---
 
-## 9. Lo que YA existe (100% implementado)
+## 9. Lo que YA existe
 
 | Componente | Estado |
 |------------|--------|
 | `Event` model con `target_date` TIMESTAMP | ✅ v2.11.2 |
 | `Reminder` model (audit trail) | ✅ |
 | `save_event` tool | ✅ |
-| `_evaluate_events` scheduler (15/7/3/0 días) | ✅ |
+| `list_my_events` tool — filtros por status y período | ✅ |
+| `_evaluate_events` scheduler (15/7/3/0 días) + overdue automático | ✅ |
 | `_send_event_reminder` multicanal | ✅ |
 | `schedule_event_reminder` ad-hoc | ✅ v2.11.0 |
 | `_ad_hoc_event_reminder` job handler | ✅ |
 | Detección de duplicados vía `reminders` table | ✅ |
 | Integración con vehículos (`_ensure_event`) | ✅ |
 | `update_last` para modificar/cancelar | ✅ |
-| Prompt incluye hora actual | ✅ v2.11.1 |
 | Hora local Ecuador (cero TZ) | ✅ v2.11.2 |
 
 ---
@@ -264,10 +278,7 @@ Mismo contenido, WhatsApp renderiza *negrita* y soporta emojis.
 | Tarea | Prioridad |
 |-------|-----------|
 | Template `event_reminder` en Meta | 🔴 Crítica |
-| Marcar eventos `overdue` automáticamente | 🟡 Media |
 | Procesar recurrencia correctamente (próximo evento de la serie) | 🟡 Media |
-| Tool `list_my_events` (listar eventos con filtros) | 🟡 Media |
-| Tool `cancel_event` específico (no solo `update_last`) | 🟢 Baja |
 | Snooze / posponer recordatorio ("avisame en 10 min de nuevo") | 🟢 Baja |
 | Invitaciones a calendario (.ics) | ⚪ Futuro |
 | Integración Google Calendar | ⚪ Futuro |

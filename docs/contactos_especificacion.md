@@ -72,12 +72,13 @@ Lucho guarda y organiza los contactos personales del usuario: nombres, teléfono
 ```json
 {
   "name": "save_contact",
-  "description": "Guardar un contacto personal: nombre, teléfono, email, relación.",
+  "description": "Guardar un contacto personal. Si ya existe con el mismo nombre, actualiza los datos.",
   "parameters": {
-    "name": "Nombre completo del contacto.",
-    "phone_number": "Número de teléfono.",
-    "email": "Correo electrónico.",
-    "relationship": "'friend', 'family', 'colleague', 'parent', 'partner', 'other'.",
+    "name": "Nombre completo (requerido).",
+    "phone_number": "Teléfono.",
+    "email": "Correo.",
+    "whatsapp_id": "Número WhatsApp.",
+    "relationship": "Relación: amigo, familia, colega, cliente, etc.",
     "notes": "Notas adicionales."
   },
   "required": ["name"]
@@ -89,9 +90,25 @@ Lucho guarda y organiza los contactos personales del usuario: nombres, teléfono
 ```json
 {
   "name": "list_contacts",
-  "description": "Listar todos los contactos guardados del usuario.",
-  "parameters": {},
+  "description": "Listar contactos con búsqueda por nombre parcial y filtro por relación.",
+  "parameters": {
+    "search": "Buscar por nombre (ILIKE parcial).",
+    "relationship": "Filtrar por relación."
+  },
   "required": []
+}
+```
+
+### 4.3 `delete_contact` — ✅ Implementado
+
+```json
+{
+  "name": "delete_contact",
+  "description": "Eliminar un contacto por nombre exacto. Solo cuando el usuario pide explícitamente eliminar.",
+  "parameters": {
+    "name": "Nombre exacto del contacto a eliminar."
+  },
+  "required": ["name"]
 }
 ```
 
@@ -128,8 +145,9 @@ Lucho guarda y organiza los contactos personales del usuario: nombres, teléfono
 |------------|--------|
 | `contacts` tabla | ✅ |
 | `caregiver_links` tabla | ✅ |
-| `save_contact` tool | ✅ |
-| `list_contacts` tool | ✅ |
+| `save_contact` tool — con dedup por nombre (actualiza si existe) | ✅ |
+| `list_contacts` tool — con búsqueda por nombre parcial (ILIKE) y filtro por relación | ✅ |
+| `delete_contact` tool — eliminar por nombre exacto | ✅ |
 
 ---
 
@@ -137,8 +155,5 @@ Lucho guarda y organiza los contactos personales del usuario: nombres, teléfono
 
 | Tarea | Prioridad |
 |-------|-----------|
-| Tool `search_contact` (buscar por nombre parcial) | 🟡 Media |
-| Tool `delete_contact` | 🟢 Baja |
-| Vincular contactos a shared expenses | 🟢 Baja |
-| Modo cuidado (caregiver_links funcional) | ⚪ Futuro |
+| Modo cuidado (`caregiver_links` funcional) | ⚪ Futuro |
 | Importar contactos del teléfono | ⚪ Futuro |

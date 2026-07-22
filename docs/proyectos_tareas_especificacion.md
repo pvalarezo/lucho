@@ -99,7 +99,7 @@ task_status: 'pending', 'done'
   "name": "save_project_task",
   "description": "Agregar una tarea a un proyecto. Si el proyecto no existe, se crea automáticamente.",
   "parameters": {
-    "project_name": "Nombre del proyecto. Ej: 'Tienda Online'.",
+    "project_name": "Nombre del proyecto.",
     "content": "Descripción de la tarea.",
     "due_date": "Fecha YYYY-MM-DD. Opcional."
   },
@@ -112,9 +112,10 @@ task_status: 'pending', 'done'
 ```json
 {
   "name": "list_project_tasks",
-  "description": "Listar tareas de un proyecto. Usar cuando pregunta '¿cómo va X proyecto?' o 'mis proyectos'.",
+  "description": "Listar tareas de un proyecto o de todos. Si no se pasa project_name, muestra todos los proyectos activos.",
   "parameters": {
-    "project_name": "Nombre del proyecto. Si no se pasa, lista todos."
+    "project_name": "Nombre del proyecto. Opcional (lista todos).",
+    "status": "'pending', 'done', o 'all'. Default: 'all'."
   },
   "required": []
 }
@@ -125,12 +126,39 @@ task_status: 'pending', 'done'
 ```json
 {
   "name": "complete_project_task",
-  "description": "Marcar una tarea como completada. Usar cuando dice 'ya terminé X', 'completé Y'.",
+  "description": "Marcar una tarea como completada (busca por coincidencia parcial en contenido).",
   "parameters": {
-    "project_name": "Proyecto donde buscar la tarea.",
-    "task_content": "Contenido de la tarea a completar (busca por coincidencia parcial)."
+    "project_name": "Proyecto donde buscar.",
+    "task_content": "Contenido de la tarea a completar."
   },
   "required": ["project_name", "task_content"]
+}
+```
+
+### 4.4 `reopen_project_task` — ✅ Implementado
+
+```json
+{
+  "name": "reopen_project_task",
+  "description": "Reabrir una tarea completada (done → pending). Resetea reminder_sent.",
+  "parameters": {
+    "project_name": "Proyecto donde buscar.",
+    "task_content": "Contenido de la tarea a reabrir (busca en completadas)."
+  },
+  "required": ["project_name", "task_content"]
+}
+```
+
+### 4.5 `archive_project` — ✅ Implementado
+
+```json
+{
+  "name": "archive_project",
+  "description": "Archivar un proyecto (status → archived). Las tareas no se borran.",
+  "parameters": {
+    "project_name": "Nombre del proyecto a archivar."
+  },
+  "required": ["project_name"]
 }
 ```
 
@@ -203,11 +231,13 @@ A diferencia de eventos (15/7/3/0), los proyectos usan ventanas más cortas (7/3
 |------------|--------|
 | `projects` + `project_tasks` tablas | ✅ |
 | `save_project_task` tool | ✅ |
-| `list_project_tasks` tool | ✅ |
+| `list_project_tasks` tool — con/sin `project_name`, filtro `status` | ✅ |
 | `complete_project_task` tool | ✅ |
-| `_evaluate_project_tasks` scheduler (7/3/1) | ✅ |
-| `_send_project_reminder` multicanal | ✅ |
-| Template `project_reminder` (en) | ✅ |
+| `reopen_project_task` tool — done → pending, resetea `reminder_sent` | ✅ |
+| `archive_project` tool — `status = 'archived'`, no borra datos | ✅ |
+| `_evaluate_project_tasks` scheduler (7/3/1 días) | ✅ |
+| `_send_project_reminder` multicanal (Telegram + WhatsApp) | ✅ |
+| Template `project_reminder` (en) aprobado | ✅ |
 | Índices de búsqueda | ✅ |
 
 ---
@@ -216,8 +246,5 @@ A diferencia de eventos (15/7/3/0), los proyectos usan ventanas más cortas (7/3
 
 | Tarea | Prioridad |
 |-------|-----------|
-| Template `project_reminder` en español | 🔴 Crítica (esperando Meta) |
-| Reabrir tarea (done → pending) | 🟡 Media |
-| Tool `archive_project` | 🟢 Baja |
+| Template `project_reminder` en español | 🔴 Crítica (pendiente Meta) |
 | Tareas con hora (no solo fecha) | 🟢 Baja |
-| Vista de todos los proyectos activos | 🟢 Baja |

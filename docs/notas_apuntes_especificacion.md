@@ -208,10 +208,12 @@ WhatsApp: simple con emojis, sin tablas:
 | Componente | Estado |
 |------------|--------|
 | `topics` + `notes` tablas | ✅ |
-| `save_note` tool | ✅ |
+| `save_note` tool — con `file_key` para vincular fotos | ✅ |
+| `list_my_notes` tool — listar notas agrupadas por tema | ✅ |
+| `delete_note` tool — eliminar nota por tema + búsqueda de contenido | ✅ |
 | `semantic_search()` con pgvector | ✅ |
 | Búsqueda textual ILIKE | ✅ |
-| `persist_note()` crea tema si no existe | ✅ |
+| `persist_note()` crea tema si no existe + embebe file_key en contenido | ✅ |
 | Embeddings automáticos | ✅ |
 | Índice HNSW en `notes.embedding` | ✅ |
 
@@ -221,8 +223,5 @@ WhatsApp: simple con emojis, sin tablas:
 
 | Tarea | Prioridad |
 |-------|-----------|
-| Tool `list_my_notes` (listar notas por tema) | 🔴 Alta |
-| Soporte para `file_key` en notas (vincular fotos) | 🟡 Media |
-| Tool `delete_note` (eliminar/archivar nota) | 🟢 Baja |
 | Notas con formato enriquecido (listas, bullets) | 🟢 Baja |
 | Exportar notas a PDF/texto | ⚪ Futuro |

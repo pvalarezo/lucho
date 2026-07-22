@@ -91,7 +91,7 @@ Pregunta del usuario
 |-------|---------|--------|
 | `notes` | `embedding` | HNSW |
 | `list_items` | `embedding` | (automático) |
-| `assets` | `embedding` | (automático) |
+| `documents` | `name` | (listado, no vectorial aún) |
 
 **Flujo**:
 ```
@@ -194,19 +194,29 @@ Busca en el historial de mensajes del usuario. Útil para "¿qué me dijiste sob
 ```python
 # Búsqueda por similitud de coseno en 3 tablas
 async def semantic_search(session, user_id, query_embedding, top_k=5):
-    # 1. Buscar en notes.embedding
+    # 1. Buscar en notes.embedding (pgvector HNSW)
     Note.embedding.cosine_distance(query_embedding)
     
-    # 2. Buscar en list_items.embedming
+    # 2. Buscar en list_items.embedding
     ListItem.embedding.cosine_distance(query_embedding)
     
-    # 3. Buscar en assets.embedding (solo con embedding no nulo)
-    Asset.embedding.cosine_distance(query_embedding)
+    # 3. Listar documents por nombre (sin embedding aún)
+    Document.name ILIKE query
     
     # 4. Ordenar por similitud, devolver top_k
 ```
 
-### 6.2 `upcoming_deadlines()` — Eventos próximos
+### 6.2 `spending_by_category()` — Gastos por categoría ✅
+
+```python
+# Usa datos reales de transactions
+async def spending_by_category(session, user_id, category, days=30):
+    SELECT category, SUM(amount), COUNT(*)
+    FROM transactions
+    WHERE type='expense' AND user_id=X AND transaction_date >= since
+    GROUP BY category
+    ORDER BY SUM(amount) DESC
+```
 
 ```python
 SELECT events WHERE status='upcoming' 
@@ -242,14 +252,15 @@ Cuando no hay embeddings disponibles, búsqueda textual con `ILIKE %query%` sobr
 
 | Componente | Estado |
 |------------|--------|
-| `semantic_search()` pgvector (3 tablas) | ✅ |
+| `semantic_search()` pgvector (notes, list_items, documents) | ✅ |
 | `upcoming_deadlines()` | ✅ |
 | `list_pending_items()` | ✅ |
 | `search_by_text()` ILIKE | ✅ |
+| `spending_by_category()` — datos reales de `transactions` | ✅ |
 | `search_my_data` tool | ✅ |
 | `web_search` tool (DuckDuckGo) | ✅ |
 | `search_conversation` tool | ✅ |
-| Embeddings en notes, list_items, assets | ✅ |
+| Embeddings en notes, list_items | ✅ |
 | Índice HNSW en notes.embedding | ✅ |
 
 ---
@@ -258,9 +269,9 @@ Cuando no hay embeddings disponibles, búsqueda textual con `ILIKE %query%` sobr
 
 | Tarea | Prioridad |
 |-------|-----------|
-| Incluir `transactions` en búsqueda semántica | 🟡 Media |
+| Embeddings para `documents` (búsqueda vectorial, no solo listado) | 🟡 Media |
 | Embeddings para `projects` y `project_tasks` | 🟡 Media |
-| `spending_by_category()` real (datos de transactions) | 🟡 Media |
+| `transactions` en búsqueda semántica | 🟡 Media |
 | Búsqueda por fecha: "¿qué guardé en marzo?" | 🟢 Baja |
 | Vista `searchable_content` materializada | 🟢 Baja |
 | Full-text search PostgreSQL (tsvector) | 🟢 Baja |

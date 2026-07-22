@@ -368,28 +368,30 @@ Ya funciona vía `search_my_data` con pgvector. Los documentos con `expiry_date`
 
 | Componente | Estado |
 |------------|--------|
-| `Asset` model con `asset_type='document'` | ✅ |
-| `save_document` tool | ✅ |
-| `_evaluate_documents` scheduler (30/15/7 días) | ✅ |
-| `document_reminder` WhatsApp template (es) | ✅ |
+| `Document` model — tabla dedicada (v2.13.0), 13 columnas + pgvector embedding | ✅ |
+| `save_document` tool — create/update con dedup (mismo name+type = update) | ✅ |
+| `save_document` — `document_number` y `tags` expuestos al LLM | ✅ |
+| `list_my_documents` tool — filtros por `document_type` y `status` (all/active/expiring_soon/expired) | ✅ |
+| `file_keys` array (JSONB) — soporte para múltiples fotos (anverso/reverso) | ✅ |
+| `status` tracking — ENUM `document_status` (active/expired/archived) en modelo | ✅ |
+| `_evaluate_documents` scheduler — ventanas 30/15/7 días antes del vencimiento | ✅ |
+| `document_reminder` WhatsApp template (es) — 6 body params, aprobado | ✅ |
 | `analyze_image` + OCR | ✅ |
 | MinIO storage con `file_key` | ✅ |
-| `search_my_data` con pgvector | ✅ |
-| `send_photo` para enviar documento | ✅ |
+| `search_my_data` con pgvector — incluye documentos en resultados | ✅ |
+| `send_photo` — enviar documento guardado al usuario | ✅ |
+| Flujo foto SIN instrucción — no analiza, pregunta primero | ✅ |
+| Flujo foto CON instrucción — analyze_image + save_document | ✅ |
+| Renovación vía `save_document` — dedup actualiza expiry_date sin duplicar | ✅ |
 
-### 11.2 Lo que falta / Mejoras propuestas
+### 11.2 Pendientes / Mejoras futuras
 
-| Tarea | Prioridad | Esfuerzo |
-|-------|-----------|----------|
-| Tool `list_my_documents` | 🔴 Alta | Bajo |
-| Campo `document_number` en attributes | 🟡 Media | Bajo |
-| Campo `tags` en attributes | 🟢 Baja | Bajo |
-| Tool `renew_document` (actualizar vencimiento) | 🟡 Media | Medio |
-| Ventana 60 días para docs críticos | 🟢 Baja | Bajo |
-| `file_keys` array (múltiples fotos) | 🟢 Baja | Bajo |
-| `status` tracking (active/expired/pending) | 🟡 Media | Medio |
-| Mejorar OCR prompt para docs ecuatorianos | 🟡 Media | Medio |
-| Template `document_reminder` con botón "Renové" | 🟢 Baja | Medio (Meta) |
+| Tarea | Prioridad | Esfuerzo | Notas |
+|-------|-----------|----------|-------|
+| Ventana 60 días para docs críticos (cédula, pasaporte) | 🟢 Baja | Bajo | Agregar a `DOCUMENT_WINDOWS` solo para esos tipos |
+| Scheduler: marcar docs vencidos como `status=expired` | 🟡 Media | Bajo | Hoy no se actualiza automáticamente al pasar la fecha |
+| Mejorar OCR prompt para docs ecuatorianos | 🟡 Media | Medio | Afinar system prompt para formatos locales |
+| Template `document_reminder` con botón "Renové" | 🟢 Baja | Medio (Meta) | Requiere aprobación de Meta |
 
 ---
 

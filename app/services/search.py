@@ -1,7 +1,7 @@
 """Semantic search service — find user content using pgvector embeddings.
 
 Two search modes:
-1. Semantic search: pgvector cosine similarity across notes, list_items, assets
+1. Semantic search: pgvector cosine similarity across notes, list_items, documents
 2. Deterministic queries: catalogue of pre-written parametrized SQL queries
 
 Design principle (spec §9.1): never Text2SQL for the user — the LLM extracts
@@ -132,17 +132,54 @@ async def spending_by_category(
 ) -> dict:
     """
     "¿cuánto llevo gastado en X?"
-    Searches shared_expenses and asset attributes for spending data.
+    Queries the transactions table for expense totals by category.
     """
-    since = date.today() - timedelta(days=days)
+    from app.models.transaction import Transaction, TransactionType, TransactionCategory
 
-    # TODO: implement when shared_expenses table is populated
+    since = date.today() - timedelta(days=days)
+    since_dt = datetime.combine(since, datetime.min.time())
+
+    filters = [
+        Transaction.user_id == user_id,
+        Transaction.type == TransactionType.expense,
+        Transaction.transaction_date >= since_dt,
+    ]
+    if category:
+        try:
+            cat_enum = TransactionCategory(category)
+            filters.append(Transaction.category == cat_enum)
+        except ValueError:
+            pass
+
+    result = await session.execute(
+        select(
+            Transaction.category,
+            func.sum(Transaction.amount).label("total"),
+            func.count(Transaction.id).label("count"),
+        )
+        .where(*filters)
+        .group_by(Transaction.category)
+        .order_by(func.sum(Transaction.amount).desc())
+    )
+
+    items = []
+    total = 0.0
+    for row in result:
+        cat_value = row.category.value if hasattr(row.category, 'value') else str(row.category)
+        amount = float(row.total or 0)
+        items.append({
+            "category": cat_value,
+            "total": amount,
+            "count": row.count,
+        })
+        total += amount
+
     return {
         "category": category or "all",
         "period_days": days,
         "since": since.isoformat(),
-        "total": 0.0,
-        "items": [],
+        "total": total,
+        "by_category": items,
     }
 
 

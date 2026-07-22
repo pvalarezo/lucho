@@ -87,6 +87,10 @@ TOOL_SAVE_DOCUMENT = {
                     "type": "string",
                     "description": "Nombre descriptivo del documento. Ej: 'Cédula de Patricio', 'SOAT del carro'.",
                 },
+                "document_number": {
+                    "type": "string",
+                    "description": "Número del documento si el usuario lo menciona. Ej: '1712345678' para cédula, 'PBC-1234' para SOAT.",
+                },
                 "expiry_date": {
                     "type": "string",
                     "description": "Fecha de vencimiento en formato YYYY-MM-DD, si aplica.",
@@ -99,12 +103,40 @@ TOOL_SAVE_DOCUMENT = {
                     "type": "string",
                     "description": "Notas adicionales.",
                 },
+                "tags": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Etiquetas para organizar. Ej: ['personal', 'legal', 'familia'].",
+                },
                 "file_key": {
                     "type": "string",
                     "description": "Clave del archivo en MinIO. Viene del resultado de analyze_image o del mensaje [foto: X]. Formato: 'user_id/photo_123.jpg'. SIEMPRE incluir este campo si el usuario envió una foto.",
                 },
             },
             "required": ["document_type", "name"],
+        },
+    },
+}
+
+TOOL_LIST_MY_DOCUMENTS = {
+    "type": "function",
+    "function": {
+        "name": "list_my_documents",
+        "description": "Listar los documentos del usuario con filtros por tipo y estado. Usar cuando pregunta '¿qué documentos tengo?', 'mis documentos', 'mostrame mis SOAT', '¿qué documentos me vencen pronto?'.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "document_type": {
+                    "type": "string",
+                    "description": "Filtrar por tipo: cedula, pasaporte, licencia, soat, seguro, factura, garantia, certificado, escritura, contrato, tarjeta, otro. Opcional.",
+                },
+                "status": {
+                    "type": "string",
+                    "enum": ["all", "active", "expiring_soon", "expired"],
+                    "description": "Estado. Default: 'all'. 'expiring_soon' = vence en 30 días.",
+                },
+            },
+            "required": [],
         },
     },
 }
@@ -143,6 +175,30 @@ TOOL_SAVE_EVENT = {
     },
 }
 
+TOOL_LIST_MY_EVENTS = {
+    "type": "function",
+    "function": {
+        "name": "list_my_events",
+        "description": "Listar los eventos del usuario con filtros. Usar cuando pregunta '¿qué tengo esta semana?', 'mis eventos', '¿qué citas tengo?', 'próximos eventos'.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "status": {
+                    "type": "string",
+                    "enum": ["upcoming", "done", "cancelled", "overdue", "all"],
+                    "description": "Filtrar por estado. Default: 'upcoming'.",
+                },
+                "period": {
+                    "type": "string",
+                    "enum": ["today", "tomorrow", "this_week", "next_week", "this_month", "all"],
+                    "description": "Período. Default: 'all' (próximos 90 días).",
+                },
+            },
+            "required": [],
+        },
+    },
+}
+
 TOOL_SAVE_LIST = {
     "type": "function",
     "function": {
@@ -166,6 +222,114 @@ TOOL_SAVE_LIST = {
                 },
             },
             "required": ["list_name", "items"],
+        },
+    },
+}
+
+TOOL_LIST_MY_NOTES = {
+    "type": "function",
+    "function": {
+        "name": "list_my_notes",
+        "description": "Listar las notas del usuario agrupadas por tema. Usar cuando pregunta '¿qué notas tengo?', 'mis apuntes de cocina', '¿qué ideas guardé?', 'mostrame mis notas de tecnología'.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "topic": {
+                    "type": "string",
+                    "description": "Filtrar por tema. Si no se pasa, muestra todas las notas agrupadas por tema.",
+                },
+            },
+            "required": [],
+        },
+    },
+}
+
+TOOL_DELETE_NOTE = {
+    "type": "function",
+    "function": {
+        "name": "delete_note",
+        "description": "Eliminar una nota específica. Usar SOLO cuando el usuario pide explícitamente 'elimina la nota de...', 'borra el apunte de...', 'ya no necesito esa nota'.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "topic": {
+                    "type": "string",
+                    "description": "Tema donde está la nota.",
+                },
+                "search": {
+                    "type": "string",
+                    "description": "Palabra o frase para encontrar la nota a eliminar. Busca en el contenido.",
+                },
+            },
+            "required": ["topic", "search"],
+        },
+    },
+}
+
+TOOL_LIST_ITEMS = {
+    "type": "function",
+    "function": {
+        "name": "list_items",
+        "description": "Consultar ítems de una lista específica o de todas las listas. Usar cuando el usuario pregunta '¿qué tengo en compras?', 'mis pendientes', '¿qué me falta?', '¿qué listas tengo?'.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "list_name": {
+                    "type": "string",
+                    "description": "Nombre de la lista a consultar. Si no se pasa, muestra todas las listas del usuario.",
+                },
+                "status": {
+                    "type": "string",
+                    "enum": ["pending", "done", "all"],
+                    "description": "Filtrar por estado. Default: 'pending' (solo lo que falta). Usar 'done' para ver completados, 'all' para todo.",
+                },
+            },
+            "required": [],
+        },
+    },
+}
+
+TOOL_COMPLETE_ITEM = {
+    "type": "function",
+    "function": {
+        "name": "complete_item",
+        "description": "Marcar uno o varios ítems como completados (done). Usar cuando el usuario dice 'ya compré X', 'listo Y', 'completé Z', 'marqué como hecho W'.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "list_name": {
+                    "type": "string",
+                    "description": "Lista donde están los ítems. Si no se pasa, busca en todas las listas del usuario.",
+                },
+                "items": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Ítems a marcar como completados. Ej: ['leche', 'pan']. Busca coincidencia parcial en el contenido.",
+                },
+                "mark_all": {
+                    "type": "boolean",
+                    "description": "Si es true, marca TODOS los ítems pendientes de la lista como completados. Usar cuando dice 'completé todo', 'ya hice todo lo de X'.",
+                },
+            },
+            "required": ["items"],
+        },
+    },
+}
+
+TOOL_DELETE_LIST = {
+    "type": "function",
+    "function": {
+        "name": "delete_list",
+        "description": "Eliminar una lista completa y todos sus ítems. Usar SOLO cuando el usuario pide explícitamente 'elimina la lista X', 'borra la lista Y', 'ya no necesito la lista Z'.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "list_name": {
+                    "type": "string",
+                    "description": "Nombre exacto de la lista a eliminar.",
+                },
+            },
+            "required": ["list_name"],
         },
     },
 }
@@ -345,6 +509,46 @@ TOOL_COMPLETE_PROJECT_TASK = {
     },
 }
 
+TOOL_REOPEN_PROJECT_TASK = {
+    "type": "function",
+    "function": {
+        "name": "reopen_project_task",
+        "description": "Reabrir una tarea completada (done → pending). Usar cuando el usuario dice 'me equivoqué, X todavía no está lista', 'reabre la tarea Y', 'desmarca Z como completada'.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "project_name": {
+                    "type": "string",
+                    "description": "Nombre del proyecto donde está la tarea.",
+                },
+                "task_content": {
+                    "type": "string",
+                    "description": "Contenido de la tarea a reabrir (busca por coincidencia parcial en tareas completadas).",
+                },
+            },
+            "required": ["project_name", "task_content"],
+        },
+    },
+}
+
+TOOL_ARCHIVE_PROJECT = {
+    "type": "function",
+    "function": {
+        "name": "archive_project",
+        "description": "Archivar un proyecto completo (ya no aparece en listados). Usar cuando el usuario dice 'ya terminé el proyecto X', 'archiva el proyecto Y', 'cerra el proyecto Z'. Las tareas no se borran.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "project_name": {
+                    "type": "string",
+                    "description": "Nombre del proyecto a archivar.",
+                },
+            },
+            "required": ["project_name"],
+        },
+    },
+}
+
 TOOL_SAVE_CONTACT = {
     "type": "function",
     "function": {
@@ -401,6 +605,24 @@ TOOL_LIST_CONTACTS = {
                 },
             },
             "required": [],
+        },
+    },
+}
+
+TOOL_DELETE_CONTACT = {
+    "type": "function",
+    "function": {
+        "name": "delete_contact",
+        "description": "Eliminar un contacto. Usar SOLO cuando el usuario pide explícitamente 'elimina a X', 'borra el contacto de Y', 'ya no necesito a Z'.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "Nombre del contacto a eliminar. Busca coincidencia exacta.",
+                },
+            },
+            "required": ["name"],
         },
     },
 }
@@ -579,6 +801,66 @@ TOOL_LIST_MAINTENANCES = {
     },
 }
 
+TOOL_DELETE_VEHICLE = {
+    "type": "function",
+    "function": {
+        "name": "delete_vehicle",
+        "description": "Eliminar un vehículo (soft delete). Usar SOLO cuando el usuario pide explícitamente 'elimina mi carro', 'borra el vehículo X', 'ya no tengo ese carro'.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "plate": {
+                    "type": "string",
+                    "description": "Placa del vehículo a eliminar. Ej: 'PBC1234'.",
+                },
+            },
+            "required": ["plate"],
+        },
+    },
+}
+
+TOOL_UPDATE_VEHICLE = {
+    "type": "function",
+    "function": {
+        "name": "update_vehicle",
+        "description": "Actualizar datos de un vehículo: placa, marca, modelo, año, color. Usar cuando el usuario dice 'corrige la placa', 'cambia el año de mi carro', 'mi carro es azul no rojo'.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "plate": {
+                    "type": "string",
+                    "description": "Placa actual del vehículo a modificar (requerido para identificarlo).",
+                },
+                "new_plate": {
+                    "type": "string",
+                    "description": "Nueva placa si cambió.",
+                },
+                "brand": {
+                    "type": "string",
+                    "description": "Nueva marca.",
+                },
+                "model": {
+                    "type": "string",
+                    "description": "Nuevo modelo.",
+                },
+                "year": {
+                    "type": "integer",
+                    "description": "Nuevo año.",
+                },
+                "color": {
+                    "type": "string",
+                    "description": "Nuevo color.",
+                },
+                "notes": {
+                    "type": "string",
+                    "description": "Nuevas notas.",
+                },
+            },
+            "required": ["plate"],
+        },
+    },
+}
+
 
 # =============================================================================
 # FINANCE TOOLS — transactions and budgets
@@ -737,10 +1019,19 @@ ALL_TOOLS = [
     TOOL_LIST_MY_VEHICLES,
     TOOL_ADD_MAINTENANCE,
     TOOL_LIST_MAINTENANCES,
+    TOOL_DELETE_VEHICLE,
+    TOOL_UPDATE_VEHICLE,
     TOOL_SAVE_DOCUMENT,
+    TOOL_LIST_MY_DOCUMENTS,
     TOOL_SAVE_EVENT,
+    TOOL_LIST_MY_EVENTS,
     TOOL_SAVE_LIST,
+    TOOL_LIST_ITEMS,
+    TOOL_COMPLETE_ITEM,
+    TOOL_DELETE_LIST,
     TOOL_SAVE_NOTE,
+    TOOL_LIST_MY_NOTES,
+    TOOL_DELETE_NOTE,
     TOOL_SEARCH_DATA,
     TOOL_SEARCH_CONVERSATION,
     TOOL_ANALYZE_IMAGE,
@@ -748,9 +1039,12 @@ ALL_TOOLS = [
     TOOL_SAVE_PROJECT_TASK,
     TOOL_LIST_PROJECT_TASKS,
     TOOL_COMPLETE_PROJECT_TASK,
+    TOOL_REOPEN_PROJECT_TASK,
+    TOOL_ARCHIVE_PROJECT,
     TOOL_UPDATE_LAST,
     TOOL_SAVE_CONTACT,
     TOOL_LIST_CONTACTS,
+    TOOL_DELETE_CONTACT,
     TOOL_CHECK_VEHICLE_INFO,
     TOOL_SEND_PHOTO,
     TOOL_WEB_SEARCH,
@@ -891,6 +1185,7 @@ async def handle_save_document(session, user_id: str, args: dict) -> dict:
     document_number = args.get("document_number")
     expiry_date = args.get("expiry_date")
     entity_name = args.get("entity_name")
+    tags = args.get("tags")
     file_key = args.get("file_key")
 
     try:
@@ -903,6 +1198,7 @@ async def handle_save_document(session, user_id: str, args: dict) -> dict:
             expiry_date=expiry_date,
             entity_name=entity_name,
             notes=args.get("notes"),
+            tags=tags,
             file_key=file_key,
         )
         expiry_msg = f", vence {expiry_date}" if expiry_date else ""
@@ -916,6 +1212,131 @@ async def handle_save_document(session, user_id: str, args: dict) -> dict:
     except Exception as exc:
         logger.exception("Failed to save document: %s", exc)
         return {"success": False, "message": "No pude guardar el documento."}
+
+
+async def handle_list_my_documents(session, user_id: str, args: dict) -> dict:
+    """List user documents with optional filters by type and status."""
+    import uuid as uuid_mod
+    from datetime import date, timedelta
+    from sqlalchemy import select
+    from app.models.document import Document, DocumentType
+
+    uid = uuid_mod.UUID(user_id)
+    doc_type = args.get("document_type")
+    status = args.get("status", "all")
+
+    # Build base query
+    query = select(Document).where(
+        Document.user_id == uid,
+        Document.deleted_at.is_(None),
+    )
+
+    # Filter by document type
+    if doc_type:
+        try:
+            dt_enum = DocumentType(doc_type.lower().strip())
+            query = query.where(Document.document_type == dt_enum)
+        except ValueError:
+            pass  # Invalid type, ignore filter silently
+
+    result = await session.execute(query.order_by(Document.created_at.desc()))
+    docs = result.scalars().all()
+
+    if not docs:
+        type_msg = f" de tipo '{doc_type}'" if doc_type else ""
+        return {
+            "success": True,
+            "message": f"No tenés documentos{type_msg} guardados todavía. Mandame una foto o decime 'guardame mi cédula' y lo archivo.",
+            "documents": [],
+            "total": 0,
+        }
+
+    today = date.today()
+    days_30 = today + timedelta(days=30)
+
+    # Type label map for friendly display
+    type_labels = {
+        "cedula": "🆔 Cédula",
+        "pasaporte": "🛂 Pasaporte",
+        "licencia": "🚗 Licencia",
+        "soat": "🚗 SOAT",
+        "seguro": "🛡️ Seguro",
+        "factura": "📄 Factura",
+        "garantia": "🔧 Garantía",
+        "certificado": "📝 Certificado",
+        "escritura": "📋 Escritura",
+        "contrato": "🏦 Contrato",
+        "tarjeta": "💳 Tarjeta",
+        "otro": "📸 Otro",
+    }
+
+    # Apply status filter and build result list
+    filtered = []
+    for doc in docs:
+        # Determine effective status from expiry_date
+        if doc.expiry_date:
+            if doc.expiry_date < today:
+                effective_status = "expired"
+            elif doc.expiry_date <= days_30:
+                effective_status = "expiring_soon"
+            else:
+                effective_status = "active"
+        else:
+            effective_status = "active"
+
+        # Apply optional status filter
+        if status == "expiring_soon" and effective_status != "expiring_soon":
+            continue
+        if status == "expired" and effective_status != "expired":
+            continue
+        if status == "active" and effective_status != "active":
+            continue
+
+        dt_value = doc.document_type.value if doc.document_type else "otro"
+        item = {
+            "id": str(doc.id),
+            "document_type": dt_value,
+            "type_label": type_labels.get(dt_value, "📸 Otro"),
+            "name": doc.name,
+            "document_number": doc.document_number,
+            "expiry_date": str(doc.expiry_date) if doc.expiry_date else None,
+            "entity_name": doc.entity_name,
+            "status": effective_status,
+            "notes": doc.notes,
+        }
+        if doc.file_key:
+            item["file_key"] = doc.file_key
+        if doc.file_keys:
+            item["file_keys"] = doc.file_keys
+        filtered.append(item)
+
+    if not filtered:
+        status_labels = {
+            "expiring_soon": "que venzan pronto",
+            "expired": "vencidos",
+            "active": "activos",
+        }
+        status_msg = status_labels.get(status, "")
+        type_msg = f" de tipo '{doc_type}'" if doc_type else ""
+        return {
+            "success": True,
+            "message": f"No tenés documentos{type_msg} {status_msg}.".strip(),
+            "documents": [],
+            "total": 0,
+        }
+
+    # Count by effective status for summary
+    counts = {"active": 0, "expiring_soon": 0, "expired": 0}
+    for d in filtered:
+        counts[d["status"]] += 1
+
+    return {
+        "success": True,
+        "message": f"Tenés {len(filtered)} documento(s).",
+        "documents": filtered,
+        "total": len(filtered),
+        "counts": counts,
+    }
 
 
 async def handle_save_event(session, user_id: str, args: dict) -> dict:
@@ -968,6 +1389,99 @@ async def handle_save_event(session, user_id: str, args: dict) -> dict:
         return {"success": False, "message": "No pude guardar el evento."}
 
 
+async def handle_list_my_events(session, user_id: str, args: dict) -> dict:
+    """List user events with status and period filters."""
+    import uuid as uuid_mod
+    from datetime import date, datetime, timedelta
+    from sqlalchemy import select
+    from app.models.event import Event, EventStatus
+
+    uid = uuid_mod.UUID(user_id)
+    status_filter = args.get("status", "upcoming")
+    period = args.get("period", "all")
+
+    today = date.today()
+    now = datetime.combine(today, datetime.min.time())
+
+    # Determine date range
+    if period == "today":
+        start = now
+        end = datetime.combine(today, datetime.max.time())
+    elif period == "tomorrow":
+        tomorrow = today + timedelta(days=1)
+        start = datetime.combine(tomorrow, datetime.min.time())
+        end = datetime.combine(tomorrow, datetime.max.time())
+    elif period == "this_week":
+        start = now
+        end_of_week = today + timedelta(days=(6 - today.weekday()))
+        end = datetime.combine(end_of_week, datetime.max.time())
+    elif period == "next_week":
+        next_monday = today + timedelta(days=(7 - today.weekday()))
+        start = datetime.combine(next_monday, datetime.min.time())
+        end = datetime.combine(next_monday + timedelta(days=6), datetime.max.time())
+    elif period == "this_month":
+        start = now
+        if today.month == 12:
+            end_of_month = date(today.year + 1, 1, 1) - timedelta(days=1)
+        else:
+            end_of_month = date(today.year, today.month + 1, 1) - timedelta(days=1)
+        end = datetime.combine(end_of_month, datetime.max.time())
+    else:  # all — next 90 days
+        start = now
+        end = datetime.combine(today + timedelta(days=90), datetime.max.time())
+
+    # Build query
+    query = select(Event).where(Event.user_id == uid)
+
+    if status_filter == "all":
+        query = query.where(Event.target_date >= start, Event.target_date <= end)
+    elif status_filter == "upcoming":
+        query = query.where(
+            Event.status == EventStatus.upcoming,
+            Event.target_date >= start,
+            Event.target_date <= end,
+        )
+    else:
+        try:
+            es = EventStatus(status_filter)
+            query = query.where(Event.status == es)
+        except ValueError:
+            query = query.where(Event.status == EventStatus.upcoming)
+
+    result = await session.execute(query.order_by(Event.target_date.asc()).limit(30))
+    events = result.scalars().all()
+
+    if not events:
+        status_msg = {
+            "upcoming": "próximos",
+            "done": "completados",
+            "cancelled": "cancelados",
+            "overdue": "vencidos",
+            "all": "",
+        }.get(status_filter, "")
+        return {"success": True, "message": f"No tenés eventos {status_msg}.".strip(), "events": [], "total": 0}
+
+    event_list = []
+    for e in events:
+        days_until = (e.target_date.date() - today).days if e.target_date else None
+        event_list.append({
+            "id": str(e.id),
+            "title": e.title,
+            "target_date": str(e.target_date),
+            "description": e.description,
+            "status": e.status.value if e.status else "upcoming",
+            "recurrence": e.recurrence_rule,
+            "days_until": days_until,
+        })
+
+    return {
+        "success": True,
+        "message": f"Tenés {len(events)} evento(s).",
+        "events": event_list,
+        "total": len(events),
+    }
+
+
 async def handle_save_list(session, user_id: str, args: dict) -> dict:
     """Save items to a list."""
     import uuid
@@ -986,15 +1500,221 @@ async def handle_save_list(session, user_id: str, args: dict) -> dict:
             items=items,
             quantity=args.get("quantity"),
         )
+        created = len([i for i in saved if i.id]) if saved else 0
+        total = len(items)
+        if created < total:
+            skipped = total - created
+            return {
+                "success": True,
+                "message": f"{created} ítem(s) agregado(s) a '{list_name}' ({skipped} ya existían).",
+                "count": created,
+                "skipped": skipped,
+                "list_name": list_name,
+            }
         return {
             "success": True,
-            "message": f"{len(items)} ítem(s) agregado(s) a '{list_name}'.",
-            "count": len(items),
+            "message": f"{created} ítem(s) agregado(s) a '{list_name}'.",
+            "count": created,
             "list_name": list_name,
         }
     except Exception as exc:
         logger.exception("Failed to save list items: %s", exc)
         return {"success": False, "message": "No pude guardar los ítems."}
+
+
+async def handle_list_items(session, user_id: str, args: dict) -> dict:
+    """List items from one list or all lists, with status filter."""
+    import uuid as uuid_mod
+    from sqlalchemy import select
+    from app.models.list import List, ListItem, ItemStatus
+
+    uid = uuid_mod.UUID(user_id)
+    list_name = args.get("list_name")
+    status = args.get("status", "pending")
+
+    # ---- Query lists -------
+    list_query = select(List).where(List.user_id == uid)
+    if list_name:
+        list_query = list_query.where(List.name == list_name)
+
+    list_result = await session.execute(list_query.order_by(List.name))
+    lists = list_result.scalars().all()
+
+    if not lists:
+        msg = f"No tenés la lista '{list_name}'." if list_name else "No tenés listas todavía. Mandame 'lista de compras: leche, pan' y te la creo."
+        return {"success": True, "message": msg, "lists": [], "total": 0}
+
+    # ---- Query items for those lists -------
+    list_ids = [lst.id for lst in lists]
+    items_query = select(ListItem).where(ListItem.list_id.in_(list_ids))
+    if status != "all":
+        try:
+            items_query = items_query.where(ListItem.status == ItemStatus(status))
+        except ValueError:
+            pass
+
+    items_result = await session.execute(
+        items_query.order_by(ListItem.created_at.asc())
+    )
+    all_items = items_result.scalars().all()
+
+    if not all_items:
+        status_msg = "pendientes" if status == "pending" else ("completados" if status == "done" else "")
+        name_msg = f" en '{list_name}'" if list_name else ""
+        return {
+            "success": True,
+            "message": f"No hay ítems {status_msg}{name_msg}.".strip(),
+            "lists": [],
+            "total": 0,
+        }
+
+    # ---- Group items by list -------
+    from collections import defaultdict
+    grouped = defaultdict(list)
+    for item in all_items:
+        lst_name = next((l.name for l in lists if l.id == item.list_id), "?")
+        grouped[lst_name].append({
+            "id": str(item.id),
+            "content": item.content,
+            "quantity": item.quantity,
+            "status": item.status.value if item.status else "pending",
+            "created_at": str(item.created_at),
+        })
+
+    result_lists = [
+        {"list_name": name, "items": items, "count": len(items)}
+        for name, items in grouped.items()
+    ]
+
+    total = sum(l["count"] for l in result_lists)
+    return {
+        "success": True,
+        "message": f"Tenés {total} ítem(s) en {len(result_lists)} lista(s).",
+        "lists": result_lists,
+        "total": total,
+    }
+
+
+async def handle_complete_item(session, user_id: str, args: dict) -> dict:
+    """Mark items as done by content match, optionally across all lists."""
+    import uuid as uuid_mod
+    from datetime import datetime, timezone
+    from sqlalchemy import select, update
+    from app.models.list import List, ListItem, ItemStatus
+
+    uid = uuid_mod.UUID(user_id)
+    list_name = args.get("list_name")
+    item_texts = args.get("items") or []
+    mark_all = args.get("mark_all", False)
+
+    if not item_texts and not mark_all:
+        return {"success": False, "message": "¿Qué ítems querés marcar como completados?"}
+
+    # ---- Find target lists -------
+    list_query = select(List).where(List.user_id == uid)
+    if list_name:
+        list_query = list_query.where(List.name == list_name)
+    list_result = await session.execute(list_query)
+    lists = list_result.scalars().all()
+
+    if not lists:
+        msg = f"No tenés la lista '{list_name}'." if list_name else "No tenés listas."
+        return {"success": False, "message": msg}
+
+    list_ids = [lst.id for lst in lists]
+
+    # ---- Find matching items -------
+    now = datetime.now(timezone.utc)
+
+    if mark_all:
+        # Mark all pending items in these lists as done
+        items_query = select(ListItem).where(
+            ListItem.list_id.in_(list_ids),
+            ListItem.status == ItemStatus.pending,
+        )
+        items_result = await session.execute(items_query)
+        matched = items_result.scalars().all()
+    else:
+        # Match by content (partial, case-insensitive)
+        matched = []
+        items_query = select(ListItem).where(
+            ListItem.list_id.in_(list_ids),
+            ListItem.status == ItemStatus.pending,
+        )
+        items_result = await session.execute(items_query)
+        pending_items = items_result.scalars().all()
+
+        for item_text in item_texts:
+            text_lower = item_text.strip().lower()
+            for pi in pending_items:
+                if pi.id not in [m.id for m in matched] and text_lower in pi.content.lower():
+                    matched.append(pi)
+                    break
+
+    if not matched:
+        return {"success": True, "message": "No encontré ítems pendientes que coincidan. ¿Ya estaban completados?"}
+
+    # ---- Mark as done -------
+    matched_ids = [m.id for m in matched]
+    await session.execute(
+        update(ListItem)
+        .where(ListItem.id.in_(matched_ids))
+        .values(status=ItemStatus.done, completed_at=now)
+    )
+    await session.flush()
+
+    # Build friendly names
+    completed_names = [m.content for m in matched]
+    names_str = ", ".join(completed_names[:5])
+    if len(completed_names) > 5:
+        names_str += f" y {len(completed_names) - 5} más"
+
+    return {
+        "success": True,
+        "message": f"¡Listo! {len(matched)} ítem(s) completado(s): {names_str}.",
+        "completed": len(matched),
+        "items": completed_names,
+    }
+
+
+async def handle_delete_list(session, user_id: str, args: dict) -> dict:
+    """Delete an entire list and all its items."""
+    import uuid as uuid_mod
+    from sqlalchemy import select, delete
+    from app.models.list import List, ListItem
+
+    uid = uuid_mod.UUID(user_id)
+    list_name = (args.get("list_name") or "").strip()
+
+    if not list_name:
+        return {"success": False, "message": "¿Qué lista querés eliminar?"}
+
+    # Find the list
+    result = await session.execute(
+        select(List).where(List.user_id == uid, List.name == list_name)
+    )
+    lst = result.scalar_one_or_none()
+
+    if not lst:
+        return {"success": True, "message": f"No tenés una lista llamada '{list_name}'."}
+
+    # Count items before deleting
+    count_result = await session.execute(
+        select(ListItem).where(ListItem.list_id == lst.id)
+    )
+    item_count = len(count_result.scalars().all())
+
+    # Delete items first (cascade should handle this, but be explicit)
+    await session.execute(delete(ListItem).where(ListItem.list_id == lst.id))
+    await session.delete(lst)
+    await session.flush()
+
+    return {
+        "success": True,
+        "message": f"Lista '{list_name}' eliminada con {item_count} ítem(s).",
+        "list_name": list_name,
+        "deleted_items": item_count,
+    }
 
 
 async def handle_save_note(session, user_id: str, args: dict) -> dict:
@@ -1003,6 +1723,7 @@ async def handle_save_note(session, user_id: str, args: dict) -> dict:
 
     topic = (args.get("topic") or "general").strip()
     content = (args.get("content") or "").strip()
+    file_key = args.get("file_key")
 
     if not content:
         return {"success": False, "message": "Necesito el contenido de la nota."}
@@ -1013,16 +1734,125 @@ async def handle_save_note(session, user_id: str, args: dict) -> dict:
             user_id=uuid.UUID(user_id),
             topic_name=topic,
             content=content,
+            file_key=file_key,
         )
+        has_photo = " (con foto)" if file_key else ""
         return {
             "success": True,
-            "message": f"Nota guardada en '{topic}'.",
+            "message": f"Nota guardada en '{topic}'{has_photo}.",
             "note_id": str(note.id),
             "topic": topic,
+            "file_key": file_key,
         }
     except Exception as exc:
         logger.exception("Failed to save note: %s", exc)
         return {"success": False, "message": "No pude guardar la nota."}
+
+
+async def handle_list_my_notes(session, user_id: str, args: dict) -> dict:
+    """List user notes grouped by topic."""
+    import uuid as uuid_mod
+    from sqlalchemy import select
+    from app.models.topic import Topic, Note
+
+    uid = uuid_mod.UUID(user_id)
+    topic_filter = args.get("topic")
+
+    # ---- Query topics -------
+    topic_query = select(Topic).where(Topic.user_id == uid)
+    if topic_filter:
+        topic_query = topic_query.where(Topic.name == topic_filter)
+
+    topic_result = await session.execute(topic_query.order_by(Topic.name))
+    topics = topic_result.scalars().all()
+
+    if not topics:
+        msg = f"No tenés notas en '{topic_filter}'." if topic_filter else "No tenés notas guardadas todavía. Mandame 'anota: ...' y te la guardo."
+        return {"success": True, "message": msg, "topics": [], "total": 0}
+
+    # ---- Query notes for those topics -------
+    topic_ids = [t.id for t in topics]
+    notes_result = await session.execute(
+        select(Note)
+        .where(Note.topic_id.in_(topic_ids))
+        .order_by(Note.created_at.desc())
+        .limit(50)
+    )
+    all_notes = notes_result.scalars().all()
+
+    if not all_notes:
+        msg = f"El tema '{topic_filter}' no tiene notas." if topic_filter else "No tenés notas guardadas."
+        return {"success": True, "message": msg, "topics": [], "total": 0}
+
+    # ---- Group notes by topic -------
+    from collections import defaultdict
+    grouped = defaultdict(list)
+    for note in all_notes:
+        topic_name = next((t.name for t in topics if t.id == note.topic_id), "?")
+        grouped[topic_name].append({
+            "id": str(note.id),
+            "content": note.content[:200],
+            "created_at": str(note.created_at),
+        })
+
+    result_topics = [
+        {"topic": name, "notes": items, "count": len(items)}
+        for name, items in grouped.items()
+    ]
+
+    total = sum(t["count"] for t in result_topics)
+    return {
+        "success": True,
+        "message": f"Tenés {total} nota(s) en {len(result_topics)} tema(s).",
+        "topics": result_topics,
+        "total": total,
+    }
+
+
+async def handle_delete_note(session, user_id: str, args: dict) -> dict:
+    """Delete a note by topic + content search."""
+    import uuid as uuid_mod
+    from sqlalchemy import select, delete
+    from app.models.topic import Topic, Note
+
+    uid = uuid_mod.UUID(user_id)
+    topic_name = (args.get("topic") or "").strip()
+    search = (args.get("search") or "").strip()
+
+    if not topic_name or not search:
+        return {"success": False, "message": "Necesito saber el tema y qué nota eliminar."}
+
+    # Find the topic
+    topic_result = await session.execute(
+        select(Topic).where(Topic.user_id == uid, Topic.name == topic_name)
+    )
+    topic = topic_result.scalar_one_or_none()
+    if not topic:
+        return {"success": True, "message": f"No tenés el tema '{topic_name}'."}
+
+    # Find matching notes
+    notes_result = await session.execute(
+        select(Note).where(
+            Note.topic_id == topic.id,
+            Note.content.ilike(f"%{search}%")
+        ).limit(5)
+    )
+    matches = notes_result.scalars().all()
+
+    if not matches:
+        return {"success": True, "message": f"No encontré notas que coincidan con '{search}' en '{topic_name}'."}
+
+    # Delete matches
+    ids_to_delete = [n.id for n in matches]
+    await session.execute(delete(Note).where(Note.id.in_(ids_to_delete)))
+    await session.flush()
+
+    names_str = ", ".join([n.content[:50] for n in matches])
+    return {
+        "success": True,
+        "message": f"Eliminé {len(matches)} nota(s) de '{topic_name}': {names_str}.",
+        "deleted": len(matches),
+    }
 
 
 async def handle_search_data(session, user_id: str, args: dict) -> dict:
@@ -1535,6 +2365,80 @@ async def handle_complete_project_task(session, user_id: str, args: dict) -> dic
     }
 
 
+async def handle_reopen_project_task(session, user_id: str, args: dict) -> dict:
+    """Reopen a completed project task (done → pending)."""
+    import uuid
+    from sqlalchemy import select
+    from app.models.project import Project, ProjectTask, TaskStatus
+
+    uid = uuid.UUID(user_id)
+    project_name = (args.get("project_name") or "").strip()
+    task_content = (args.get("task_content") or "").strip()
+
+    if not project_name or not task_content:
+        return {"success": False, "message": "Necesito saber el proyecto y la tarea a reabrir."}
+
+    result = await session.execute(
+        select(Project).where(Project.user_id == uid, Project.name == project_name)
+    )
+    project = result.scalar_one_or_none()
+    if not project:
+        return {"success": False, "message": f"No encontré el proyecto '{project_name}'."}
+
+    pattern = f"%{task_content}%"
+    result = await session.execute(
+        select(ProjectTask).where(
+            ProjectTask.project_id == project.id,
+            ProjectTask.status == TaskStatus.done,
+            ProjectTask.content.ilike(pattern),
+        ).limit(1)
+    )
+    task = result.scalar_one_or_none()
+    if not task:
+        return {"success": False, "message": f"No encontré una tarea completada que coincida con '{task_content}' en '{project_name}'."}
+
+    task.status = TaskStatus.pending
+    task.completed_at = None
+    task.reminder_sent = False
+    await session.flush()
+
+    return {
+        "success": True,
+        "message": f"🔄 Tarea '{task.content[:60]}' reabierta en '{project_name}'.",
+    }
+
+
+async def handle_archive_project(session, user_id: str, args: dict) -> dict:
+    """Archive a project (set status to archived)."""
+    import uuid
+    from sqlalchemy import select
+    from app.models.project import Project, ProjectStatus
+
+    uid = uuid.UUID(user_id)
+    project_name = (args.get("project_name") or "").strip()
+
+    if not project_name:
+        return {"success": False, "message": "¿Qué proyecto querés archivar?"}
+
+    result = await session.execute(
+        select(Project).where(
+            Project.user_id == uid,
+            Project.name == project_name,
+            Project.status == ProjectStatus.active,
+        )
+    )
+    project = result.scalar_one_or_none()
+    if not project:
+        return {"success": True, "message": f"El proyecto '{project_name}' no está activo o no existe."}
+
+    project.status = ProjectStatus.archived
+    await session.flush()
+
+    return {
+        "success": True,
+        "message": f"📁 Proyecto '{project_name}' archivado. Tus tareas no se pierden — si querés reabrirlo, avisame.",
+    }
+
 
 async def handle_save_contact(session, user_id: str, args: dict) -> dict:
     """Save a contact."""
@@ -1628,6 +2532,32 @@ async def handle_list_contacts(session, user_id: str, args: dict) -> dict:
         "message": f"Tenés {len(contacts)} contacto(s).",
         "contacts": contact_list,
     }
+
+
+async def handle_delete_contact(session, user_id: str, args: dict) -> dict:
+    """Delete a contact by exact name match."""
+    import uuid as uuid_mod
+    from sqlalchemy import select
+    from app.models.contact import Contact
+
+    uid = uuid_mod.UUID(user_id)
+    name = (args.get("name") or "").strip()
+
+    if not name:
+        return {"success": False, "message": "¿Qué contacto querés eliminar?"}
+
+    result = await session.execute(
+        select(Contact).where(Contact.user_id == uid, Contact.name == name)
+    )
+    contact = result.scalar_one_or_none()
+
+    if not contact:
+        return {"success": True, "message": f"No tenés un contacto llamado '{name}'."}
+
+    await session.delete(contact)
+    await session.flush()
+
+    return {"success": True, "message": f"Contacto '{name}' eliminado."}
 
 
 # =============================================================================
@@ -1933,6 +2863,106 @@ async def handle_list_maintenances(session, user_id: str, args: dict) -> dict:
         "message": f"{vehicle.plate} tiene {len(maintenances)} mantenimiento(s) registrado(s).",
         "vehicle_plate": vehicle.plate,
         "maintenances": maint_list,
+    }
+
+
+async def handle_delete_vehicle(session, user_id: str, args: dict) -> dict:
+    """Soft-delete a vehicle by plate."""
+    import uuid as uuid_mod
+    from datetime import datetime, timezone
+    from sqlalchemy import select
+    from app.models.vehicle import Vehicle
+
+    uid = uuid_mod.UUID(user_id)
+    plate = (args.get("plate") or "").upper().strip().replace("-", "")
+
+    if not plate:
+        return {"success": False, "message": "¿Qué vehículo querés eliminar? Decime la placa."}
+
+    result = await session.execute(
+        select(Vehicle).where(
+            Vehicle.user_id == uid,
+            Vehicle.plate == plate,
+            Vehicle.deleted_at.is_(None),
+        )
+    )
+    vehicle = result.scalar_one_or_none()
+    if not vehicle:
+        return {"success": True, "message": f"No tenés un vehículo con placa {plate}."}
+
+    vehicle.deleted_at = datetime.now(timezone.utc)
+    await session.flush()
+
+    return {"success": True, "message": f"Vehículo {plate} eliminado."}
+
+
+async def handle_update_vehicle(session, user_id: str, args: dict) -> dict:
+    """Update vehicle fields by plate."""
+    import uuid as uuid_mod
+    from sqlalchemy import select
+    from app.models.vehicle import Vehicle
+    from app.services.vehicle_rules import evaluate_vehicle_rules
+    from datetime import date
+
+    uid = uuid_mod.UUID(user_id)
+    plate = (args.get("plate") or "").upper().strip().replace("-", "")
+
+    if not plate:
+        return {"success": False, "message": "Necesito la placa del vehículo a actualizar."}
+
+    result = await session.execute(
+        select(Vehicle).where(
+            Vehicle.user_id == uid,
+            Vehicle.plate == plate,
+            Vehicle.deleted_at.is_(None),
+        )
+    )
+    vehicle = result.scalar_one_or_none()
+    if not vehicle:
+        return {"success": True, "message": f"No tenés un vehículo con placa {plate}."}
+
+    changed = []
+
+    # Update plate → recalculate rules
+    new_plate = args.get("new_plate")
+    if new_plate:
+        new_plate_clean = new_plate.upper().strip().replace("-", "")
+        if new_plate_clean != vehicle.plate:
+            vehicle.plate = new_plate_clean
+            changed.append(f"placa → {new_plate_clean}")
+            # Recalculate vehicle rules
+            try:
+                rules = evaluate_vehicle_rules(new_plate_clean, None, date.today())
+                vehicle.last_digit = rules["last_digit"]
+                vehicle.pico_y_placa_days = rules["pico_y_placa_days"]
+                vehicle.next_matriculation = date.fromisoformat(rules["next_matriculation"])
+            except Exception:
+                pass
+
+    if args.get("brand"):
+        vehicle.brand = args["brand"]
+        changed.append(f"marca → {args['brand']}")
+    if args.get("model"):
+        vehicle.model = args["model"]
+        changed.append(f"modelo → {args['model']}")
+    if args.get("year"):
+        vehicle.year = args["year"]
+        changed.append(f"año → {args['year']}")
+    if args.get("color"):
+        vehicle.color = args["color"]
+        changed.append(f"color → {args['color']}")
+    if args.get("notes"):
+        vehicle.notes = args["notes"]
+        changed.append("notas")
+
+    if not changed:
+        return {"success": True, "message": f"No hay cambios para {plate}."}
+
+    await session.flush()
+
+    return {
+        "success": True,
+        "message": f"Vehículo {plate} actualizado: {', '.join(changed)}.",
     }
 
 
@@ -2291,10 +3321,19 @@ TOOL_HANDLERS: dict[str, Any] = {
     "list_my_vehicles": handle_list_my_vehicles,
     "add_maintenance": handle_add_maintenance,
     "list_maintenances": handle_list_maintenances,
+    "delete_vehicle": handle_delete_vehicle,
+    "update_vehicle": handle_update_vehicle,
     "save_document": handle_save_document,
+    "list_my_documents": handle_list_my_documents,
     "save_event": handle_save_event,
+    "list_my_events": handle_list_my_events,
     "save_list": handle_save_list,
+    "list_items": handle_list_items,
+    "complete_item": handle_complete_item,
+    "delete_list": handle_delete_list,
     "save_note": handle_save_note,
+    "list_my_notes": handle_list_my_notes,
+    "delete_note": handle_delete_note,
     "search_my_data": handle_search_data,
     "get_my_summary": handle_get_summary,
     "update_last": handle_update_last,
@@ -2304,8 +3343,11 @@ TOOL_HANDLERS: dict[str, Any] = {
     "save_project_task": handle_save_project_task,
     "list_project_tasks": handle_list_project_tasks,
     "complete_project_task": handle_complete_project_task,
+    "reopen_project_task": handle_reopen_project_task,
+    "archive_project": handle_archive_project,
     "save_contact": handle_save_contact,
     "list_contacts": handle_list_contacts,
+    "delete_contact": handle_delete_contact,
     "send_photo": handle_send_photo,
     "web_search": handle_web_search,
     "add_transaction": handle_add_transaction,

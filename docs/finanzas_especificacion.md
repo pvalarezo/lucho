@@ -380,17 +380,18 @@ Para cada usuario con presupuestos activos:
 
 ---
 
-## 7. Resumen Mensual
+## 7. Resumen Mensual ✅
 
 Cada día 1 del mes a las 8:00 AM, el scheduler dispara `run_monthly_summary()`:
 
-1. Calcula total de ingresos y gastos del mes anterior
-2. Agrupa por categoría
-3. Compara con presupuestos
-4. Genera resumen vía LLM (usando datos reales de la DB, sin alucinar)
+1. Para cada usuario con transacciones en el mes anterior:
+2. Calcula total de ingresos y gastos
+3. Top 3 categorías de gasto
+4. Compara con presupuestos activos
+5. Envía resumen vía notificación (Telegram / WhatsApp)
 
-> 📊 *Resumen de julio*
-> 💸 Gastaste $1,240 en total
+> 📊 *Resumen de Julio 2026*
+> 💸 Gastaste $1,240
 > 💰 Ingresos: $1,500
 > 📈 Balance: +$260
 >
@@ -403,7 +404,9 @@ Cada día 1 del mes a las 8:00 AM, el scheduler dispara `run_monthly_summary()`:
 > ✅ Alimentación: $380 de $400 (95%)
 > ⚠️ Entretenimiento: $195 de $200 (casi al límite)
 >
-> ¡Buen mes! ¿Querés ajustar algún presupuesto?
+> ¿Querés ajustar algún presupuesto o revisar algo en detalle?
+
+**Implementado en**: `app/services/scheduler.py` — `run_monthly_summary()` + `_send_monthly_summary()`. Job programado el día 1 a las 8:00 AM.
 
 ---
 
@@ -420,31 +423,26 @@ Cada día 1 del mes a las 8:00 AM, el scheduler dispara `run_monthly_summary()`:
 
 ## 9. Implementación Técnica
 
-### 9.1 Archivos a crear/modificar
+### 9.1 Estado actual
 
-| Archivo | Acción |
-|---------|--------|
-| `app/models/transaction.py` | 🆕 Transaction + Budget models |
-| `app/models/__init__.py` | 🔧 Registrar nuevos modelos |
-| `alembic/versions/` | 🆕 Migración: transactions + budgets + ENUMs |
-| `app/agent/tools.py` | 🔧 +2 handlers, +3 tool schemas (add/list/get_balance) |
-| `app/services/persistence.py` | 🔧 +persist_transaction, +persist_budget |
-| `app/services/scheduler.py` | 🔧 +_evaluate_budgets, +run_monthly_summary |
-| `app/services/search.py` | 🔧 +query_transactions, +get_balance |
-| `app/services/llm/base.py` | 🔧 +transaction extraction prompt |
-| `docs/whatsapp_templates.md` | 🔧 +budget_alert template spec |
-| `tests/unit.py` | 🔧 +transaction/budget tests |
+| Componente | Archivo | Estado |
+|------------|---------|--------|
+| `Transaction` + `Budget` models | `app/models/transaction.py` | ✅ |
+| `persist_transaction`, `persist_budget` | `app/services/persistence.py` | ✅ |
+| 5 tools: `add_transaction`, `list_transactions`, `get_balance`, `set_budget`, `check_budget` | `app/agent/tools.py` | ✅ |
+| `_evaluate_budgets` — alerta diaria de presupuesto | `app/services/scheduler.py` | ✅ |
+| `run_monthly_summary` — resumen día 1 del mes | `app/services/scheduler.py` | ✅ |
+| `budget_alert` WhatsApp template (Meta) | Meta | ⏳ Pendiente |
 
-### 9.2 Tools totales después del módulo
+### 9.2 Tools del módulo
 
-| # | Tool | Módulo |
-|---|------|--------|
-| 1-22 | (existentes) | Vehículos, Docs, Eventos, etc. |
-| 23 | `add_transaction` 🆕 | Finanzas |
-| 24 | `list_transactions` 🆕 | Finanzas |
-| 25 | `get_balance` 🆕 | Finanzas |
-| 26 | `set_budget` 🆕 | Finanzas |
-| 27 | `check_budget` 🆕 | Finanzas |
+| # | Tool |
+|---|------|
+| 1 | `add_transaction` — registrar gasto/ingreso |
+| 2 | `list_transactions` — consultar con filtros |
+| 3 | `get_balance` — balance del mes |
+| 4 | `set_budget` — configurar presupuesto |
+| 5 | `check_budget` — estado de presupuestos |
 
 ---
 

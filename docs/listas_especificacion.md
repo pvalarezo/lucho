@@ -189,10 +189,14 @@ Para WhatsApp, las listas usan formato simple con emojis (regla del system promp
 | Componente | Estado |
 |------------|--------|
 | `lists` + `list_items` tablas | ✅ |
-| `save_list` tool | ✅ |
+| `save_list` tool — create/update con prevención de duplicados | ✅ |
+| `list_items` tool — consultar ítems por lista y status (pending/done/all) | ✅ |
+| `complete_item` tool — marcar ítems como done (individual, múltiple, o mark_all) | ✅ |
+| `delete_list` tool — eliminar lista completa con todos sus ítems | ✅ |
 | `list_pending_items()` búsqueda | ✅ |
 | pgvector en `list_items` | ✅ |
 | Búsqueda semántica de ítems | ✅ |
+| Prevención de duplicados — mismo contenido + pending en misma lista | ✅ |
 
 ---
 
@@ -200,9 +204,5 @@ Para WhatsApp, las listas usan formato simple con emojis (regla del system promp
 
 | Tarea | Prioridad |
 |-------|-----------|
-| Tool `list_items` (consultar ítems por lista) | 🔴 Alta |
-| Tool `complete_item` (marcar ítems como hechos) | 🔴 Alta |
-| Prevenir duplicados de ítems | 🟡 Media |
-| Tool `delete_list` (eliminar/archivar lista) | 🟢 Baja |
 | Ítems con fecha de vencimiento + recordatorios | 🟢 Baja |
 | Compartir lista con otro usuario | ⚪ Futuro |

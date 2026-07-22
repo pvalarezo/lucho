@@ -157,6 +157,20 @@ async def _evaluate_events(session: AsyncSession):
                 session.add(reminder)
                 break  # one reminder per event per day
 
+    # ---- Mark past events as overdue -------
+    overdue_result = await session.execute(
+        select(Event).where(
+            Event.status == EventStatus.upcoming,
+            Event.target_date < today_start,
+        )
+    )
+    overdue_events = overdue_result.scalars().all()
+    for ev in overdue_events:
+        ev.status = EventStatus.overdue
+        logger.info("Marked event as overdue: %s (%s)", ev.title, ev.target_date)
+    if overdue_events:
+        await session.flush()
+
 
 async def _send_event_reminder(
     session: AsyncSession,
@@ -813,6 +827,185 @@ async def _build_digest(session, user, today, weekday):
 
 
 # =============================================================================
+# MONTHLY SUMMARY — día 1 del mes, 8:00 AM
+# =============================================================================
+
+async def run_monthly_summary():
+    """
+    Send a monthly financial summary to every user with transactions.
+    Calculates: income, expenses, top categories, budget status.
+    Runs on the 1st of each month at 8:00 AM.
+    """
+    from datetime import date, datetime, timedelta
+    from calendar import month_name
+
+    today = date.today()
+    # Last month
+    if today.month == 1:
+        last_month = 12
+        last_year = today.year - 1
+    else:
+        last_month = today.month - 1
+        last_year = today.year
+
+    first_day = today.replace(year=last_year, month=last_month, day=1)
+    if last_month == 12:
+        last_day_of_last = date(last_year, 12, 31)
+    else:
+        last_day_of_last = date(last_year, last_month + 1, 1) - timedelta(days=1)
+
+    month_label = month_name[last_month].capitalize()
+
+    start = datetime.combine(first_day, datetime.min.time())
+    end = datetime.combine(last_day_of_last, datetime.max.time())
+
+    logger.info("Running monthly summary for %s %d", month_label, last_year)
+
+    async with async_session() as session:
+        # Get all users
+        users_result = await session.execute(select(User))
+        users = users_result.scalars().all()
+
+        for user in users:
+            await _send_monthly_summary(session, user, start, end, month_label, last_year)
+
+    logger.info("Monthly summary complete")
+
+
+async def _send_monthly_summary(
+    session: AsyncSession,
+    user: User,
+    start: datetime,
+    end: datetime,
+    month_label: str,
+    year: int,
+):
+    """Send monthly financial summary to a single user."""
+    from app.models.transaction import Transaction, TransactionType, Budget
+
+    # ---- Totals -------
+    income_result = await session.execute(
+        select(func.coalesce(func.sum(Transaction.amount), 0))
+        .where(
+            Transaction.user_id == user.id,
+            Transaction.type == TransactionType.income,
+            Transaction.transaction_date >= start,
+            Transaction.transaction_date <= end,
+        )
+    )
+    total_income = float(income_result.scalar_one())
+
+    expense_result = await session.execute(
+        select(func.coalesce(func.sum(Transaction.amount), 0))
+        .where(
+            Transaction.user_id == user.id,
+            Transaction.type == TransactionType.expense,
+            Transaction.transaction_date >= start,
+            Transaction.transaction_date <= end,
+        )
+    )
+    total_expenses = float(expense_result.scalar_one())
+
+    # Skip users with no transactions
+    if total_income == 0 and total_expenses == 0:
+        return
+
+    balance = total_income - total_expenses
+
+    # ---- Top 3 expense categories -------
+    top_cat_result = await session.execute(
+        select(
+            Transaction.category,
+            func.sum(Transaction.amount).label("total"),
+        )
+        .where(
+            Transaction.user_id == user.id,
+            Transaction.type == TransactionType.expense,
+            Transaction.transaction_date >= start,
+            Transaction.transaction_date <= end,
+        )
+        .group_by(Transaction.category)
+        .order_by(func.sum(Transaction.amount).desc())
+        .limit(3)
+    )
+    top_categories = [
+        {"category": r.category.value.replace("_", " ").title(), "total": float(r.total)}
+        for r in top_cat_result.all()
+    ]
+
+    # ---- Budget status -------
+    budgets_result = await session.execute(
+        select(Budget).where(
+            Budget.user_id == user.id,
+            Budget.is_active == True,
+        )
+    )
+    budgets = budgets_result.scalars().all()
+
+    budget_lines = []
+    for b in budgets:
+        spent_result = await session.execute(
+            select(func.coalesce(func.sum(Transaction.amount), 0))
+            .where(
+                Transaction.user_id == user.id,
+                Transaction.type == TransactionType.expense,
+                Transaction.category == b.category,
+                Transaction.transaction_date >= start,
+                Transaction.transaction_date <= end,
+            )
+        )
+        spent = float(spent_result.scalar_one())
+        pct = round((spent / float(b.amount)) * 100) if float(b.amount) > 0 else 0
+        icon = "✅" if pct < b.alert_threshold else "⚠️" if pct < 100 else "🔴"
+        budget_lines.append(
+            f"{icon} {b.category.value.replace('_', ' ').title()}: ${spent:.0f} de ${float(b.amount):.0f} ({pct}%)"
+        )
+
+    # ---- Build message -------
+    emoji_cat_map = {
+        "Food": "🍔", "Transport": "🚗", "Housing": "🏠", "Health": "🏥",
+        "Entertainment": "🎮", "Services": "⚡", "Education": "📚",
+        "Clothing": "👕", "Other Expense": "➖",
+    }
+
+    lines = [f"📊 *Resumen de {month_label} {year}*"]
+    lines.append(f"💸 Gastaste ${total_expenses:.0f}")
+    lines.append(f"💰 Ingresos: ${total_income:.0f}")
+    balance_sign = "+" if balance >= 0 else ""
+    lines.append(f"📈 Balance: {balance_sign}${balance:.0f}")
+
+    if top_categories:
+        lines.append(f"\nTu top {len(top_categories)}:")
+        for i, tc in enumerate(top_categories, 1):
+            emoji = emoji_cat_map.get(tc["category"], "📌")
+            pct_of_total = round((tc["total"] / total_expenses) * 100) if total_expenses > 0 else 0
+            lines.append(f"{emoji} {tc['category']}: ${tc['total']:.0f} ({pct_of_total}%)")
+
+    if budget_lines:
+        lines.append("\nPresupuestos:")
+        lines.extend(budget_lines)
+
+    lines.append("\n¿Querés ajustar algún presupuesto o revisar algo en detalle?")
+
+    msg = "\n".join(lines)
+
+    # Send notification
+    contact_id, channel = await resolve_user_contact(user)
+    if not contact_id:
+        return
+
+    sent = await send_notification(
+        user_id=str(user.id),
+        contact_id=contact_id,
+        message=msg,
+        channel=channel,
+    )
+    if sent:
+        logger.info("Monthly summary sent to user %s: %s %d (balance: %+.0f)",
+                   user.id, month_label, year, balance)
+
+
+# =============================================================================
 # SCHEDULER LIFECYCLE
 # =============================================================================
 
@@ -832,8 +1025,15 @@ def start_scheduler():
         name="Daily morning digest",
         replace_existing=True,
     )
+    scheduler.add_job(
+        run_monthly_summary,
+        trigger=CronTrigger(day=1, hour=8, minute=0),
+        id="monthly_summary",
+        name="Monthly financial summary (1st of month)",
+        replace_existing=True,
+    )
     scheduler.start()
-    logger.info("Scheduler started: unified reminders + digest at 08:00 AM")
+    logger.info("Scheduler started: reminders + digest + monthly summary at 08:00 AM")
 
 
 def stop_scheduler():

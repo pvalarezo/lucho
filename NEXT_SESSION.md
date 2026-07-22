@@ -2,84 +2,49 @@
 
 ---
 
-## Sesión finalizada — 2026-07-21 (sesión extendida, ~8 horas)
+## Sesión finalizada — 2026-07-22 (revisión completa de módulos, ~6 horas)
 
-**v2.13.0 — Finanzas + Documentos independiente + 14 specs + brainstorming**
-
----
-
-### Entregables de la sesión (10 tags)
-
-| Tag | Qué |
-|-----|-----|
-| v2.10.1 | Templates WhatsApp 4/4 verificados |
-| v2.10.2 | Eventos arreglados (no enviaban) + event_reminder spec |
-| v2.11.0 | Ad-hoc reminders sub-día (DateTrigger) |
-| v2.11.1 | System prompt reforzado anti-alucinaciones |
-| v2.11.2 | Hora local Ecuador (cero TZ) |
-| v2.12.0 | Módulo Finanzas Personales |
-| v2.12.1 | Formato WhatsApp sin tablas |
-| v2.12.2 | Prompt incluye finanzas |
-| v2.12.3 | Sin ⏳, solo typing indicator |
-| v2.12.4 | Onboarding actualizado + docs |
-| v2.13.0 | Tabla `documents` independiente, `assets` y `shared_expenses` eliminados |
+**v2.14.0 — Revisión completa de 9 módulos: 12 tools nuevas, 4 fixes, 1 spec creada**
 
 ---
 
-### Archivos creados (13 docs)
+### Entregables de la sesión
 
-| Documento | Tipo |
-|-----------|------|
-| `docs/finanzas_especificacion.md` | Módulo |
-| `docs/documentos_especificacion.md` | Módulo |
-| `docs/recordatorios_especificacion.md` | Módulo |
-| `docs/listas_especificacion.md` | Módulo |
-| `docs/notas_apuntes_especificacion.md` | Módulo |
-| `docs/proyectos_tareas_especificacion.md` | Módulo |
-| `docs/busqueda_especificacion.md` | Módulo |
-| `docs/contactos_especificacion.md` | Módulo |
-| `docs/funcionalidades_generales.md` | Sistema |
-| `docs/skills_ecuador.md` | Funcionalidad |
-| `docs/ideas_nuevos_modulos.md` | Brainstorming |
-| `scripts/test_whatsapp_templates.py` | Testing |
-| `app/routers/internal_test.py` | Testing |
+| Módulo | Tools nuevas | Fixes | Spec |
+|--------|:---:|:---:|:--:|
+| 📄 Documentos | `list_my_documents` | `document_number` + `tags` en schema; `persist_document` recibe `tags` | Actualizada |
+| 📋 Listas | `list_items`, `complete_item`, `delete_list` | Prevención duplicados en `persist_list_items` | Actualizada |
+| 📓 Notas | `list_my_notes`, `delete_note` | `file_key` en `persist_note` + `handle_save_note` | Actualizada |
+| 👤 Contactos | `delete_contact` | — | Actualizada |
+| 💰 Finanzas | `run_monthly_summary` (día 1) | — | Actualizada |
+| 📋 Proyectos | `reopen_project_task`, `archive_project` | — | Actualizada |
+| 🚗 Vehículos | `delete_vehicle`, `update_vehicle` | — | **Creada** (no existía) |
+| 📅 Recordatorios | `list_my_events` | Overdue automático en `_evaluate_events` | Actualizada |
+| 🔍 Búsqueda | — | `spending_by_category()` usa `transactions` reales (era stub) | Actualizada |
 
----
+### Métricas finales
 
-### Cambios estructurales
-
-- `assets` table → eliminada (reemplazada por `documents`)
-- `shared_expenses` + `shared_expense_participants` → eliminados (reemplazados por `transactions`)
-- `events.target_date` → DATE → TIMESTAMP (hora local Ecuador)
-- `save_expense` tool → eliminado (reemplazado por `add_transaction`)
-- `Asset` model → eliminado
-- `persist_asset()` → eliminado (reemplazado por `persist_document()`)
-- Tools: 22 → 26 (5 finanzas + 4 docs - 1 save_expense - 4 removals)
-- Tablas: 22 → 23
-- Tests: 307 → 348
+| Métrica | v2.13.0 | v2.14.0 |
+|---------|:---:|:---:|
+| Tools | 26 | **38** |
+| Tests | 348 | **444** |
+| Pasando | 100% | **100%** |
+| Specs | 14 | **15** (+vehículos) |
 
 ---
 
 ## Próxima sesión — Prioridades
 
-### 🔴 INMEDIATA
+### 🔴 Templates Meta (3 pendientes)
+- [ ] `event_reminder` (es) — 5 params, pendiente en Meta
+- [ ] `budget_alert` (es) — 5 params, pendiente en Meta
+- [ ] `project_reminder` (es) — esperar traducción español
 
-**1. Completar tools pendientes**
-- [ ] `list_my_documents` — listar docs con filtros
-- [ ] `list_items` — consultar ítems por lista
-- [ ] `complete_item` — marcar ítems como hechos
-- [ ] `list_my_notes` — listar notas por tema
+### 🟡 Fase 2 Final
+- [ ] Métricas: % extracción correcta, retención D7/D30, intención de pago
 
-**2. Templates Meta**
-- [ ] `event_reminder` (es) — crear en Meta (5 params)
-- [ ] `budget_alert` (es) — crear en Meta (5 params)
-- [ ] `project_reminder` (es) — esperar traducción
-
-### 🟡 FASE 2 FINAL
-
-**3. Métricas** — extracción correcta, retención D7/D30, intención de pago
-
-### 🟢 FASE 3
-
-**4. Módulos rápidos** — temporizador (extender ad-hoc), APIs Ecuador (clima, noticias)
-**5. Pagos** — Kushki/PayPhone, facturación SRI
+### 🟢 Fase 3
+- [ ] Integración de pago (Kushki/PayPhone)
+- [ ] Facturación SRI (AuraFac)
+- [ ] APIs Ecuador: clima, noticias, CNE
+- [ ] Módulos rápidos: temporizador, CRM ligero

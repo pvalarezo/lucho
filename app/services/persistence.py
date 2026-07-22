@@ -32,9 +32,10 @@ async def persist_document(
     expiry_date: str | None = None,
     entity_name: str | None = None,
     notes: str | None = None,
+    tags: list[str] | None = None,
     file_key: str | None = None,
 ) -> Document:
-    """Create a document for the user."""
+    """Create or update a document for the user."""
     # Resolve document type enum
     try:
         dt_enum = DocumentType(document_type)
@@ -69,6 +70,8 @@ async def persist_document(
         existing.notes = notes or existing.notes
         if file_key:
             existing.file_key = file_key
+        if tags is not None:
+            existing.tags = tags
         await session.flush()
         return existing
 
@@ -80,6 +83,7 @@ async def persist_document(
         expiry_date=expiry,
         entity_name=entity_name,
         notes=notes,
+        tags=tags,
         file_key=file_key,
     )
     session.add(doc)
@@ -162,26 +166,46 @@ async def persist_list_items(
         await session.flush()
         logger.info("Created list: %s", list_name)
 
-    # Add items
+    # Add items — skip duplicates (same content + pending in same list)
+    # Fetch existing pending items in this list for dedup
+    existing_result = await session.execute(
+        select(ListItem).where(
+            ListItem.list_id == lst.id,
+            ListItem.status == ItemStatus.pending,
+        )
+    )
+    existing_contents = {item.content.lower().strip() for item in existing_result.scalars().all()}
+
     created = []
+    skipped = 0
     for item_text in items:
+        content_clean = item_text.strip()
+        if content_clean.lower() in existing_contents:
+            skipped += 1
+            continue
+
         item = ListItem(
             list_id=lst.id,
-            content=item_text.strip(),
+            content=content_clean,
             status=ItemStatus.pending,
             quantity=quantity,
         )
         session.add(item)
         created.append(item)
+        existing_contents.add(content_clean.lower())  # Prevent duplicates within same batch
 
         # Generate embedding
         from app.services import embeddings as embed_svc
-        embedding = await embed_svc.generate_embedding(item_text.strip())
+        embedding = await embed_svc.generate_embedding(content_clean)
         if embedding:
             item.embedding = embedding
 
+    if skipped:
+        logger.info("Skipped %d duplicate item(s) in list '%s'", skipped, list_name)
+
     await session.flush()
-    logger.info("Added %d items to list '%s'", len(created), list_name)
+    if created:
+        logger.info("Added %d items to list '%s'", len(created), list_name)
     return created
 
 
@@ -191,6 +215,7 @@ async def persist_note(
     topic_name: str,
     content: str,
     source_message_id: uuid.UUID | None = None,
+    file_key: str | None = None,
 ) -> Note:
     """Create a note under a topic. Creates the topic if it doesn't exist."""
     # Guard against null/empty topic names from extractor
@@ -198,6 +223,10 @@ async def persist_note(
         topic_name = "general"
     if not content or not content.strip():
         content = "(sin contenido)"
+
+    # Embed file reference in content for searchability
+    if file_key:
+        content = f"[📸 foto: {file_key}] {content}"
     result = await session.execute(
         select(Topic).where(
             Topic.user_id == user_id,
