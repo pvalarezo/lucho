@@ -343,37 +343,16 @@ Internet ────────▶│  Nginx (puerto 80/443)          │
 ### 6.2 Crear landing page
 
 ```bash
+# La landing page está en el repositorio: landing/
+# Copiarla a /var/www/holalucho para que Nginx la sirva
 sudo mkdir -p /var/www/holalucho
+sudo cp -r /home/lucho/app/landing/* /var/www/holalucho/
 sudo chown -R lucho:lucho /var/www/holalucho
 
-# Landing page simple (reemplazar con tu HTML real)
-cat > /var/www/holalucho/index.html <<'LANDING'
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lucho — Tu asistente personal</title>
-    <style>
-        body { font-family: -apple-system, sans-serif; display: flex; justify-content: center;
-               align-items: center; min-height: 100vh; margin: 0; background: #0f172a; color: #e2e8f0; }
-        main { text-align: center; padding: 2rem; }
-        h1 { font-size: 3rem; color: #38bdf8; }
-        p { font-size: 1.2rem; opacity: 0.8; }
-    </style>
-</head>
-<body>
-    <main>
-        <h1>🚀 Lucho</h1>
-        <p>Tu asistente personal de segundo cerebro por WhatsApp.</p>
-        <p>Próximamente...</p>
-    </main>
-</body>
-</html>
-LANDING
-
-echo "✅ Landing page creada en /var/www/holalucho"
+echo "✅ Landing page desplegada en /var/www/holalucho"
 ```
+
+> 🤖 **Pi**: Si necesitás actualizar la landing, editá los archivos en `landing/` y volvé a copiarlos.
 
 ### 6.3 Nginx multi-dominio (NO INTERACTIVO)
 

@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="es" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lucho — Tu asistente personal de segundo cerebro por WhatsApp</title>
+    <meta name="description" content="Lucho organiza tu vida por WhatsApp. Recordatorios, documentos, finanzas, vehículos, listas y más. Tu segundo cerebro digital para Ecuador y LatAm.">
+    <meta name="keywords" content="asistente personal, WhatsApp, Ecuador, organización, recordatorios, finanzas, facturación">
+    <meta name="author" content="AURACORE SOLUCIONES SAS">
+    <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="css/style.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: { 50: '#f0f9ff', 100: '#e0f2fe', 200: '#bae6fd', 300: '#7dd3fc', 400: '#38bdf8', 500: '#0ea5e9', 600: '#0284c7', 700: '#0369a1', 800: '#075985', 900: '#0c4a6e' },
+                        dark: { 800: '#0f172a', 900: '#020617' }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-dark-900 text-slate-200 font-sans antialiased">
+
+<!-- ===== NAV ===== -->
+<nav id="nav" class="fixed top-0 left-0 right-0 z-50 transition-all duration-300 bg-dark-900/80 backdrop-blur-md border-b border-slate-800">
+    <div class="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+        <a href="#" class="text-2xl font-bold text-white tracking-tight">🚀 <span class="text-brand-400">Lucho</span></a>
+        <div class="hidden md:flex items-center gap-8 text-sm font-medium text-slate-400">
+            <a href="#features" class="hover:text-white transition-colors">Funciones</a>
+            <a href="#how" class="hover:text-white transition-colors">Cómo funciona</a>
+            <a href="#pricing" class="hover:text-white transition-colors">Planes</a>
+            <a href="#faq" class="hover:text-white transition-colors">FAQ</a>
+            <a href="#cta" class="bg-brand-500 hover:bg-brand-400 text-white px-5 py-2 rounded-full transition-colors font-semibold">Empezar gratis</a>
+        </div>
+        <button id="mobileToggle" class="md:hidden text-slate-400 hover:text-white text-2xl">☰</button>
+    </div>
+    <div id="mobileMenu" class="hidden md:hidden px-4 pb-4 space-y-3 text-sm font-medium text-slate-400">
+        <a href="#features" class="block hover:text-white">Funciones</a>
+        <a href="#how" class="block hover:text-white">Cómo funciona</a>
+        <a href="#pricing" class="block hover:text-white">Planes</a>
+        <a href="#faq" class="block hover:text-white">FAQ</a>
+        <a href="#cta" class="block bg-brand-500 text-white text-center px-5 py-2 rounded-full">Empezar gratis</a>
+    </div>
+</nav>
+
+<!-- ===== HERO ===== -->
+<header class="pt-28 pb-16 md:pt-36 md:pb-24 px-4">
+    <div class="max-w-4xl mx-auto text-center">
+        <div class="inline-flex items-center gap-2 bg-brand-500/10 border border-brand-500/30 rounded-full px-4 py-1.5 text-sm text-brand-300 mb-6">
+            <span class="w-2 h-2 bg-brand-400 rounded-full animate-pulse"></span>
+            Ya disponible en Ecuador 🇪🇨
+        </div>
+        <h1 class="text-4xl md:text-6xl font-extrabold text-white leading-tight mb-6">
+            Tu <span class="text-brand-400">segundo cerebro</span><br>por WhatsApp
+        </h1>
+        <p class="text-lg md:text-xl text-slate-400 max-w-2xl mx-auto mb-10">
+            Lucho organiza tu vida sin apps nuevas. Recordatorios, documentos, finanzas, vehículos y más — todo conversando por WhatsApp como si hablaras con un amigo.
+        </p>
+        <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <a href="https://wa.me/593999999999?text=Hola%20Lucho%20%F0%9F%9A%80" target="_blank" rel="noopener" class="w-full sm:w-auto bg-green-500 hover:bg-green-400 text-white font-bold px-8 py-4 rounded-full text-lg transition-all shadow-lg shadow-green-500/25 hover:shadow-green-500/40 flex items-center justify-center gap-2">
+                💬 Probá Lucho gratis
+            </a>
+            <a href="#features" class="w-full sm:w-auto border border-slate-600 hover:border-slate-400 text-slate-300 px-8 py-4 rounded-full text-lg transition-colors text-center">
+                Ver funciones ↓
+            </a>
+        </div>
+        <p class="text-sm text-slate-500 mt-4">7 días de prueba gratis · Sin tarjeta · Cancelá cuando quieras</p>
+    </div>
+</header>
+
+<!-- ===== FEATURES ===== -->
+<section id="features" class="py-20 md:py-28 px-4">
+    <div class="max-w-6xl mx-auto">
+        <div class="text-center mb-14">
+            <span class="text-brand-400 font-semibold text-sm tracking-widest uppercase">Funciones</span>
+            <h2 class="text-3xl md:text-4xl font-bold text-white mt-2 mb-4">Todo lo que necesitás,<br>en un solo chat</h2>
+            <p class="text-slate-400 max-w-xl mx-auto">Nueve módulos que cubren tu día a día. Sin menús, sin formularios — solo conversación natural.</p>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div class="group bg-slate-800/50 border border-slate-700/50 hover:border-brand-500/40 rounded-2xl p-6 transition-all duration-300">
+                <div class="w-11 h-11 bg-brand-500/10 rounded-xl flex items-center justify-center text-2xl mb-4">📅</div>
+                <h3 class="text-lg font-semibold text-white mb-2">Recordatorios</h3>
+                <p class="text-slate-400 text-sm">Citas, reuniones y eventos con alertas. "Avísame en 5 minutos" también funciona.</p>
+            </div>
+            <div class="group bg-slate-800/50 border border-slate-700/50 hover:border-brand-500/40 rounded-2xl p-6 transition-all duration-300">
+                <div class="w-11 h-11 bg-brand-500/10 rounded-xl flex items-center justify-center text-2xl mb-4">📄</div>
+                <h3 class="text-lg font-semibold text-white mb-2">Documentos</h3>
+                <p class="text-slate-400 text-sm">Cédula, SOAT, licencia, facturas. Te avisa antes que venzan.</p>
+            </div>
+            <div class="group bg-slate-800/50 border border-slate-700/50 hover:border-brand-500/40 rounded-2xl p-6 transition-all duration-300">
+                <div class="w-11 h-11 bg-brand-500/10 rounded-xl flex items-center justify-center text-2xl mb-4">💰</div>
+                <h3 class="text-lg font-semibold text-white mb-2">Finanzas</h3>
+                <p class="text-slate-400 text-sm">Registrá gastos e ingresos. Presupuestos con alertas. "Gasté $20 en almuerzo".</p>
+            </div>
+            <div class="group bg-slate-800/50 border border-slate-700/50 hover:border-brand-500/40 rounded-2xl p-6 transition-all duration-300">
+                <div class="w-11 h-11 bg-brand-500/10 rounded-xl flex items-center justify-center text-2xl mb-4">🚗</div>
+                <h3 class="text-lg font-semibold text-white mb-2">Vehículos</h3>
+                <p class="text-slate-400 text-sm">Pico y placa, matriculación, multas, SOAT. Solo decime la placa.</p>
+            </div>
+            <div class="group bg-slate-800/50 border border-slate-700/50 hover:border-brand-500/40 rounded-2xl p-6 transition-all duration-300">
+                <div class="w-11 h-11 bg-brand-500/10 rounded-xl flex items-center justify-center text-2xl mb-4">📋</div>
+                <h3 class="text-lg font-semibold text-white mb-2">Listas y Notas</h3>
+                <p class="text-slate-400 text-sm">Compras, pendientes, ideas, recetas. Todo organizado por tema.</p>
+            </div>
+            <div class="group bg-slate-800/50 border border-slate-700/50 hover:border-brand-500/40 rounded-2xl p-6 transition-all duration-300">
+                <div class="w-11 h-11 bg-brand-500/10 rounded-xl flex items-center justify-center text-2xl mb-4">📋</div>
+                <h3 class="text-lg font-semibold text-white mb-2">Proyectos</h3>
+                <p class="text-slate-400 text-sm">Tareas con fechas, recordatorios automáticos. "Proyecto tienda: diseñar logo para el viernes".</p>
+            </div>
+            <div class="group bg-slate-800/50 border border-slate-700/50 hover:border-brand-500/40 rounded-2xl p-6 transition-all duration-300">
+                <div class="w-11 h-11 bg-brand-500/10 rounded-xl flex items-center justify-center text-2xl mb-4">👤</div>
+                <h3 class="text-lg font-semibold text-white mb-2">Contactos</h3>
+                <p class="text-slate-400 text-sm">Guardá teléfonos, emails, cumpleaños. "Busca el contacto de Juan".</p>
+            </div>
+            <div class="group bg-slate-800/50 border border-slate-700/50 hover:border-brand-500/40 rounded-2xl p-6 transition-all duration-300">
+                <div class="w-11 h-11 bg-brand-500/10 rounded-xl flex items-center justify-center text-2xl mb-4">📋</div>
+                <h3 class="text-lg font-semibold text-white mb-2">Cotizaciones</h3>
+                <p class="text-slate-400 text-sm">Creá proformas profesionales. "Cotización para Juan: 2 camisetas a $15".</p>
+            </div>
+            <div class="group bg-slate-800/50 border border-slate-700/50 hover:border-brand-500/40 rounded-2xl p-6 transition-all duration-300">
+                <div class="w-11 h-11 bg-brand-500/10 rounded-xl flex items-center justify-center text-2xl mb-4">🔍</div>
+                <h3 class="text-lg font-semibold text-white mb-2">Búsqueda inteligente</h3>
+                <p class="text-slate-400 text-sm">"¿Dónde guardé la factura del refri?" Lucho encuentra todo al instante.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ===== HOW IT WORKS ===== -->
+<section id="how" class="py-20 md:py-28 px-4 bg-dark-800/50">
+    <div class="max-w-4xl mx-auto text-center">
+        <span class="text-brand-400 font-semibold text-sm tracking-widest uppercase">Cómo funciona</span>
+        <h2 class="text-3xl md:text-4xl font-bold text-white mt-2 mb-14">Tres pasos. Cero fricción.</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div class="relative">
+                <div class="w-14 h-14 bg-brand-500 text-white text-2xl font-bold rounded-2xl flex items-center justify-center mx-auto mb-5">1</div>
+                <h3 class="text-lg font-semibold text-white mb-2">Escribile</h3>
+                <p class="text-slate-400 text-sm">Abrí WhatsApp y hablale a Lucho como si fuera un amigo. Sin comandos, sin estructuras.</p>
+            </div>
+            <div class="relative">
+                <div class="w-14 h-14 bg-brand-500 text-white text-2xl font-bold rounded-2xl flex items-center justify-center mx-auto mb-5">2</div>
+                <h3 class="text-lg font-semibold text-white mb-2">Lucho entiende</h3>
+                <p class="text-slate-400 text-sm">Inteligencia artificial extrae fechas, montos, nombres y organiza todo automáticamente.</p>
+            </div>
+            <div class="relative">
+                <div class="w-14 h-14 bg-brand-500 text-white text-2xl font-bold rounded-2xl flex items-center justify-center mx-auto mb-5">3</div>
+                <h3 class="text-lg font-semibold text-white mb-2">Te recuerda</h3>
+                <p class="text-slate-400 text-sm">Lucho te avisa antes de cada vencimiento, cita o fecha importante. Vos concentrate en lo que importa.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ===== PRICING ===== -->
+<section id="pricing" class="py-20 md:py-28 px-4">
+    <div class="max-w-5xl mx-auto text-center">
+        <span class="text-brand-400 font-semibold text-sm tracking-widest uppercase">Planes</span>
+        <h2 class="text-3xl md:text-4xl font-bold text-white mt-2 mb-4">Simple, transparente,<br>hecho para Ecuador</h2>
+        <p class="text-slate-400 mb-14 max-w-xl mx-auto">7 días de prueba gratis en todos los planes. Sin tarjeta de crédito.</p>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <!-- Básico -->
+            <div class="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-8 text-left hover:border-slate-600 transition-all">
+                <h3 class="text-xl font-bold text-white mb-1">Básico</h3>
+                <p class="text-slate-400 text-sm mb-6">Para organizar tu día a día</p>
+                <div class="mb-6">
+                    <span class="text-4xl font-extrabold text-white">$4.99</span>
+                    <span class="text-slate-400">/mes</span>
+                </div>
+                <ul class="space-y-3 text-sm text-slate-300 mb-8">
+                    <li class="flex items-start gap-2"><span class="text-brand-400 mt-0.5">✓</span> 2 vehículos</li>
+                    <li class="flex items-start gap-2"><span class="text-brand-400 mt-0.5">✓</span> 10 documentos</li>
+                    <li class="flex items-start gap-2"><span class="text-brand-400 mt-0.5">✓</span> 3 proyectos</li>
+                    <li class="flex items-start gap-2"><span class="text-brand-400 mt-0.5">✓</span> Recordatorios ilimitados</li>
+                    <li class="flex items-start gap-2"><span class="text-brand-400 mt-0.5">✓</span> Listas y notas ilimitadas</li>
+                </ul>
+                <a href="https://wa.me/593999999999?text=Hola%20Lucho,%20quiero%20el%20plan%20B%C3%A1sico" target="_blank" rel="noopener" class="block text-center border border-brand-500 text-brand-400 hover:bg-brand-500/10 font-semibold py-3 rounded-full transition-colors text-sm">Empezar gratis</a>
+            </div>
+            <!-- Premium -->
+            <div class="bg-brand-500/10 border-2 border-brand-500 rounded-2xl p-8 text-left relative hover:shadow-lg hover:shadow-brand-500/10 transition-all">
+                <span class="absolute -top-3 left-1/2 -translate-x-1/2 bg-brand-500 text-white text-xs font-bold px-4 py-1 rounded-full">MÁS POPULAR</span>
+                <h3 class="text-xl font-bold text-white mb-1 mt-2">Premium</h3>
+                <p class="text-slate-400 text-sm mb-6">Para los que quieren todo</p>
+                <div class="mb-6">
+                    <span class="text-4xl font-extrabold text-white">$9.99</span>
+                    <span class="text-slate-400">/mes</span>
+                </div>
+                <ul class="space-y-3 text-sm text-slate-300 mb-8">
+                    <li class="flex items-start gap-2"><span class="text-brand-400 mt-0.5">✓</span> 4 vehículos</li>
+                    <li class="flex items-start gap-2"><span class="text-brand-400 mt-0.5">✓</span> 50 documentos</li>
+                    <li class="flex items-start gap-2"><span class="text-brand-400 mt-0.5">✓</span> 10 proyectos</li>
+                    <li class="flex items-start gap-2"><span class="text-brand-400 mt-0.5">✓</span> 500 MB almacenamiento</li>
+                    <li class="flex items-start gap-2"><span class="text-brand-400 mt-0.5">✓</span> Soporte prioritario</li>
+                    <li class="flex items-start gap-2"><span class="text-brand-400 mt-0.5">✓</span> Todo lo del plan Básico</li>
+                </ul>
+                <a href="https://wa.me/593999999999?text=Hola%20Lucho,%20quiero%20el%20plan%20Premium" target="_blank" rel="noopener" class="block text-center bg-brand-500 hover:bg-brand-400 text-white font-semibold py-3 rounded-full transition-colors text-sm">Empezar gratis</a>
+            </div>
+            <!-- Familia -->
+            <div class="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-8 text-left hover:border-slate-600 transition-all">
+                <h3 class="text-xl font-bold text-white mb-1">Familia</h3>
+                <p class="text-slate-400 text-sm mb-6">Toda la familia organizada</p>
+                <div class="mb-6">
+                    <span class="text-4xl font-extrabold text-white">$14.99</span>
+                    <span class="text-slate-400">/mes</span>
+                </div>
+                <ul class="space-y-3 text-sm text-slate-300 mb-8">
+                    <li class="flex items-start gap-2"><span class="text-brand-400 mt-0.5">✓</span> Todo ilimitado</li>
+                    <li class="flex items-start gap-2"><span class="text-brand-400 mt-0.5">✓</span> 1 GB almacenamiento</li>
+                    <li class="flex items-start gap-2"><span class="text-brand-400 mt-0.5">✓</span> Modo cuidado (adulto mayor)</li>
+                    <li class="flex items-start gap-2"><span class="text-brand-400 mt-0.5">✓</span> Facturación SRI</li>
+                    <li class="flex items-start gap-2"><span class="text-brand-400 mt-0.5">✓</span> Soporte prioritario 24/7</li>
+                    <li class="flex items-start gap-2"><span class="text-brand-400 mt-0.5">✓</span> Todo lo del plan Premium</li>
+                </ul>
+                <a href="https://wa.me/593999999999?text=Hola%20Lucho,%20quiero%20el%20plan%20Familia" target="_blank" rel="noopener" class="block text-center border border-brand-500 text-brand-400 hover:bg-brand-500/10 font-semibold py-3 rounded-full transition-colors text-sm">Empezar gratis</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ===== TESTIMONIAL / SOCIAL PROOF ===== -->
+<section class="py-16 px-4 bg-dark-800/50 border-y border-slate-800">
+    <div class="max-w-4xl mx-auto text-center">
+        <p class="text-slate-400 text-lg italic mb-4">"Lucho me recuerda mis citas, mi SOAT, y hasta cuánto gasté en el súper. Ya no sé vivir sin él."</p>
+        <p class="text-white font-semibold">— Patricio Valarezo</p>
+        <p class="text-slate-500 text-sm">Desarrollador de Lucho · Quito, Ecuador</p>
+    </div>
+</section>
+
+<!-- ===== FAQ ===== -->
+<section id="faq" class="py-20 md:py-28 px-4">
+    <div class="max-w-3xl mx-auto">
+        <div class="text-center mb-14">
+            <span class="text-brand-400 font-semibold text-sm tracking-widest uppercase">FAQ</span>
+            <h2 class="text-3xl md:text-4xl font-bold text-white mt-2">Preguntas frecuentes</h2>
+        </div>
+        <div class="space-y-4">
+            <details class="group bg-slate-800/50 border border-slate-700/50 rounded-xl">
+                <summary class="px-6 py-4 cursor-pointer font-medium text-white list-none flex items-center justify-between">¿Necesito instalar una app? <span class="text-slate-400 group-open:rotate-45 transition-transform text-lg">+</span></summary>
+                <p class="px-6 pb-4 text-slate-400 text-sm">No. Lucho funciona 100% por WhatsApp. Si ya tenés WhatsApp, ya tenés Lucho.</p>
+            </details>
+            <details class="group bg-slate-800/50 border border-slate-700/50 rounded-xl">
+                <summary class="px-6 py-4 cursor-pointer font-medium text-white list-none flex items-center justify-between">¿Mis datos están seguros? <span class="text-slate-400 group-open:rotate-45 transition-transform text-lg">+</span></summary>
+                <p class="px-6 pb-4 text-slate-400 text-sm">Sí. Toda tu información se guarda encriptada en servidores en Ecuador. No compartimos, no vendemos, no analizamos tus datos para publicidad.</p>
+            </details>
+            <details class="group bg-slate-800/50 border border-slate-700/50 rounded-xl">
+                <summary class="px-6 py-4 cursor-pointer font-medium text-white list-none flex items-center justify-between">¿Tienen factura electrónica? <span class="text-slate-400 group-open:rotate-45 transition-transform text-lg">+</span></summary>
+                <p class="px-6 pb-4 text-slate-400 text-sm">Sí. Emitimos factura electrónica autorizada por el SRI vía Key49 para todos los planes. Plan Familia incluye facturación para tu propio negocio.</p>
+            </details>
+            <details class="group bg-slate-800/50 border border-slate-700/50 rounded-xl">
+                <summary class="px-6 py-4 cursor-pointer font-medium text-white list-none flex items-center justify-between">¿Puedo cancelar cuando quiera? <span class="text-slate-400 group-open:rotate-45 transition-transform text-lg">+</span></summary>
+                <p class="px-6 pb-4 text-slate-400 text-sm">Sí, sin permanencia. Cancelás cuando quieras y tus datos se exportan antes de cerrar la cuenta.</p>
+            </details>
+            <details class="group bg-slate-800/50 border border-slate-700/50 rounded-xl">
+                <summary class="px-6 py-4 cursor-pointer font-medium text-white list-none flex items-center justify-between">¿Funciona sin internet? <span class="text-slate-400 group-open:rotate-45 transition-transform text-lg">+</span></summary>
+                <p class="px-6 pb-4 text-slate-400 text-sm">Necesitás internet para enviar mensajes a Lucho, igual que cualquier chat de WhatsApp. Pero consume muy pocos datos — menos que ver un video de TikTok.</p>
+            </details>
+        </div>
+    </div>
+</section>
+
+<!-- ===== CTA ===== -->
+<section id="cta" class="py-20 md:py-28 px-4">
+    <div class="max-w-3xl mx-auto text-center bg-gradient-to-br from-brand-600 to-brand-800 rounded-3xl p-10 md:p-16">
+        <h2 class="text-3xl md:text-4xl font-extrabold text-white mb-4">¿Listo para organizar tu vida?</h2>
+        <p class="text-brand-100 text-lg mb-8">Empezá ahora. 7 días gratis. Sin tarjeta.</p>
+        <a href="https://wa.me/593999999999?text=Hola%20Lucho%20%F0%9F%9A%80" target="_blank" rel="noopener" class="inline-flex items-center gap-2 bg-white hover:bg-slate-100 text-brand-700 font-bold px-10 py-4 rounded-full text-lg transition-all shadow-lg">
+            💬 Hablá con Lucho ahora
+        </a>
+        <p class="text-brand-200 text-sm mt-4">O escribí "Hola Lucho" al +593 99 999 9999</p>
+    </div>
+</section>
+
+<!-- ===== FOOTER ===== -->
+<footer class="border-t border-slate-800 py-10 px-4">
+    <div class="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6 text-sm text-slate-500">
+        <div class="flex items-center gap-2 text-white font-bold">
+            🚀 <span class="text-brand-400">Lucho</span>
+        </div>
+        <div class="flex gap-6">
+            <a href="mailto:hola@holalucho.com" class="hover:text-slate-300 transition-colors">Contacto</a>
+            <a href="#" class="hover:text-slate-300 transition-colors">Privacidad</a>
+            <a href="#" class="hover:text-slate-300 transition-colors">Términos</a>
+        </div>
+        <p>© 2026 AURACORE SOLUCIONES SAS · Quito, Ecuador</p>
+    </div>
+</footer>
+
+<!-- ===== WHATSAPP FLOATING BUTTON ===== -->
+<a href="https://wa.me/593999999999?text=Hola%20Lucho%20%F0%9F%9A%80" target="_blank" rel="noopener"
+   class="fixed bottom-6 right-6 z-50 bg-green-500 hover:bg-green-400 text-white w-14 h-14 rounded-full flex items-center justify-center text-2xl shadow-lg shadow-green-500/30 hover:shadow-green-500/50 transition-all hover:scale-110"
+   aria-label="Chatear por WhatsApp">
+    💬
+</a>
+
+<script src="js/main.js"></script>
+</body>
+</html>
