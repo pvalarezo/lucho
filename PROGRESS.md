@@ -10,8 +10,13 @@ Estado actual de cada fase, módulo y entregable.
 ### Versiones
 | Tag | Fecha | Descripción |
 |-----|-------|-------------|
+| v2.19.0 | 2026-07-22 | Ciclo de vida automático: expiry, pre-aviso 3d, webhook DeUna. 39 tools, 452 tests. |
+| v2.18.0 | 2026-07-22 | DeUna QR (Pichincha) como 3ª opción de pago. |
+| v2.17.0 | 2026-07-22 | Tabla business_info + transferencia bancaria desde DB. |
+| v2.16.0 | 2026-07-22 | PayPhone: API client + webhook + subscribe_to_plan tool. |
+| v2.15.0 | 2026-07-22 | 3 planes con precios reales + seed script. |
 | v2.14.0 | 2026-07-22 | Revisión completa 9 módulos: 12 tools nuevas, +88 tests, 1 spec creada (vehículos). |
-| v2.13.0 | 2026-07-21 | Tabla `documents` independiente. `assets` eliminado. `shared_expenses` eliminado. 23 tablas, 26 tools, 348 tests. |
+| v2.13.0 | 2026-07-21 | Tabla `documents` independiente. `assets` eliminado. `shared_expenses` eliminado. |
 | v2.12.0 | 2026-07-21 | Módulo Finanzas: `transactions` + `budgets`, 5 tools. `shared_expenses` eliminado. |
 | v2.11.2 | 2026-07-21 | Hora local Ecuador: TIMESTAMPTZ → TIMESTAMP sin TZ. |
 | v2.11.1 | 2026-07-21 | System prompt reforzado anti-alucinaciones. |
@@ -64,7 +69,9 @@ Estado actual de cada fase, módulo y entregable.
 | Eventos | `event_reminder` (⏳) | 15/7/3/0 días + ad-hoc |
 | Pico y placa | `pico_y_placa` (es) | Solo HOY |
 | Presupuestos | `budget_alert` (⏳) | Diario |
+| Suscripciones | — | Expiry + pre-aviso 3d |
 | Daily digest | `daily_digest` (es) | Diario |
+| Resumen mensual | — | Día 1 del mes |
 
 ### Documentación — 15 specs
 `finanzas`, `documentos`, `recordatorios`, `listas`, `notas_apuntes`, `proyectos_tareas`, `busqueda`, `contactos`, `vehiculos`, `funcionalidades_generales`, `skills_ecuador`, `ideas_nuevos_modulos`, `whatsapp_templates`, `lucho_especificaciones_proyecto`
@@ -81,9 +88,28 @@ Estado actual de cada fase, módulo y entregable.
 
 ---
 
+## Fase 2.5 — Monetización ✅ COMPLETADA
+
+### Suscripciones
+- 3 planes: Básico ($4.99), Premium ($9.99), Familia ($14.99)
+- Features por plan en JSONB (max_vehicles, max_documents, file_storage_mb, caregiver_mode, etc.)
+- Trial 7 días automático
+- Seed script: `scripts/seed_subscription_plans.py`
+
+### Pagos
+- PayPhone: API client + webhook (activación automática)
+- DeUna QR: API client + webhook (Pichincha + otros bancos)
+- Transferencia bancaria: datos desde tabla `business_info`
+
+### Ciclo de vida
+- Scheduler diario: marca expired + pre-aviso 3 días
+- check_access: mensaje amigable con link de renovación
+- Notificaciones por Telegram y WhatsApp
+
+---
+
 ## Fase 3 — Lanzamiento con Monetización 📋 PLANEADA
-- [ ] Integración de pago (Kushki/PayPhone)
-- [ ] Facturación SRI (AuraFac)
+- [ ] Facturación SRI de la suscripción (AuraFac/FacEC)
 - [ ] Métricas y analytics
 - [ ] Módulos: temporizador, clientes (CRM ligero)
 - [ ] APIs Ecuador: clima, noticias, CNE

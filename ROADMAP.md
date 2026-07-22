@@ -11,10 +11,10 @@ Plan general del proyecto, fases, hitos y funcionalidades por ola.
 
 ## Fase 2 — Beta Cerrada ✅ COMPLETADA — v2.13.0
 
-**Versión actual:** v2.14.0 | **Tools:** 38 | **Tests:** 444/444 (100%)
+**Versión actual:** v2.19.0 | **Tools:** 39 | **Tests:** 452/452 (100%)
 **Canales:** Telegram (webhook) + WhatsApp Cloud API (webhook)
-**Tablas:** 23 PostgreSQL + pgvector
-**Docs:** 14 especificaciones de módulos + funcionalidades
+**Tablas:** 24 PostgreSQL + pgvector
+**Docs:** 15 especificaciones de módulos + funcionalidades
 
 ### ✅ Completado
 
@@ -27,7 +27,9 @@ Plan general del proyecto, fases, hitos y funcionalidades por ola.
 #### Sistema
 - Onboarding guiado: bienvenida → nombre → trial 7 días
 - Post-pago: cédula → email → nombre → políticas
-- Suscripción: planes, trial, control de acceso, middleware
+- Suscripción: 3 planes (Básico $4.99, Premium $9.99, Familia $14.99), trial 7d, control de acceso, expiry automático
+- Pagos: PayPhone (app+web), DeUna QR (Pichincha), transferencia bancaria
+- Ciclo de vida automático: pre-aviso 3d antes, expiry + notificación, renovación
 - Zona horaria Ecuador (cero conversiones TZ)
 - System prompt reforzado anti-alucinaciones
 - Skills Ecuador: 7 skills en 4 dominios
@@ -56,7 +58,6 @@ Plan general del proyecto, fases, hitos y funcionalidades por ola.
 ### 📋 Pendientes Fase 2
 - [ ] Métricas: % extracción correcta, retención D7/D30, intención de pago
 - [ ] Templates Meta: `event_reminder` (es), `project_reminder` (es), `budget_alert`
-- [ ] Tools pendientes: `list_my_documents`, `list_items`, `complete_item`, `list_my_notes`
 
 ---
 
