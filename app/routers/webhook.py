@@ -111,11 +111,36 @@ async def telegram_webhook(
             await session.commit()
             return {"status": "onboarding_step0"}
         elif user.onboarding_step == 1:
-            # Step 1 → User sent their name, save it + send message 3 (trial)
+            # Step 1 → User sent their name, save it + ask accent
             name = text.strip() if text else user.first_name
             user.preferred_name = name
             await _send_onboarding_step1_telegram(chat_id, name)
             user.onboarding_step = 2
+            await session.commit()
+            return {"status": "onboarding_step1"}
+        elif user.onboarding_step == 2:
+            # Step 2 → User chose accent
+            accent_map = {
+                "1": "costeno", "costeño": "costeno", "costeno": "costeno", "costa": "costeno",
+                "2": "serrano", "serrano": "serrano", "sierra": "serrano", "quiteño": "serrano",
+                "3": "amazonico", "amazónico": "amazonico", "amazonico": "amazonico",
+                "4": "neutral", "neutral": "neutral", "neutro": "neutral",
+            }
+            accent = accent_map.get(text.strip().lower(), "neutral")
+
+            from app.models.user_profile import UserProfile
+            profile_result = await session.execute(
+                select(UserProfile).where(UserProfile.user_id == user.id)
+            )
+            profile = profile_result.scalar_one_or_none()
+            if profile:
+                profile.accent = accent
+            else:
+                profile = UserProfile(user_id=user.id, accent=accent)
+                session.add(profile)
+
+            await _send_onboarding_step2_telegram(chat_id, user.preferred_name or name, accent)
+            user.onboarding_step = 3
             user.onboarding_complete = True
             await session.commit()
             return {"status": "onboarding_complete"}
@@ -357,8 +382,8 @@ async def _send_onboarding_step0_telegram(chat_id: int, user) -> None:
         "💰 Finanzas personales — Registrar gastos e ingresos, consultar tu balance, crear presupuestos por categoría y recibir alertas cuando te pasás\n\n"
         "🔍 Búsqueda — Encontrar todo lo que guardaste "
         "y también buscar en internet\n\n"
-        "Mandame lo que necesités sin estructura, "
-        "yo lo organizo. ¡Hablame como a un amigo!"
+        "Mandame lo que necesites sin estructura, "
+        "yo lo organizo. ¡Háblame como a un amigo!"
     )
     await telegram_svc.send_message(chat_id, msg1)
 
@@ -371,14 +396,35 @@ async def _send_onboarding_step0_telegram(chat_id: int, user) -> None:
 
 
 async def _send_onboarding_step1_telegram(chat_id: int, name: str) -> None:
-    """Step 1: User gave their name. Confirm + trial info via Telegram."""
-    msg3 = (
-        f"👏👏 Perfecto *{name}*, he registrado tu nombre\n\n"
-        "🎉 Tienes 7 días de prueba GRATIS con acceso a "
-        "todas las funcionalidades. No necesitamos ningún dato "
-        "personal ni de pago durante este tiempo.\n\n"
-        "Al finalizar la prueba, si querés continuar, "
-        "elegís tu plan y completás tu registro. "
-        "Por ahora, ¡disfrutá Lucho sin compromisos! 🚀"
+    """Step 1: User gave their name. Ask for accent via Telegram."""
+    msg = (
+        f"👏 Perfecto *{name}*!\n\n"
+        "Ahora dime, ¿con qué acento quieres que te hable?\n\n"
+        "1️⃣ *Costeño* 🏖️ — \"¡Habla mijo!\" (costa/peninsular)\n"
+        "2️⃣ *Serrano* 🏔️ — \"¡De ley veci!\" (sierra/quiteño)\n"
+        "3️⃣ *Amazónico* 🌿 — \"¡De ley pana!\" (amazonía)\n"
+        "4️⃣ *Neutral* 🇪🇨 — Ecuatoriano estándar\n\n"
+        "Responde con el número o el nombre del acento. "
+        "Lo puedes cambiar en cualquier momento diciendo \"cambia a costeño\"."
     )
-    await telegram_svc.send_message(chat_id, msg3)
+    await telegram_svc.send_message(chat_id, msg)
+
+
+async def _send_onboarding_step2_telegram(chat_id: int, name: str, accent: str) -> None:
+    """Step 2: Accent confirmed. Start trial with regional greeting."""
+    greetings = {
+        "costeno": "¡Habla mijo! Qué bueno tenerte por aquí.",
+        "serrano": "¡De ley veci! Qué bueno tenerte por aquí.",
+        "amazonico": "¡De ley pana! Qué bueno tenerte por aquí.",
+        "neutral": "¡Perfecto! Qué bueno tenerte por aquí.",
+    }
+    greeting = greetings.get(accent, greetings["neutral"])
+
+    msg = (
+        f"{greeting}\n\n"
+        f"🎉 Tienes *7 días de prueba GRATIS* con acceso a "
+        "todas las funcionalidades. Sin datos de pago.\n\n"
+        "Al finalizar, si quieres continuar, eliges tu plan. "
+        "Por ahora, ¡disfruta Lucho! 🚀"
+    )
+    await telegram_svc.send_message(chat_id, msg)
