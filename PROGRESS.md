@@ -10,14 +10,18 @@ Estado actual de cada fase, módulo y entregable.
 ### Versiones
 | Tag | Fecha | Descripción |
 |-----|-------|-------------|
-| v2.21.0 | 2026-07-22 | Key49: facturación electrónica SRI (AURACORE). 40 tools, 460 tests. |
+| v2.24.1 | 2026-07-22 | Datos reales: RUC 0195160252001, Produbanco, WhatsApp +593 98 422 3245. |
+| v2.24.0 | 2026-07-22 | Acentos regionales: costeño, serrano, amazónico, neutral. 45 tools, 512 tests. |
+| v2.23.0 | 2026-07-22 | Landing page holalucho.com — Tailwind, 8 secciones, responsive. |
+| v2.22.0 | 2026-07-22 | Módulo Cotizaciones: 4 models, 4 tools, IVA dinámico. |
+| v2.21.0 | 2026-07-22 | Key49: facturación electrónica SRI (AURACORE). |
 | v2.20.0 | 2026-07-22 | BillingInfo + invoice SRI fields + update_billing_info tool. |
 | v2.19.0 | 2026-07-22 | Ciclo de vida automático: expiry, pre-aviso 3d, webhook DeUna. |
 | v2.18.0 | 2026-07-22 | DeUna QR (Pichincha) como 3ª opción de pago. |
 | v2.17.0 | 2026-07-22 | Tabla business_info + transferencia bancaria desde DB. |
 | v2.16.0 | 2026-07-22 | PayPhone: API client + webhook + subscribe_to_plan tool. |
 | v2.15.0 | 2026-07-22 | 3 planes con precios reales + seed script. |
-| v2.14.0 | 2026-07-22 | Revisión completa 9 módulos: 12 tools nuevas, +88 tests, 1 spec creada (vehículos). |
+| v2.14.0 | 2026-07-22 | Revisión completa 9 módulos: +12 tools, +88 tests, spec vehículos. |
 | v2.13.0 | 2026-07-21 | Tabla `documents` independiente. `assets` eliminado. `shared_expenses` eliminado. |
 | v2.12.0 | 2026-07-21 | Módulo Finanzas: `transactions` + `budgets`, 5 tools. `shared_expenses` eliminado. |
 | v2.11.2 | 2026-07-21 | Hora local Ecuador: TIMESTAMPTZ → TIMESTAMP sin TZ. |
@@ -33,35 +37,32 @@ Estado actual de cada fase, módulo y entregable.
 - Cloudflare Tunnel: https://lucho-dev.apx5.com → localhost:8000
 - Systemd user services: lucho-api, lucho-tunnel
 
-### Base de Datos — 25 tablas
-`users`, `user_profiles`, `messages`, `documents`, `events`, `reminders`, `topics`, `notes`, `lists`, `list_items`, `projects`, `project_tasks`, `contacts`, `caregiver_links`, `vehicles`, `vehicle_maintenances`, `transactions`, `budgets`, `subscription_plans`, `subscriptions`, `payments`, `subscription_invoices`, `business_info`, `billing_info`
+### Base de Datos — 27 tablas
+`users`, `user_profiles`, `messages`, `documents`, `events`, `reminders`, `topics`, `notes`, `lists`, `list_items`, `projects`, `project_tasks`, `contacts`, `caregiver_links`, `vehicles`, `vehicle_maintenances`, `transactions`, `budgets`, `subscription_plans`, `subscriptions`, `payments`, `subscription_invoices`, `business_info`, `billing_info`, `billing_clients`, `billing_products`, `billing_documents`, `billing_document_items`
 
-### Tools del Agente — 38 tools
+### Tools del Agente — 45 tools
 
 | # | Tool | Módulo |
 |---|------|--------|
-| 1-4 | `save_vehicle`, `list_my_vehicles`, `add_maintenance`, `list_maintenances` | Vehículos |
-| 5-6 | `delete_vehicle`, `update_vehicle` | Vehículos |
-| 7 | `save_document` | Documentos |
-| 8 | `list_my_documents` | Documentos |
-| 9 | `save_event` | Recordatorios |
-| 10 | `list_my_events` | Recordatorios |
-| 11-12 | `save_list`, `list_items` | Listas |
-| 13-14 | `complete_item`, `delete_list` | Listas |
-| 15-16 | `save_note`, `list_my_notes` | Notas |
-| 17 | `delete_note` | Notas |
-| 18-20 | `search_my_data`, `search_conversation`, `web_search` | Búsqueda |
-| 21 | `analyze_image` | OCR/Visión |
-| 22 | `get_my_summary` | Resumen |
-| 23-24 | `save_project_task`, `list_project_tasks` | Proyectos |
-| 25-26 | `complete_project_task`, `reopen_project_task` | Proyectos |
-| 27 | `archive_project` | Proyectos |
-| 28 | `update_last` | Correcciones |
-| 29-30 | `save_contact`, `list_contacts` | Contactos |
-| 31 | `delete_contact` | Contactos |
-| 32 | `check_vehicle_info` | Vehículos |
-| 33 | `send_photo` | Archivos |
-| 34-38 | `add_transaction`, `list_transactions`, `get_balance`, `set_budget`, `check_budget` | Finanzas |
+| 1-5 | `save_vehicle`, `list_my_vehicles`, `add_maintenance`, `list_maintenances`, `check_vehicle_info` | Vehículos |
+| 6-7 | `delete_vehicle`, `update_vehicle` | Vehículos |
+| 8-9 | `save_document`, `list_my_documents` | Documentos |
+| 10-11 | `save_event`, `list_my_events` | Recordatorios |
+| 12-15 | `save_list`, `list_items`, `complete_item`, `delete_list` | Listas |
+| 16-18 | `save_note`, `list_my_notes`, `delete_note` | Notas |
+| 19-20 | `save_project_task`, `list_project_tasks` | Proyectos |
+| 21-23 | `complete_project_task`, `reopen_project_task`, `archive_project` | Proyectos |
+| 24-26 | `save_contact`, `list_contacts`, `delete_contact` | Contactos |
+| 27-31 | `add_transaction`, `list_transactions`, `get_balance`, `set_budget`, `check_budget` | Finanzas |
+| 32-35 | `create_quote`, `list_my_quotes`, `save_billing_client`, `save_billing_product` | Cotizaciones |
+| 36-38 | `search_my_data`, `search_conversation`, `web_search` | Búsqueda |
+| 39 | `analyze_image` | OCR/Visión |
+| 40 | `get_my_summary` | Resumen |
+| 41 | `update_last` | Correcciones |
+| 42 | `send_photo` | Archivos |
+| 43 | `subscribe_to_plan` | Suscripción |
+| 44 | `update_billing_info` | Facturación |
+| 45 | `set_accent` | Acentos |
 
 ### Scheduler — 8:00 AM diario
 | Recordatorio | Template | Ventanas |
@@ -78,7 +79,7 @@ Estado actual de cada fase, módulo y entregable.
 ### Documentación — 15 specs
 `finanzas`, `documentos`, `recordatorios`, `listas`, `notas_apuntes`, `proyectos_tareas`, `busqueda`, `contactos`, `vehiculos`, `funcionalidades_generales`, `skills_ecuador`, `ideas_nuevos_modulos`, `whatsapp_templates`, `lucho_especificaciones_proyecto`
 
-### Tests — 460/460 (100%) ✅
+### Tests — 512/512 (100%) ✅
 
 ---
 

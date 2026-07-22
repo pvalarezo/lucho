@@ -11,10 +11,10 @@ Plan general del proyecto, fases, hitos y funcionalidades por ola.
 
 ## Fase 2 — Beta Cerrada ✅ COMPLETADA — v2.13.0
 
-**Versión actual:** v2.19.0 | **Tools:** 39 | **Tests:** 452/452 (100%)
+**Versión actual:** v2.24.1 | **Tools:** 45 | **Tests:** 512/512 (100%)
 **Canales:** Telegram (webhook) + WhatsApp Cloud API (webhook)
-**Tablas:** 24 PostgreSQL + pgvector
-**Docs:** 15 especificaciones de módulos + funcionalidades
+**Tablas:** 27 PostgreSQL + pgvector
+**Docs:** 18 specs + funcionalidades
 
 ### ✅ Completado
 
