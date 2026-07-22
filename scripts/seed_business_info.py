@@ -33,11 +33,11 @@ async def main():
             return
 
         info = BusinessInfo(
-            company_name="AURACORE SOLUCIONES SAS",
-            ruc="1790012345001",  # TODO: actualizar con RUC real
-            bank_name="Banco Pichincha",
-            account_type="corriente",
-            account_number="2201234567",  # TODO: actualizar con cuenta real
+            company_name="AURACORE SOLUCIONES S.A.S.",
+            ruc="0195160252001",
+            bank_name="Produbanco",
+            account_type="ahorros",
+            account_number="27059108040",
             support_email="patriciovalarezo@gmail.com",
         )
         session.add(info)

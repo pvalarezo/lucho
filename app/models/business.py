@@ -15,10 +15,10 @@ class BusinessInfo(UUIDMixin, TimestampMixin, Base):
 
     # ---- Company identity ----
     company_name: Mapped[str] = mapped_column(
-        String(256), nullable=False, default="AURACORE SOLUCIONES SAS"
+        String(256), nullable=False, default="AURACORE SOLUCIONES S.A.S."
     )
     ruc: Mapped[str] = mapped_column(
-        String(13), nullable=False, default="1790012345001"
+        String(13), nullable=False, default="0195160252001"
     )
     legal_representative: Mapped[str | None] = mapped_column(
         String(256), nullable=True
@@ -26,13 +26,13 @@ class BusinessInfo(UUIDMixin, TimestampMixin, Base):
 
     # ---- Bank info for transfers ----
     bank_name: Mapped[str] = mapped_column(
-        String(128), nullable=False, default="Banco Pichincha"
+        String(128), nullable=False, default="Produbanco"
     )
     account_type: Mapped[str] = mapped_column(
-        String(32), nullable=False, default="corriente"
+        String(32), nullable=False, default="ahorros"
     )
     account_number: Mapped[str] = mapped_column(
-        String(32), nullable=False, default="2201234567"
+        String(32), nullable=False, default="27059108040"
     )
 
     # ---- Contact ----

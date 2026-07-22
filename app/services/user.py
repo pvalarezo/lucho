@@ -262,7 +262,7 @@ async def check_access(session: AsyncSession, user_id: str) -> AccessResult:
                 "   • Soporte prioritario\n"
                 "📦 *Familia* — $14.99/mes\n"
                 "   • Todo ilimitado + modo cuidado\n\n"
-                "Escribime 'suscribirme' y te ayudo con el pago."
+                "Escribime 'suscribirme' al +593 98 422 3245 y te ayudo con el pago."
             ),
         )
 
