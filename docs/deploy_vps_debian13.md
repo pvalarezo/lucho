@@ -177,9 +177,14 @@ echo "✅ MinIO — consola en http://$(hostname -I | awk '{print $1}'):9001"
 
 ```bash
 cd /root/lucho
-git clone https://github.com/AURACORE-SOLUCIONES/lucho.git app
+# Repo privado — la llave SSH del VPS ya está configurada en GitHub
+git clone git@github.com:pvalarezo/lucho.git app
 cd app
 ```
+
+> 🤖 **Pi**: Si el clone falla con "Permission denied", verificá que la llave SSH
+> del VPS (`~/.ssh/id_ed25519.pub`) esté agregada como Deploy Key en:
+> GitHub → pvalarezo/lucho → Settings → Deploy Keys.
 
 ### 4.2 Entorno virtual
 
