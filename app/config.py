@@ -71,6 +71,10 @@ class Settings(BaseSettings):
     PAYPHONE_API_URL: str = "https://api.payphone.app"
     PAYPHONE_WEBHOOK_SECRET: str = ""  # For validating webhook signatures
 
+    # ---- DeUna (Banco Pichincha — Ecuador) ----
+    DEUNA_API_KEY: str = ""
+    DEUNA_MERCHANT_ID: str = ""
+
     # ---- Feature Flags ----
     CONTEXTUAL_RESPONSES: bool = True  # LLM-powered conversational answers
 

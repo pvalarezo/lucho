@@ -3003,6 +3003,7 @@ async def handle_subscribe_to_plan(session, user_id: str, args: dict) -> dict:
     from app.models.subscription_plan import SubscriptionPlan
     from app.models.business import BusinessInfo
     from app.services import payphone as payphone_svc
+    from app.services import deuna as deuna_svc
 
     uid = uuid_mod.UUID(user_id)
     plan_slug = (args.get("plan_slug") or "basic").strip()
@@ -3087,10 +3088,17 @@ async def handle_subscribe_to_plan(session, user_id: str, args: dict) -> dict:
         "",
     ]
 
-    # Option 1: PayPhone
+    # Option 1: PayPhone (app + web formulario de tarjeta)
     pp_payment = await payphone_svc.create_payment(
         amount=price,
         description=f"Lucho — Plan {plan.name} ({renewal})",
+        reference=pay_ref,
+    )
+
+    # Option 2: DeUna (Botón de pago interbancario — Pichincha y otros bancos)
+    deuna_payment = await deuna_svc.create_payment(
+        amount=price,
+        description=f"Lucho — Plan {plan.name}",
         reference=pay_ref,
     )
 
@@ -3101,9 +3109,17 @@ async def handle_subscribe_to_plan(session, user_id: str, args: dict) -> dict:
         lines.append("   Se abre la app o pagás con tarjeta en la web.")
         lines.append("")
 
-    # Option 2: Bank transfer
+    if deuna_payment and deuna_payment.payment_url:
+        lines.append("2️⃣ *DeUna — Pago interbancario*")
+        lines.append(f"   👉 {deuna_payment.payment_url}")
+        lines.append("   Pagá desde tu app o web de cualquier banco.")
+        lines.append("   Funciona con Pichincha, Guayaquil, Produbanco, etc.")
+        lines.append("")
+
+    # Option 3: Bank transfer
+    transfer_number = 3 if (pp_payment or deuna_payment) else 1
     if biz:
-        lines.append("2️⃣ *Transferencia bancaria*")
+        lines.append(f"{transfer_number}️⃣ *Transferencia bancaria*")
         lines.append(f"   🏦 {biz.company_name}")
         lines.append(f"   📋 RUC: {biz.ruc}")
         lines.append(f"   💳 {biz.bank_name} — Cta. {biz.account_type} #{biz.account_number}")
