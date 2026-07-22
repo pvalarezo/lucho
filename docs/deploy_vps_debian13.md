@@ -1,19 +1,18 @@
 # Lucho — Guía de Despliegue en VPS Linux (Debian 13)
 
-> **Sin Docker** · Debian 13 (Trixie) · Mismo VPS: landing page + API
+> **Sin Docker** · Debian 13 · **Todo como root** · Mismo VPS: landing + API
 > **Dominio**: `holalucho.com` · **API**: `api.holalucho.com`
-> **🤖 Pi-ready**: Todas las secciones son ejecutables secuencialmente por un agente Pi.
-> **⏱️ Tiempo estimado**: 25-35 minutos con Pi.
+> **🤖 Pi-ready**: Ejecutable secuencialmente. Cero interacciones manuales.
+> **⏱️ Tiempo**: 20-25 minutos.
 
 ---
 
 ## 0. Pre-vuelo para Pi 🤖
 
-Antes de empezar, Pi necesita que le proporciones estos datos. Creá un archivo
-`/home/lucho/deploy_vars.env` en el VPS con este contenido:
+Pedile a Patricio que cree `/root/deploy_vars.env` en el VPS:
 
 ```bash
-# ── Pedile a Patricio estos datos antes de desplegar ──
+# ── Datos que Pi necesita antes de desplegar ──
 
 # Dominio
 DOMAIN=holalucho.com
@@ -53,8 +52,7 @@ DEUNA_MERCHANT_ID=...
 KEY49_API_KEY=k49_...
 ```
 
-> 🤖 **Pi**: leé este archivo con `source deploy_vars.env` antes de ejecutar cualquier comando.
-> Las variables se usarán en los templates de configuración más abajo.
+> 🤖 **Pi**: Lo primero que hacés al entrar al VPS es `source /root/deploy_vars.env`. Luego ejecutás las secciones en orden.
 
 ---
 
@@ -65,35 +63,28 @@ KEY49_API_KEY=k49_...
 | CPU | 2 vCPU | 4 vCPU |
 | RAM | 4 GB | 8 GB |
 | Disco | 20 GB SSD | 40 GB SSD |
-| SO | Debian 13 (Trixie) | Debian 13 |
-| IP | Pública estática | Pública estática |
+| SO | Debian 13 (Trixie) | |
+| IP | Pública estática | |
 
 ---
 
 ## 2. Preparación del Sistema
 
-### 2.1 Actualizar paquetes
-
 ```bash
-sudo apt update && sudo apt upgrade -y
-sudo apt install -y curl wget git build-essential nginx certbot python3-certbot-nginx ufw
-```
+# Actualizar paquetes
+apt update && apt upgrade -y
+apt install -y curl wget git build-essential nginx certbot python3-certbot-nginx ufw
 
-### 2.2 Configurar firewall
+# Firewall
+ufw allow 22/tcp
+ufw allow 80/tcp
+ufw allow 443/tcp
+ufw --force enable
 
-```bash
-sudo ufw allow 22/tcp      # SSH
-sudo ufw allow 80/tcp      # HTTP
-sudo ufw allow 443/tcp     # HTTPS
-sudo ufw enable
-```
+# Directorio de trabajo
+mkdir -p /root/lucho
 
-### 2.3 Crear usuario de aplicación
-
-```bash
-sudo useradd -m -s /bin/bash lucho
-sudo usermod -aG sudo lucho
-sudo su - lucho
+echo "✅ Sistema preparado"
 ```
 
 ---
@@ -103,70 +94,60 @@ sudo su - lucho
 ### 3.1 Python 3.12+
 
 ```bash
-sudo apt install -y python3 python3-pip python3-venv python3-dev
+apt install -y python3 python3-pip python3-venv python3-dev
 ```
 
 ### 3.2 PostgreSQL 17 + pgvector
 
 ```bash
-# Instalar PostgreSQL
-sudo apt install -y postgresql postgresql-contrib
+apt install -y postgresql postgresql-contrib postgresql-server-dev-17 git
 
-# Instalar pgvector desde fuentes
-sudo apt install -y postgresql-server-dev-17 git
+# pgvector
 cd /tmp
 git clone --branch v0.7.4 https://github.com/pgvector/pgvector.git
 cd pgvector
 make
-sudo make install
+make install
 
-# Crear base de datos y usuario (NO INTERACTIVO)
-sudo -u postgres psql <<EOF
-CREATE USER lucho WITH PASSWORD '${DB_PASSWORD}';
-CREATE DATABASE lucho OWNER lucho;
-\c lucho
-CREATE EXTENSION IF NOT EXISTS vector;
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-EOF
+# Base de datos
+su - postgres -c "psql -c \"CREATE USER lucho WITH PASSWORD '${DB_PASSWORD}';\""
+su - postgres -c "psql -c \"CREATE DATABASE lucho OWNER lucho;\""
+su - postgres -c "psql -d lucho -c \"CREATE EXTENSION IF NOT EXISTS vector;\""
+su - postgres -c "psql -d lucho -c \"CREATE EXTENSION IF NOT EXISTS \\\"uuid-ossp\\\";\""
 
-echo "✅ PostgreSQL 17 + pgvector listo"
+echo "✅ PostgreSQL 17 + pgvector"
 ```
 
 ### 3.3 Redis
 
 ```bash
-sudo apt install -y redis-server
-sudo systemctl enable --now redis-server
+apt install -y redis-server
+systemctl enable --now redis-server
 ```
 
-### 3.4 MinIO (Object Storage)
+### 3.4 MinIO
 
 ```bash
-# Descargar binario
-sudo wget -q https://dl.min.io/server/minio/release/linux-amd64/minio -O /usr/local/bin/minio
-sudo chmod +x /usr/local/bin/minio
+wget -q https://dl.min.io/server/minio/release/linux-amd64/minio -O /usr/local/bin/minio
+chmod +x /usr/local/bin/minio
 
-# Crear directorio de datos
-sudo mkdir -p /data/minio
-sudo chown lucho:lucho /data/minio
+mkdir -p /data/minio
 
-# Crear archivo de entorno (NO INTERACTIVO)
-sudo tee /etc/default/minio <<EOF
+tee /etc/default/minio <<EOF
 MINIO_ROOT_USER=lucho_admin
 MINIO_ROOT_PASSWORD=${MINIO_PASSWORD}
 MINIO_VOLUMES="/data/minio"
 MINIO_OPTS="--console-address :9001"
 EOF
 
-# Crear systemd service para MinIO
-sudo tee /etc/systemd/system/minio.service <<'SVC_EOF'
+tee /etc/systemd/system/minio.service <<'SVC_EOF'
 [Unit]
 Description=MinIO
 After=network.target
 
 [Service]
-User=lucho
-Group=lucho
+User=root
+Group=root
 EnvironmentFile=/etc/default/minio
 ExecStart=/usr/local/bin/minio server $MINIO_VOLUMES $MINIO_OPTS
 Restart=always
@@ -175,27 +156,27 @@ Restart=always
 WantedBy=multi-user.target
 SVC_EOF
 
-sudo systemctl daemon-reload
-sudo systemctl enable --now minio
+systemctl daemon-reload
+systemctl enable --now minio
 
-# Instalar minio-client y crear bucket (NO INTERACTIVO)
-sudo wget -q https://dl.min.io/client/mc/release/linux-amd64/mc -O /usr/local/bin/mc
-sudo chmod +x /usr/local/bin/mc
+# MinIO client + bucket
+wget -q https://dl.min.io/client/mc/release/linux-amd64/mc -O /usr/local/bin/mc
+chmod +x /usr/local/bin/mc
 mc alias set local http://localhost:9000 lucho_admin "${MINIO_PASSWORD}"
 mc mb local/lucho
 mc anonymous set download local/lucho
 
-echo "✅ MinIO listo — consola en http://$(hostname -I | awk '{print $1}'):9001"
+echo "✅ MinIO — consola en http://$(hostname -I | awk '{print $1}'):9001"
 ```
 
 ---
 
 ## 4. Clonar y Configurar Lucho
 
-### 4.1 Clonar repositorio
+### 4.1 Clonar
 
 ```bash
-cd /home/lucho
+cd /root/lucho
 git clone https://github.com/AURACORE-SOLUCIONES/lucho.git app
 cd app
 ```
@@ -209,35 +190,27 @@ pip install -U pip wheel
 pip install -r requirements.txt
 ```
 
-### 4.3 Configurar variables de entorno (NO INTERACTIVO)
+### 4.3 Variables de entorno
 
 ```bash
-# Generar .env desde template
-cat > /home/lucho/app/.env <<EOF
-# ── Generado por Pi el $(date) ──
+cat > /root/lucho/app/.env <<EOF
+# ── Generado por Pi ──
 
-# Base de Datos
 DATABASE_URL=postgresql+asyncpg://lucho:${DB_PASSWORD}@localhost:5432/lucho
-
-# Redis
 REDIS_URL=redis://localhost:6379/0
 
-# MinIO
 MINIO_ENDPOINT=localhost:9000
 MINIO_ACCESS_KEY=lucho_admin
 MINIO_SECRET_KEY=${MINIO_PASSWORD}
 MINIO_BUCKET=lucho
 
-# Telegram
 TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
 
-# WhatsApp
 WHATSAPP_PHONE_NUMBER_ID=${WHATSAPP_PHONE_NUMBER_ID}
 WHATSAPP_ACCESS_TOKEN=${WHATSAPP_ACCESS_TOKEN}
 WHATSAPP_VERIFY_TOKEN=${WHATSAPP_VERIFY_TOKEN}
 WHATSAPP_API_VERSION=v22.0
 
-# LLM
 LLM_PROVIDER=anthropic
 ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
 ANTHROPIC_HAIKU_MODEL=claude-3-5-haiku-latest
@@ -246,119 +219,107 @@ OPENAI_API_KEY=${OPENAI_API_KEY}
 EMBEDDING_PROVIDER=openai
 OPENAI_EMBEDDING_MODEL=text-embedding-3-small
 
-# PayPhone
 PAYPHONE_CLIENT_ID=${PAYPHONE_CLIENT_ID}
 PAYPHONE_CLIENT_SECRET=${PAYPHONE_CLIENT_SECRET}
 PAYPHONE_STORE_ID=${PAYPHONE_STORE_ID}
 PAYPHONE_API_URL=https://api.payphone.app
 PAYPHONE_WEBHOOK_SECRET=${PAYPHONE_WEBHOOK_SECRET}
 
-# DeUna
 DEUNA_API_KEY=${DEUNA_API_KEY}
 DEUNA_MERCHANT_ID=${DEUNA_MERCHANT_ID}
 
-# Key49
 KEY49_API_KEY=${KEY49_API_KEY}
 KEY49_ESTABLISHMENT=001
 KEY49_ISSUE_POINT=001
 
-# Vehículos
 VEHICLE_INFO_API_URL=http://131.161.221.131:2356/v1/info/all/vehicle/
 VEHICLE_INFO_API_TOKEN=
 
-# App
 DEBUG=false
 LOG_LEVEL=INFO
 CONTEXTUAL_RESPONSES=true
 IVA_RATE=15.0
 EOF
 
-chmod 600 /home/lucho/app/.env
-echo "✅ .env generado con permisos seguros"
+chmod 600 /root/lucho/app/.env
+echo "✅ .env generado"
 ```
 
 ### 4.4 Migrar base de datos
 
 ```bash
+cd /root/lucho/app
 source venv/bin/activate
 python -m alembic upgrade head
 python scripts/seed_subscription_plans.py
 python scripts/seed_business_info.py
+
+echo "✅ Base de datos migrada y sembrada"
 ```
 
 ---
 
 ## 5. Configurar Systemd
 
-### 5.1 API principal
-
 ```bash
-sudo tee /etc/systemd/system/lucho-api.service <<EOF
+tee /etc/systemd/system/lucho-api.service <<EOF
 [Unit]
 Description=Lucho API
 After=network.target postgresql.service redis-server.service
 
 [Service]
-User=lucho
-Group=lucho
-WorkingDirectory=/home/lucho/app
-Environment=PATH=/home/lucho/app/venv/bin:/usr/local/bin:/usr/bin:/bin
-EnvironmentFile=/home/lucho/app/.env
-ExecStart=/home/lucho/app/venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 4
+User=root
+Group=root
+WorkingDirectory=/root/lucho/app
+Environment=PATH=/root/lucho/app/venv/bin:/usr/local/bin:/usr/bin:/bin
+EnvironmentFile=/root/lucho/app/.env
+ExecStart=/root/lucho/app/venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 4
 Restart=always
 RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
 EOF
-```
 
-### 5.2 Habilitar servicios
+systemctl daemon-reload
+systemctl enable --now lucho-api
+systemctl status lucho-api --no-pager
 
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable --now lucho-api
-sudo systemctl status lucho-api
+echo "✅ lucho-api corriendo"
 ```
 
 ---
 
-## 6. Configurar Nginx + Landing Page + SSL
+## 6. Nginx + Landing + SSL
 
 ### 6.1 Arquitectura
 
 ```
-                  ┌─────────────────────────────────┐
-                  │         VPS Debian 13            │
-                  │                                  │
-Internet ────────▶│  Nginx (puerto 80/443)          │
-                  │  ├─ holalucho.com → /var/www/   │  ← Landing page
-                  │  └─ api.holalucho.com → :8000   │  ← Lucho API
-                  │                                  │
-                  │  PostgreSQL :5432  Redis :6379  │
-                  │  MinIO :9000                     │
-                  └─────────────────────────────────┘
+                  ┌──────────────────────────────┐
+                  │        VPS Debian 13          │
+                  │                               │
+Internet ────────▶│  Nginx :80/:443              │
+                  │  ├─ holalucho.com → /var/www  │  Landing
+                  │  └─ api.holalucho.com → :8000 │  API
+                  │                               │
+                  │  PostgreSQL :5432  Redis :6379│
+                  │  MinIO :9000                  │
+                  └──────────────────────────────┘
 ```
 
-### 6.2 Crear landing page
+### 6.2 Landing page
 
 ```bash
-# La landing page está en el repositorio: landing/
-# Copiarla a /var/www/holalucho para que Nginx la sirva
-sudo mkdir -p /var/www/holalucho
-sudo cp -r /home/lucho/app/landing/* /var/www/holalucho/
-sudo chown -R lucho:lucho /var/www/holalucho
-
-echo "✅ Landing page desplegada en /var/www/holalucho"
+mkdir -p /var/www/holalucho
+cp -r /root/lucho/app/landing/* /var/www/holalucho/
+echo "✅ Landing desplegada"
 ```
 
-> 🤖 **Pi**: Si necesitás actualizar la landing, editá los archivos en `landing/` y volvé a copiarlos.
-
-### 6.3 Nginx multi-dominio (NO INTERACTIVO)
+### 6.3 Nginx
 
 ```bash
-sudo tee /etc/nginx/sites-available/holalucho <<'NGX_EOF'
-# ── Landing page: holalucho.com ──
+tee /etc/nginx/sites-available/holalucho <<'NGX_EOF'
+# ── Landing: holalucho.com ──
 server {
     listen 80;
     server_name holalucho.com www.holalucho.com;
@@ -369,19 +330,17 @@ server {
         try_files $uri $uri/ =404;
     }
 
-    # Cache estáticos
     location ~* \.(jpg|jpeg|png|gif|ico|css|js|svg|woff2)$ {
         expires 30d;
         add_header Cache-Control "public, immutable";
     }
 }
 
-# ── Lucho API: api.holalucho.com ──
+# ── API: api.holalucho.com ──
 server {
     listen 80;
     server_name api.holalucho.com;
 
-    # Webhooks — necesitan IP real del cliente
     location /webhooks/ {
         proxy_pass http://127.0.0.1:8000;
         proxy_set_header Host $host;
@@ -391,7 +350,6 @@ server {
         proxy_read_timeout 30s;
     }
 
-    # API + mensajería
     location / {
         proxy_pass http://127.0.0.1:8000;
         proxy_set_header Host $host;
@@ -405,29 +363,27 @@ server {
 }
 NGX_EOF
 
-sudo ln -sf /etc/nginx/sites-available/holalucho /etc/nginx/sites-enabled/
-sudo rm -f /etc/nginx/sites-enabled/default
-sudo nginx -t && sudo systemctl reload nginx
+ln -sf /etc/nginx/sites-available/holalucho /etc/nginx/sites-enabled/
+rm -f /etc/nginx/sites-enabled/default
+nginx -t && systemctl reload nginx
 
-echo "✅ Nginx configurado: holalucho.com + api.holalucho.com"
+echo "✅ Nginx: holalucho.com + api.holalucho.com"
 ```
 
-### 6.4 SSL con Let's Encrypt (todos los subdominios)
+### 6.4 SSL (Let's Encrypt)
 
 ```bash
-# Obtener certificados para todos los subdominios de una vez
-sudo certbot --nginx -d holalucho.com -d www.holalucho.com -d api.holalucho.com --non-interactive --agree-tos --email patriciovalarezo@gmail.com
+certbot --nginx -d holalucho.com -d www.holalucho.com -d api.holalucho.com \
+  --non-interactive --agree-tos --email patriciovalarezo@gmail.com
 
-# Verificar renovación automática
-sudo certbot renew --dry-run
-
-echo "✅ SSL configurado para holalucho.com, www.holalucho.com, api.holalucho.com"
+certbot renew --dry-run
+echo "✅ SSL configurado"
 ```
 
-### 6.5 URLs de Webhooks (para configurar en cada plataforma)
+### 6.5 Webhooks
 
-| Servicio | Webhook URL |
-|----------|-------------|
+| Servicio | URL |
+|----------|-----|
 | Telegram | `https://api.holalucho.com/webhooks/telegram` |
 | WhatsApp | `https://api.holalucho.com/webhooks/whatsapp` |
 | PayPhone | `https://api.holalucho.com/webhooks/payphone` |
@@ -435,113 +391,42 @@ echo "✅ SSL configurado para holalucho.com, www.holalucho.com, api.holalucho.c
 
 ---
 
-## 7. Verificar Despliegue (script para Pi)
+## 7. Verificar Despliegue
 
 ```bash
 #!/bin/bash
-# verify_deploy.sh — ejecutar después del despliegue para validar todo
-
-echo "🔍 Verificando despliegue de Lucho..."
+echo "🔍 Verificando Lucho..."
 echo ""
 
-# 1. Servicios del sistema
-echo "── Servicios ──"
 for svc in postgresql redis-server minio nginx lucho-api; do
     if systemctl is-active --quiet $svc 2>/dev/null; then
-        echo "  ✅ $svc está corriendo"
+        echo "  ✅ $svc"
     else
-        echo "  ❌ $svc NO está corriendo"
+        echo "  ❌ $svc"
     fi
 done
 
-# 2. API responde
 echo ""
 echo "── API ──"
-HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/health 2>/dev/null)
-if [ "$HTTP_CODE" = "200" ]; then
-    echo "  ✅ API responde (HTTP $HTTP_CODE)"
-else
-    echo "  ❌ API no responde (HTTP $HTTP_CODE)"
-fi
+curl -s -o /dev/null -w "  HTTP %{http_code}\n" http://localhost:8000/health
 
-# 3. PostgreSQL
-echo ""
-echo "── Base de Datos ──"
-if sudo -u postgres psql -lqt 2>/dev/null | grep -q lucho; then
-    echo "  ✅ Base de datos 'lucho' existe"
-else
-    echo "  ❌ Base de datos no encontrada"
-fi
+echo "── Landing ──"
+curl -s -o /dev/null -w "  HTTP %{http_code}\n" http://localhost:80
 
-# 4. Redis
-echo ""
-echo "── Redis ──"
-if redis-cli ping 2>/dev/null | grep -q PONG; then
-    echo "  ✅ Redis responde"
-else
-    echo "  ❌ Redis no responde"
-fi
-
-# 5. MinIO
-echo ""
-echo "── MinIO ──"
-MINIO_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:9000 2>/dev/null)
-if [ "$MINIO_CODE" = "403" ] || [ "$MINIO_CODE" = "200" ]; then
-    echo "  ✅ MinIO responde (HTTP $MINIO_CODE)"
-else
-    echo "  ❌ MinIO no responde"
-fi
-
-# 6. Nginx
-echo ""
-echo "── Nginx ──"
-NGINX_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:80 2>/dev/null)
-if [ -n "$NGINX_CODE" ]; then
-    echo "  ✅ Nginx responde (HTTP $NGINX_CODE)"
-else
-    echo "  ⚠️  Nginx podría no estar configurado aún"
-fi
-
-# 6. Nginx — landing page
-echo ""
-echo "── Landing Page ──"
-LANDING_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:80 2>/dev/null)
-if [ "$LANDING_CODE" = "200" ]; then
-    echo "  ✅ Landing page responde (HTTP $LANDING_CODE)"
-else
-    echo "  ⚠️  Landing page: HTTP $LANDING_CODE"
-fi
-
-# 7. Nginx — API
-echo ""
 echo "── Nginx API ──"
-API_CODE=$(curl -s -o /dev/null -w "%{http_code}" -H "Host: api.holalucho.com" http://localhost:80/health 2>/dev/null)
-if [ "$API_CODE" = "200" ]; then
-    echo "  ✅ API vía Nginx responde (HTTP $API_CODE)"
-else
-    echo "  ⚠️  API vía Nginx: HTTP $API_CODE"
-fi
+curl -s -o /dev/null -w "  HTTP %{http_code}\n" -H "Host: api.holalucho.com" http://localhost:80/health
 
-# 8. Puerto público
 echo ""
 echo "── Red ──"
-PUBLIC_IP=$(curl -s ifconfig.me 2>/dev/null || echo "desconocida")
-echo "  IP pública: $PUBLIC_IP"
-echo "  Landing: https://holalucho.com"
-echo "  API: https://api.holalucho.com"
-echo "  Webhooks:"
-echo "    Telegram:  https://api.holalucho.com/webhooks/telegram"
-echo "    WhatsApp:  https://api.holalucho.com/webhooks/whatsapp"
-echo "    PayPhone:  https://api.holalucho.com/webhooks/payphone"
-echo "    DeUna:    https://api.holalucho.com/webhooks/deuna"
-
-# 8. Espacio en disco
-echo ""
-echo "── Disco ──"
-df -h / | tail -1 | awk '{print "  " $3 " usado de " $2 " (" $5 ")"}'
+PUBLIC_IP=$(curl -s ifconfig.me 2>/dev/null || echo "?")
+echo "  IP: $PUBLIC_IP"
+echo "  🌐 https://holalucho.com"
+echo "  🔗 https://api.holalucho.com"
 
 echo ""
-echo "✅ Verificación completada."
+df -h / | tail -1 | awk '{print "  Disco: " $3 " / " $2 " (" $5 ")"}'
+echo ""
+echo "✅ Verificación completa"
 ```
 
 ---
@@ -549,33 +434,32 @@ echo "✅ Verificación completada."
 ## 8. Comandos de Mantenimiento
 
 ```bash
-# Reiniciar API
-sudo systemctl restart lucho-api
-
 # Ver logs
-sudo journalctl -u lucho-api --since "10 min ago"
+journalctl -u lucho-api --since "10 min ago"
+
+# Reiniciar
+systemctl restart lucho-api
 
 # Actualizar código
-cd /home/lucho/app
+cd /root/lucho/app
 git pull
 source venv/bin/activate
 pip install -r requirements.txt
 python -m alembic upgrade head
-sudo systemctl restart lucho-api
+systemctl restart lucho-api
 
-# Backup de base de datos
-pg_dump -U lucho lucho > /backups/lucho_$(date +%Y%m%d).sql
+# Backup DB
+su - postgres -c "pg_dump lucho" > /root/backup_lucho_$(date +%Y%m%d).sql
 
-# Espacio en disco
-df -h
-sudo journalctl --vacuum-time=7d
+# Liberar espacio
+journalctl --vacuum-time=7d
 ```
 
 ---
 
-## 9. Configurar DNS
+## 9. DNS
 
-Antes de ejecutar certbot, asegurate de que estos registros DNS apunten a la IP del VPS:
+Antes de certbot, verificá que estos registros apunten a la IP del VPS:
 
 | Tipo | Nombre | Valor |
 |------|--------|-------|
@@ -583,84 +467,60 @@ Antes de ejecutar certbot, asegurate de que estos registros DNS apunten a la IP 
 | CNAME | `www.holalucho.com` | `holalucho.com` |
 | A | `api.holalucho.com` | IP del VPS |
 
-> 🤖 **Pi**: verificá con `dig holalucho.com +short` que resuelva a la IP correcta antes de ejecutar certbot.
+> 🤖 **Pi**: `dig holalucho.com +short` debe devolver la IP antes de ejecutar certbot.
 
 ---
 
-## 11. Estructura de Archivos en el VPS
+## 10. Estructura de Archivos
 
 ```
-/home/lucho/
-├── app/                          # Código fuente
-│   ├── venv/                     # Entorno virtual Python
-│   ├── .env                      # Variables de entorno
-│   ├── app/                      # Aplicación
-│   ├── alembic/                  # Migraciones
-│   ├── scripts/                  # Scripts de seed
-│   └── tests/                    # Tests
-│
-/backups/                         # Backups de DB
-│
-/etc/
-├── systemd/system/
-│   ├── lucho-api.service         # API
-│   └── minio.service             # MinIO
-├── nginx/sites-available/
-│   └── lucho                     # Reverse proxy
-└── default/
-    └── minio                     # MinIO env vars
+/root/lucho/app/              ← Código fuente
+├── venv/                     ← Python virtualenv
+├── .env                      ← Variables de entorno
+├── app/                      ← FastAPI
+├── alembic/                  ← Migraciones
+├── landing/                  ← Landing page (fuente)
+└── scripts/                  ← Seeds
+
+/var/www/holalucho/           ← Landing page (servida por Nginx)
+
+/etc/systemd/system/
+├── lucho-api.service
+└── minio.service
+
+/etc/nginx/sites-available/
+└── holalucho
 ```
 
 ---
 
-## 12. Troubleshooting
-
-### La API no inicia
+## 11. Troubleshooting
 
 ```bash
-# Ver logs detallados
-sudo journalctl -u lucho-api -n 50 --no-pager
+# API no inicia
+journalctl -u lucho-api -n 50 --no-pager
+systemctl status postgresql
 
-# Verificar que PostgreSQL corre
-sudo systemctl status postgresql
-
-# Probar conexión a DB manualmente
-source /home/lucho/app/venv/bin/activate
+# Probar DB
+cd /root/lucho/app && source venv/bin/activate
 python -c "from app.database import async_session; print('OK')"
-```
 
-### Webhooks no llegan
+# Webhooks no llegan
+nginx -t
+tail -f /var/log/nginx/access.log
+ufw status
 
-```bash
-# Verificar Nginx
-sudo nginx -t
-sudo tail -f /var/log/nginx/access.log
-
-# Verificar firewall
-sudo ufw status
-
-# Verificar que el dominio resuelve
-dig TU_DOMINIO.com
-```
-
-### MinIO no accesible
-
-```bash
-# Consola MinIO: http://TU_IP:9001
-sudo systemctl status minio
-sudo journalctl -u minio -n 20
+# MinIO
+systemctl status minio
+curl -s http://localhost:9000
 ```
 
 ---
 
-## 13. Checklist de Seguridad
+## 12. Checklist de Seguridad
 
-- [ ] `.env` con permisos 600 (`chmod 600 .env`)
-- [ ] PostgreSQL solo escucha en localhost (`listen_addresses = 'localhost'`)
-- [ ] Redis con contraseña (`requirepass` en `/etc/redis/redis.conf`)
-- [ ] MinIO con credenciales fuertes
-- [ ] UFW activo con solo puertos 22, 80, 443
-- [ ] SSL con Let's Encrypt (renovación automática)
-- [ ] API keys rotadas periódicamente
-- [ ] Logs con rotación (`journalctl --vacuum-time=30d`)
-- [ ] Usuario `lucho` sin acceso SSH por contraseña (solo SSH key)
+- [ ] `.env` con `chmod 600`
+- [ ] PostgreSQL solo en localhost
+- [ ] UFW: solo 22, 80, 443
+- [ ] SSL con renovación automática
+- [ ] SSH solo con key, no contraseña
