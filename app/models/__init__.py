@@ -16,6 +16,7 @@ from app.models.subscription import Subscription, Payment, SubscriptionInvoice, 
 from app.models.vehicle import Vehicle, VehicleMaintenance, MaintenanceType
 from app.models.document import Document, DocumentType, DocumentStatus
 from app.models.transaction import Transaction, Budget, TransactionType, TransactionCategory, BudgetPeriod
+from app.models.business import BusinessInfo
 
 __all__ = [
     "Base",

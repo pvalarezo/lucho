@@ -2996,11 +2996,12 @@ async def handle_update_vehicle(session, user_id: str, args: dict) -> dict:
 # =============================================================================
 
 async def handle_subscribe_to_plan(session, user_id: str, args: dict) -> dict:
-    """Create a pending payment and return PayPhone link for subscription."""
+    """Create a pending payment and return payment instructions with PayPhone link + transfer info."""
     import uuid as uuid_mod
     from sqlalchemy import select
     from app.models.subscription import Subscription, Payment, PaymentStatus, PaymentMethod, RenewalType
     from app.models.subscription_plan import SubscriptionPlan
+    from app.models.business import BusinessInfo
     from app.services import payphone as payphone_svc
 
     uid = uuid_mod.UUID(user_id)
@@ -3013,7 +3014,7 @@ async def handle_subscribe_to_plan(session, user_id: str, args: dict) -> dict:
     )
     plan = plan_result.scalar_one_or_none()
     if not plan:
-        return {"success": False, "message": f"El plan '{plan_slug}' no existe. Planes disponibles: básico, premium, familia."}
+        return {"success": False, "message": f"El plan '{plan_slug}' no existe. Planes disponibles: básico ($4.99), premium ($9.99), familia ($14.99)."}
 
     # Find or create subscription
     sub_result = await session.execute(
@@ -3039,14 +3040,12 @@ async def handle_subscribe_to_plan(session, user_id: str, args: dict) -> dict:
         price = float(plan.price_monthly_usd)
 
     if price <= 0:
-        # Free plan — activate directly
         subscription.status = "active"
         await session.flush()
         return {
             "success": True,
             "message": f"✅ Plan {plan.name} activado. ¡Bienvenido a Lucho!",
             "plan": plan.name,
-            "price": 0,
         }
 
     # Set renewal type
@@ -3070,45 +3069,56 @@ async def handle_subscribe_to_plan(session, user_id: str, args: dict) -> dict:
     session.add(payment)
     await session.flush()
 
-    # Create PayPhone payment link
-    description = f"Lucho — Plan {plan.name} ({renewal})"
+    # Load business info for transfer instructions
+    biz_result = await session.execute(
+        select(BusinessInfo).where(BusinessInfo.is_active == True)
+    )
+    biz = biz_result.scalar_one_or_none()
+
+    # Build payment message
+    plan_label = plan.name
+    renewal_label = "año" if renewal == "annual" else "mes"
+
+    lines = [
+        f"📱 *Suscribite al plan {plan_label}*",
+        "",
+        f"💰 *${price:.2f}* / {renewal_label}",
+        f"📦 {plan.description}",
+        "",
+    ]
+
+    # Option 1: PayPhone
     pp_payment = await payphone_svc.create_payment(
         amount=price,
-        description=description,
+        description=f"Lucho — Plan {plan.name} ({renewal})",
         reference=pay_ref,
     )
 
     if pp_payment and pp_payment.payment_url:
-        plan_label = plan.name
-        renewal_label = "anual" if renewal == "annual" else "mensual"
-        return {
-            "success": True,
-            "message": (
-                f"📱 *Suscribite al plan {plan_label}*\n\n"
-                f"💰 ${price:.2f} ({renewal_label})\n"
-                f"📦 {plan.description}\n\n"
-                f"👉 Pagá aquí: {pp_payment.payment_url}\n\n"
-                f"Abrí el link en tu celular y pagá con la app de PayPhone. "
-                f"Cuando confirmes el pago, tu suscripción se activa automáticamente."
-            ),
-            "payment_url": pp_payment.payment_url,
-            "plan": plan.name,
-            "price": price,
-            "renewal": renewal_label,
-        }
-    else:
-        # PayPhone not configured — show manual instructions
-        return {
-            "success": True,
-            "message": (
-                f"📱 *Suscribite al plan {plan.name}*\n\n"
-                f"💰 ${price:.2f}/mes\n\n"
-                f"Pronto podrás pagar directamente con PayPhone. "
-                f"Por ahora, escribime y te ayudamos con el pago manual."
-            ),
-            "plan": plan.name,
-            "price": price,
-        }
+        lines.append("1️⃣ *Pago con tarjeta (PayPhone)*")
+        lines.append(f"   👉 {pp_payment.payment_url}")
+        lines.append("   Abrí el link en tu celular o compu.")
+        lines.append("   Se abre la app o pagás con tarjeta en la web.")
+        lines.append("")
+
+    # Option 2: Bank transfer
+    if biz:
+        lines.append("2️⃣ *Transferencia bancaria*")
+        lines.append(f"   🏦 {biz.company_name}")
+        lines.append(f"   📋 RUC: {biz.ruc}")
+        lines.append(f"   💳 {biz.bank_name} — Cta. {biz.account_type} #{biz.account_number}")
+        lines.append("")
+        lines.append("   Envianos el comprobante y activamos tu plan.")
+
+    return {
+        "success": True,
+        "message": "\n".join(lines),
+        "payment_url": pp_payment.payment_url if pp_payment else None,
+        "plan": plan.name,
+        "price": price,
+        "renewal": renewal_label,
+        "reference": pay_ref,
+    }
 
 
 # =============================================================================
