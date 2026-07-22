@@ -23,7 +23,9 @@ from app.models.subscription import (
     Payment,
     PaymentStatus,
     SubscriptionInvoice,
+    InvoiceStatus,
 )
+from app.models.billing_info import BillingInfo
 from app.models.user import User
 from app.services import payphone as payphone_svc
 from app.services.notifications import send_notification, resolve_user_contact
@@ -101,14 +103,8 @@ async def _activate_subscription(session, payment_data: dict):
                 subscription.current_period_end = now + timedelta(days=30)
             subscription.trial_ends_at = None
 
-            # Generate invoice
-            invoice = SubscriptionInvoice(
-                payment_id=payment.id,
-                invoice_number=_generate_invoice_number(payment.id),
-                amount=payment.amount,
-                issued_at=now,
-            )
-            session.add(invoice)
+            # Generate invoice with billing info
+            invoice = await _create_invoice(session, payment, subscription)
 
             # Notify user
             await _notify_activation(session, subscription)
@@ -128,6 +124,62 @@ def _generate_invoice_number(payment_id: _uuid.UUID) -> str:
     short_id = str(payment_id)[:8].upper()
     date_str = datetime.now(timezone.utc).strftime("%Y%m%d")
     return f"LUCHO-{date_str}-{short_id}"
+
+
+async def _create_invoice(session, payment, subscription) -> SubscriptionInvoice:
+    """Create an SRI-compliant invoice with billing info from the user's default profile."""
+    now = datetime.now(timezone.utc)
+
+    # Find default billing info
+    billing_result = await session.execute(
+        select(BillingInfo).where(
+            BillingInfo.user_id == payment.user_id,
+            BillingInfo.is_default == True,
+            BillingInfo.is_active == True,
+        )
+    )
+    billing = billing_result.scalar_one_or_none()
+
+    # Fallback: use UserProfile data
+    if not billing:
+        from app.models.user_profile import UserProfile
+        profile_result = await session.execute(
+            select(UserProfile).where(UserProfile.user_id == payment.user_id)
+        )
+        profile = profile_result.scalar_one_or_none()
+
+        invoice = SubscriptionInvoice(
+            payment_id=payment.id,
+            invoice_number=_generate_invoice_number(payment.id),
+            billing_name=profile.full_name if profile else None,
+            billing_id_number=profile.id_number if profile else None,
+            billing_id_type="cedula",
+            billing_email=profile.email if profile else None,
+            billing_phone=profile.phone if profile else None,
+            billing_address=profile.address if profile else None,
+            amount=payment.amount,
+            status=InvoiceStatus.issued,
+            issued_at=now,
+        )
+    else:
+        invoice = SubscriptionInvoice(
+            payment_id=payment.id,
+            invoice_number=_generate_invoice_number(payment.id),
+            billing_name=billing.full_name,
+            billing_id_number=billing.id_number,
+            billing_id_type=billing.id_type,
+            billing_email=billing.email,
+            billing_phone=billing.phone,
+            billing_address=billing.address,
+            amount=payment.amount,
+            status=InvoiceStatus.issued,
+            issued_at=now,
+        )
+
+    session.add(invoice)
+    logger.info("Invoice created: %s for user=%s, amount=%.2f",
+                invoice.invoice_number, payment.user_id, payment.amount)
+    return invoice
 
 
 async def _notify_activation(session, subscription):

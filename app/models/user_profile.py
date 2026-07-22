@@ -20,6 +20,8 @@ class UserProfile(UUIDMixin, TimestampMixin, Base):
     full_name: Mapped[str | None] = mapped_column(String(256), nullable=True)
     id_number: Mapped[str | None] = mapped_column(String(32), nullable=True)  # cédula / RUC
     email: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    phone: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    address: Mapped[str | None] = mapped_column(String(512), nullable=True)
 
     privacy_policy_accepted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     privacy_policy_accepted_at: Mapped[datetime | None] = mapped_column(

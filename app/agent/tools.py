@@ -885,6 +885,49 @@ TOOL_SUBSCRIBE_TO_PLAN = {
     },
 }
 
+TOOL_UPDATE_BILLING_INFO = {
+    "type": "function",
+    "function": {
+        "name": "update_billing_info",
+        "description": "Guardar o actualizar datos de facturación del usuario: cédula/RUC, nombre, dirección, teléfono, correo. Usar cuando el usuario dice 'mis datos para factura', 'factura a mi nombre', 'factura a nombre de mi empresa', 'datos de facturación'.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "label": {
+                    "type": "string",
+                    "description": "Etiqueta: 'personal', 'empresa', o cualquier nombre para identificar este perfil.",
+                },
+                "full_name": {
+                    "type": "string",
+                    "description": "Nombre completo o Razón Social.",
+                },
+                "id_number": {
+                    "type": "string",
+                    "description": "Cédula (10 dígitos), RUC (13 dígitos), o pasaporte.",
+                },
+                "id_type": {
+                    "type": "string",
+                    "enum": ["cedula", "ruc", "pasaporte", "consumidor_final"],
+                    "description": "Tipo de identificación. Default: 'cedula'.",
+                },
+                "email": {
+                    "type": "string",
+                    "description": "Correo electrónico para recibir la factura.",
+                },
+                "phone": {
+                    "type": "string",
+                    "description": "Teléfono de contacto.",
+                },
+                "address": {
+                    "type": "string",
+                    "description": "Dirección completa (obligatorio SRI). Ej: 'Av. Amazonas N24-33 y Colón, Quito'.",
+                },
+            },
+            "required": ["full_name", "id_number", "email", "address"],
+        },
+    },
+}
+
 
 # =============================================================================
 # FINANCE TOOLS — transactions and budgets
@@ -1046,6 +1089,7 @@ ALL_TOOLS = [
     TOOL_DELETE_VEHICLE,
     TOOL_UPDATE_VEHICLE,
     TOOL_SUBSCRIBE_TO_PLAN,
+    TOOL_UPDATE_BILLING_INFO,
     TOOL_SAVE_DOCUMENT,
     TOOL_LIST_MY_DOCUMENTS,
     TOOL_SAVE_EVENT,
@@ -3138,6 +3182,80 @@ async def handle_subscribe_to_plan(session, user_id: str, args: dict) -> dict:
     }
 
 
+async def handle_update_billing_info(session, user_id: str, args: dict) -> dict:
+    """Create or update a billing profile for SRI invoicing."""
+    import uuid as uuid_mod
+    from sqlalchemy import select, update
+    from app.models.billing_info import BillingInfo
+
+    uid = uuid_mod.UUID(user_id)
+    label = (args.get("label") or "personal").strip()
+    full_name = (args.get("full_name") or "").strip()
+    id_number = (args.get("id_number") or "").strip()
+    id_type = (args.get("id_type") or "cedula").strip()
+    email = (args.get("email") or "").strip()
+    phone = args.get("phone")
+    address = (args.get("address") or "").strip()
+
+    if not full_name or not id_number or not email or not address:
+        return {"success": False, "message": "Necesito: nombre, cédula/RUC, correo y dirección para la factura."}
+
+    # Upsert: create or update billing profile with this label
+    result = await session.execute(
+        select(BillingInfo).where(
+            BillingInfo.user_id == uid,
+            BillingInfo.label == label,
+        )
+    )
+    existing = result.scalar_one_or_none()
+
+    if existing:
+        existing.full_name = full_name
+        existing.id_number = id_number
+        existing.id_type = id_type
+        existing.email = email
+        existing.phone = phone
+        existing.address = address
+        await session.flush()
+        action = "actualizado"
+    else:
+        # If this is the first profile, mark as default
+        count_result = await session.execute(
+            select(BillingInfo).where(BillingInfo.user_id == uid)
+        )
+        is_first = len(count_result.scalars().all()) == 0
+
+        profile = BillingInfo(
+            user_id=uid,
+            label=label,
+            full_name=full_name,
+            id_number=id_number,
+            id_type=id_type,
+            email=email,
+            phone=phone,
+            address=address,
+            is_default=is_first,
+        )
+        session.add(profile)
+        await session.flush()
+        action = "guardado"
+
+    id_label = "RUC" if id_type == "ruc" else "Cédula" if id_type == "cedula" else id_type.upper()
+    return {
+        "success": True,
+        "message": (
+            f"✅ Datos de facturación {action}s.\n\n"
+            f"📋 {full_name}\n"
+            f"🆔 {id_label}: {id_number}\n"
+            f"📧 {email}\n"
+            f"📍 {address}\n\n"
+            f"Cuando pagues tu suscripción, la factura se emitirá con estos datos."
+        ),
+        "label": label,
+        "id_type": id_type,
+    }
+
+
 # =============================================================================
 # FINANCE HANDLERS
 # =============================================================================
@@ -3496,6 +3614,7 @@ TOOL_HANDLERS: dict[str, Any] = {
     "delete_vehicle": handle_delete_vehicle,
     "update_vehicle": handle_update_vehicle,
     "subscribe_to_plan": handle_subscribe_to_plan,
+    "update_billing_info": handle_update_billing_info,
     "save_document": handle_save_document,
     "list_my_documents": handle_list_my_documents,
     "save_event": handle_save_event,
