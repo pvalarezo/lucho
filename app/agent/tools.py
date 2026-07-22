@@ -928,6 +928,111 @@ TOOL_UPDATE_BILLING_INFO = {
     },
 }
 
+TOOL_CREATE_QUOTE = {
+    "type": "function",
+    "function": {
+        "name": "create_quote",
+        "description": "Crear una cotización/proforma para un cliente. Calcula automáticamente subtotal, IVA (tasa configurable) y total. Usar cuando el usuario dice 'cotización para...', 'proforma para...', 'presupuesto para...'.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "client_name": {
+                    "type": "string",
+                    "description": "Nombre del cliente o razón social.",
+                },
+                "client_id_number": {
+                    "type": "string",
+                    "description": "Cédula o RUC del cliente (opcional).",
+                },
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "description": {"type": "string", "description": "Descripción del ítem."},
+                            "quantity": {"type": "number", "description": "Cantidad. Default: 1."},
+                            "unit_price": {"type": "number", "description": "Precio unitario sin IVA."},
+                        },
+                        "required": ["description", "unit_price"]
+                    },
+                    "description": "Ítems de la cotización.",
+                },
+                "notes": {
+                    "type": "string",
+                    "description": "Notas o términos. Ej: 'Válido por 15 días', '50% anticipo'.",
+                },
+            },
+            "required": ["client_name", "items"],
+        },
+    },
+}
+
+TOOL_LIST_MY_QUOTES = {
+    "type": "function",
+    "function": {
+        "name": "list_my_quotes",
+        "description": "Consultar cotizaciones emitidas. Usar cuando pregunta '¿qué cotizaciones tengo?', 'mis cotizaciones', '¿cuánto he cotizado este mes?'.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "status": {
+                    "type": "string",
+                    "enum": ["draft", "sent", "accepted", "rejected", "expired", "all"],
+                    "description": "Filtrar por estado. Default: 'all'.",
+                },
+                "period": {
+                    "type": "string",
+                    "enum": ["this_month", "last_month", "all"],
+                    "description": "Período. Default: 'this_month'.",
+                },
+            },
+            "required": [],
+        },
+    },
+}
+
+TOOL_SAVE_BILLING_CLIENT = {
+    "type": "function",
+    "function": {
+        "name": "save_billing_client",
+        "description": "Guardar datos de un cliente frecuente para usarlo en cotizaciones. Usar cuando el usuario dice 'guarda los datos de...', 'agrega este cliente'.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Nombre o Razón Social."},
+                "id_type": {
+                    "type": "string",
+                    "enum": ["cedula", "ruc", "pasaporte", "consumidor_final"],
+                    "description": "Tipo de identificación.",
+                },
+                "id_number": {"type": "string", "description": "Cédula (10) o RUC (13)."},
+                "email": {"type": "string", "description": "Correo electrónico."},
+                "phone": {"type": "string", "description": "Teléfono."},
+                "address": {"type": "string", "description": "Dirección."},
+            },
+            "required": ["name", "id_number"],
+        },
+    },
+}
+
+TOOL_SAVE_BILLING_PRODUCT = {
+    "type": "function",
+    "function": {
+        "name": "save_billing_product",
+        "description": "Guardar un producto o servicio en el catálogo. Usar cuando el usuario dice 'agrega a mi catálogo...', 'guarda este producto'.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Nombre del producto/servicio."},
+                "unit_price": {"type": "number", "description": "Precio unitario sin IVA."},
+                "has_iva": {"type": "boolean", "description": "¿Aplica IVA? Default: true."},
+                "code": {"type": "string", "description": "Código interno (opcional)."},
+            },
+            "required": ["name", "unit_price"],
+        },
+    },
+}
+
 
 # =============================================================================
 # FINANCE TOOLS — transactions and budgets
@@ -1090,6 +1195,10 @@ ALL_TOOLS = [
     TOOL_UPDATE_VEHICLE,
     TOOL_SUBSCRIBE_TO_PLAN,
     TOOL_UPDATE_BILLING_INFO,
+    TOOL_CREATE_QUOTE,
+    TOOL_LIST_MY_QUOTES,
+    TOOL_SAVE_BILLING_CLIENT,
+    TOOL_SAVE_BILLING_PRODUCT,
     TOOL_SAVE_DOCUMENT,
     TOOL_LIST_MY_DOCUMENTS,
     TOOL_SAVE_EVENT,
@@ -3257,6 +3366,310 @@ async def handle_update_billing_info(session, user_id: str, args: dict) -> dict:
 
 
 # =============================================================================
+# BILLING HANDLERS — cotizaciones, clientes, productos
+# =============================================================================
+
+
+async def _get_iva_rate(session) -> float:
+    """Get IVA rate from BusinessInfo, falling back to config."""
+    from sqlalchemy import select
+    from app.models.business import BusinessInfo
+    from app.config import settings
+
+    result = await session.execute(
+        select(BusinessInfo).where(BusinessInfo.is_active == True)
+    )
+    biz = result.scalar_one_or_none()
+    if biz and biz.iva_rate:
+        return float(biz.iva_rate)
+    return float(getattr(settings, 'IVA_RATE', 15.0))
+
+
+async def handle_create_quote(session, user_id: str, args: dict) -> dict:
+    """Create a quote with auto-calculated IVA and total."""
+    import uuid as uuid_mod
+    from datetime import date
+    from sqlalchemy import select, func
+    from app.models.billing import (
+        BillingDocument, BillingDocumentItem,
+        BillingDocumentType, BillingDocumentStatus,
+    )
+
+    uid = uuid_mod.UUID(user_id)
+    client_name = (args.get("client_name") or "").strip()
+    client_id_number = args.get("client_id_number")
+    items = args.get("items") or []
+    notes = args.get("notes")
+
+    if not client_name:
+        return {"success": False, "message": "¿A nombre de quién va la cotización?"}
+    if not items:
+        return {"success": False, "message": "Necesito al menos un ítem para la cotización."}
+
+    iva_rate = await _get_iva_rate(session)
+    iva_factor = iva_rate / 100.0
+
+    # Generate sequential quote number
+    count_result = await session.execute(
+        select(func.count(BillingDocument.id)).where(
+            BillingDocument.user_id == uid,
+            BillingDocument.document_type == BillingDocumentType.quote,
+        )
+    )
+    next_num = (count_result.scalar_one() or 0) + 1
+    quote_number = f"COT-{next_num:04d}"
+
+    # Calculate totals
+    line_items = []
+    subtotal = 0.0
+    iva_total = 0.0
+
+    for it in items:
+        desc = (it.get("description") or "Ítem").strip()
+        qty = float(it.get("quantity") or 1)
+        price = float(it.get("unit_price") or 0)
+        line = qty * price
+        subtotal += line
+        iva_total += line * iva_factor
+        line_items.append({
+            "description": desc,
+            "quantity": qty,
+            "unit_price": price,
+            "line_total": round(line, 2),
+        })
+
+    total = round(subtotal + iva_total, 2)
+
+    # Create document
+    doc = BillingDocument(
+        user_id=uid,
+        client_name=client_name,
+        client_id_number=client_id_number,
+        document_type=BillingDocumentType.quote,
+        quote_number=quote_number,
+        issue_date=date.today(),
+        subtotal=round(subtotal, 2),
+        iva_rate=iva_rate,
+        iva_amount=round(iva_total, 2),
+        total=total,
+        status=BillingDocumentStatus.draft,
+        notes=notes,
+    )
+    session.add(doc)
+    await session.flush()
+
+    # Create line items
+    for li in line_items:
+        item = BillingDocumentItem(
+            document_id=doc.id,
+            description=li["description"],
+            quantity=li["quantity"],
+            unit_price=li["unit_price"],
+            has_iva=True,
+            line_total=li["line_total"],
+        )
+        session.add(item)
+
+    await session.flush()
+
+    # Build response
+    lines = [
+        f"📋 *Cotización {quote_number}*",
+        f"Cliente: {client_name}",
+        "",
+    ]
+    for li in line_items:
+        if li["quantity"] == 1:
+            lines.append(f"• {li['description']} — ${li['line_total']:.2f}")
+        else:
+            lines.append(f"• {li['quantity']:.0f}x {li['description']} — ${li['line_total']:.2f}")
+
+    lines.append("")
+    lines.append(f"📦 Subtotal: ${subtotal:.2f}")
+    lines.append(f"🧾 IVA {iva_rate:.0f}%: ${iva_total:.2f}")
+    lines.append(f"💰 *Total: ${total:.2f}*")
+    if notes:
+        lines.append(f"\n📝 {notes}")
+
+    return {
+        "success": True,
+        "message": "\n".join(lines),
+        "quote_number": quote_number,
+        "total": total,
+        "iva_rate": iva_rate,
+    }
+
+
+async def handle_list_my_quotes(session, user_id: str, args: dict) -> dict:
+    """List quotes with status and period filters."""
+    import uuid as uuid_mod
+    from datetime import date, datetime
+    from sqlalchemy import select
+    from app.models.billing import BillingDocument, BillingDocumentType, BillingDocumentStatus
+
+    uid = uuid_mod.UUID(user_id)
+    status_filter = args.get("status", "all")
+    period = args.get("period", "this_month")
+
+    # Date range
+    today = date.today()
+    if period == "this_month":
+        start = today.replace(day=1)
+        end = today
+    elif period == "last_month":
+        if today.month == 1:
+            start = date(today.year - 1, 12, 1)
+            end = date(today.year, 1, 1)
+        else:
+            start = date(today.year, today.month - 1, 1)
+            end = today.replace(day=1)
+    else:
+        start = date(2020, 1, 1)
+        end = today
+
+    query = select(BillingDocument).where(
+        BillingDocument.user_id == uid,
+        BillingDocument.document_type == BillingDocumentType.quote,
+        BillingDocument.issue_date >= start,
+        BillingDocument.issue_date <= end,
+    )
+
+    if status_filter != "all":
+        try:
+            st = BillingDocumentStatus(status_filter)
+            query = query.where(BillingDocument.status == st)
+        except ValueError:
+            pass
+
+    result = await session.execute(query.order_by(BillingDocument.issue_date.desc()).limit(20))
+    quotes = result.scalars().all()
+
+    if not quotes:
+        return {"success": True, "message": "No tenés cotizaciones en este período. Decime 'cotización para...' y creamos una.", "quotes": [], "total": 0}
+
+    total_amount = sum(q.total for q in quotes)
+    quote_list = [
+        {
+            "quote_number": q.quote_number,
+            "client_name": q.client_name,
+            "total": q.total,
+            "status": q.status.value if q.status else "draft",
+            "issue_date": str(q.issue_date),
+            "iva_rate": q.iva_rate,
+        }
+        for q in quotes
+    ]
+
+    return {
+        "success": True,
+        "message": f"Tenés {len(quotes)} cotización(es) — Total: ${total_amount:.2f}.",
+        "quotes": quote_list,
+        "total": len(quotes),
+        "total_amount": total_amount,
+    }
+
+
+async def handle_save_billing_client(session, user_id: str, args: dict) -> dict:
+    """Save or update a billing client."""
+    import uuid as uuid_mod
+    from sqlalchemy import select
+    from app.models.billing import BillingClient, BillingIdType
+
+    uid = uuid_mod.UUID(user_id)
+    name = (args.get("name") or "").strip()
+    id_number = (args.get("id_number") or "").strip()
+
+    if not name or not id_number:
+        return {"success": False, "message": "Necesito nombre y cédula/RUC del cliente."}
+
+    id_type_str = args.get("id_type", "cedula")
+    try:
+        id_type = BillingIdType(id_type_str)
+    except ValueError:
+        id_type = BillingIdType.cedula
+
+    # Upsert
+    result = await session.execute(
+        select(BillingClient).where(
+            BillingClient.user_id == uid,
+            BillingClient.id_number == id_number,
+        )
+    )
+    client = result.scalar_one_or_none()
+
+    if client:
+        client.name = name
+        client.id_type = id_type
+        client.email = args.get("email")
+        client.phone = args.get("phone")
+        client.address = args.get("address")
+        action = "actualizado"
+    else:
+        client = BillingClient(
+            user_id=uid, name=name, id_type=id_type, id_number=id_number,
+            email=args.get("email"), phone=args.get("phone"), address=args.get("address"),
+        )
+        session.add(client)
+        action = "guardado"
+
+    await session.flush()
+
+    return {
+        "success": True,
+        "message": f"Cliente '{name}' {action}. Ahora podés decir 'cotización para {name}'.",
+        "client_name": name,
+        "id_number": id_number,
+    }
+
+
+async def handle_save_billing_product(session, user_id: str, args: dict) -> dict:
+    """Save or update a billing product."""
+    import uuid as uuid_mod
+    from sqlalchemy import select
+    from app.models.billing import BillingProduct
+
+    uid = uuid_mod.UUID(user_id)
+    name = (args.get("name") or "").strip()
+    unit_price = float(args.get("unit_price") or 0)
+
+    if not name or unit_price <= 0:
+        return {"success": False, "message": "Necesito nombre y precio del producto."}
+
+    has_iva = args.get("has_iva", True)
+
+    result = await session.execute(
+        select(BillingProduct).where(
+            BillingProduct.user_id == uid,
+            BillingProduct.name == name,
+        )
+    )
+    product = result.scalar_one_or_none()
+
+    if product:
+        product.unit_price = unit_price
+        product.has_iva = has_iva
+        product.code = args.get("code")
+        action = "actualizado"
+    else:
+        product = BillingProduct(
+            user_id=uid, name=name, unit_price=unit_price,
+            has_iva=has_iva, code=args.get("code"),
+        )
+        session.add(product)
+        action = "agregado"
+
+    await session.flush()
+
+    iva_msg = "+IVA" if has_iva else "sin IVA"
+    return {
+        "success": True,
+        "message": f"Producto '{name}' {action} al catálogo — ${unit_price:.2f} ({iva_msg}).",
+        "product_name": name,
+        "unit_price": unit_price,
+    }
+
+
+# =============================================================================
 # FINANCE HANDLERS
 # =============================================================================
 
@@ -3615,6 +4028,10 @@ TOOL_HANDLERS: dict[str, Any] = {
     "update_vehicle": handle_update_vehicle,
     "subscribe_to_plan": handle_subscribe_to_plan,
     "update_billing_info": handle_update_billing_info,
+    "create_quote": handle_create_quote,
+    "list_my_quotes": handle_list_my_quotes,
+    "save_billing_client": handle_save_billing_client,
+    "save_billing_product": handle_save_billing_product,
     "save_document": handle_save_document,
     "list_my_documents": handle_list_my_documents,
     "save_event": handle_save_event,

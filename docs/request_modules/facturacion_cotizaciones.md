@@ -1,16 +1,18 @@
-# Módulo de Facturación y Cotizaciones — Especificación v1.0
+# Módulo de Cotizaciones — Especificación v1.1
 
-> **Estado**: 📋 Propuesta — pendiente de aprobación e implementación
-> **Solicitante**: Cliente Lucho
-> **Stack SRI**: Key49 (AURACORE) para emisión y autorización
+> **Estado**: 🔨 En implementación — Fase 0 (Cotizaciones)
+> **Futuro**: Facturación electrónica SRI vía Key49 (Fase 1)
+> **IVA**: Configurable (no hardcodeado) — desde `business_info.iva_rate`
 
 ---
 
 ## 1. Visión General
 
-Lucho permite a emprendedores y pequeños negocios en Ecuador crear **cotizaciones** (proformas) y emitir **facturas electrónicas** autorizadas por el SRI, todo por conversación natural de WhatsApp/Telegram. Sin apps extra, sin sistemas complejos. El usuario dicta los datos y Lucho se encarga del resto vía Key49.
+Lucho permite a emprendedores y pequeños negocios en Ecuador crear **cotizaciones** (proformas) profesionales por conversación natural de WhatsApp/Telegram. Sin apps extra, sin sistemas complejos.
 
-**Público objetivo**: tiendas, peluquerías, consultorios, freelance, servicios profesionales, restaurantes pequeños — cualquier negocio que hoy factura en libretitas o Excel.
+La facturación electrónica SRI vía Key49 se implementará en una fase futura.
+
+**Público objetivo**: tiendas, peluquerías, consultorios, freelance, servicios profesionales — cualquier negocio que hoy cotiza informalmente.
 
 ---
 
@@ -33,18 +35,11 @@ Lucho permite a emprendedores y pequeños negocios en Ecuador crear **cotizacion
 >
 > **Lucho**: "Listo. Cotización #COT-0042 enviada a Juan Pérez. ¿La guardo para convertirla en factura después?"
 
-### 2.2 Convertir cotización en factura
+### 2.2 Consultar cotizaciones
 
-> **Usuario**: "convierte la cotización 42 en factura"
+> **Usuario**: "¿qué cotizaciones tengo?"
 >
-> **Lucho**: "Factura emitida:"
-> "🧾 *Factura #001-001-00000042*"
-> "Cliente: Juan Pérez — Cédula: 1712345678"
-> "📦 Total: $74.75 (IVA incluido)"
-> "Estado: ✅ Autorizada por el SRI"
-> "🔑 Clave de acceso: 1007202601110387543900110010040000000424999510811"
-> ""
-> "¿Te envío el PDF de la factura?"
+> **Lucho**: "3 cotizaciones este mes:\n📋 #COT-0042 — Juan Pérez — $74.75 — pendiente\n📋 #COT-0043 — María López — $120.00 — enviada\n📋 #COT-0044 — TechCorp — $450.00 — enviada"
 
 ### 2.3 Datos del cliente
 
@@ -52,22 +47,15 @@ Lucho permite a emprendedores y pequeños negocios en Ecuador crear **cotizacion
 >
 > **Lucho**: "Cliente guardado: Juan Pérez — Cédula 1712345678 — juan@email.com"
 
-### 2.4 Consultar facturas
+### 2.4 Catálogo de productos
 
-> **Usuario**: "¿cuánto facturé este mes?"
+> **Usuario**: "agrega a mi catálogo: Camiseta algodón a $15"
 >
-> **Lucho**: "Julio 2026:"
-> "🧾 5 facturas emitidas"
-> "💰 Total facturado: $1,245.50"
-> "📈 Promedio: $249.10 por factura"
-> ""
-> "Tu mejor cliente: Juan Pérez ($450.00)"
+> **Lucho**: "Producto guardado: Camiseta algodón — $15.00 (+IVA)."
 
-> **Usuario**: "mis facturas pendientes de cobro"
+> **Usuario**: "cotización para Juan: 2 camisetas de algodón y 1 pantalón"
 >
-> **Lucho**: "2 facturas por cobrar ($320.00):"
-> "🔴 #42 — Juan Pérez — $74.75 — vence 05/08"
-> "🔴 #43 — María López — $245.25 — vence 10/08"
+> **Lucho**: *(busca en catálogo)* "📋 *Cotización para Juan Pérez*\n👕 2x Camiseta algodón — $30.00\n👖 1x Pantalón — $35.00\n📦 Subtotal: $65.00\n🧾 IVA 15%: $9.75\n💰 Total: $74.75"
 
 ---
 
@@ -104,27 +92,25 @@ Lucho permite a emprendedores y pequeños negocios en Ecuador crear **cotizacion
 | `created_at` | TIMESTAMPTZ | |
 | `updated_at` | TIMESTAMPTZ | |
 
-### 3.3 Tabla `billing_documents` — Cotizaciones y Facturas
+### 3.3 Tabla `billing_documents` — Cotizaciones
 
 | Columna | Tipo | Descripción |
 |---------|------|-------------|
 | `id` | UUID | PK |
 | `user_id` | UUID FK | Dueño |
-| `client_id` | UUID FK | Cliente |
-| `document_type` | ENUM | `quote`, `invoice` |
-| `quote_number` | VARCHAR(32) | COT-0001 (secuencial propio) |
-| `invoice_number` | VARCHAR(32) | 001-001-000000042 (formato SRI) |
+| `client_id` | UUID FK nullable | Cliente (opcional, puede ser texto libre) |
+| `client_name` | VARCHAR(256) | Nombre del cliente |
+| `client_id_number` | VARCHAR(32) nullable | Cédula/RUC (opcional) |
+| `document_type` | ENUM | `quote` (futuro: `invoice`) |
+| `quote_number` | VARCHAR(16) | COT-0001 (secuencial automático) |
 | `issue_date` | DATE | Fecha emisión |
-| `due_date` | DATE nullable | Fecha vencimiento |
+| `valid_until` | DATE nullable | Válida hasta |
 | `subtotal` | DECIMAL(12,2) | Sin IVA |
+| `iva_rate` | DECIMAL(5,2) | Tasa IVA aplicada (ej: 15.00) |
 | `iva_amount` | DECIMAL(12,2) | IVA calculado |
 | `total` | DECIMAL(12,2) | Con IVA |
-| `status` | ENUM | `draft`, `sent`, `paid`, `cancelled` |
-| `converted_from_id` | UUID FK nullable | Si es factura, de qué cotización viene |
-| `key49_id` | VARCHAR(64) | ID en Key49 (solo facturas) |
-| `sri_access_key` | VARCHAR(64) | Clave de acceso SRI (49 dígitos) |
-| `sri_status` | VARCHAR(32) | `pending`, `authorized`, `rejected` |
-| `notes` | TEXT | Notas / términos |
+| `status` | ENUM | `draft`, `sent`, `accepted`, `rejected`, `expired` |
+| `notes` | TEXT | Términos / notas |
 | `created_at` | TIMESTAMPTZ | |
 | `updated_at` | TIMESTAMPTZ | |
 
@@ -146,153 +132,65 @@ Lucho permite a emprendedores y pequeños negocios en Ecuador crear **cotizacion
 
 ```sql
 billing_id_type: 'cedula', 'ruc', 'pasaporte', 'consumidor_final'
-billing_document_type: 'quote', 'invoice'
-billing_document_status: 'draft', 'sent', 'paid', 'cancelled'
-billing_sri_status: 'pending', 'authorized', 'rejected'
+billing_document_type: 'quote'  -- futuro: 'invoice'
+billing_document_status: 'draft', 'sent', 'accepted', 'rejected', 'expired'
 ```
 
 ---
 
-## 4. Flujo de Facturación con Key49
+## 4. Cálculo de IVA
 
-```
-Usuario: "factura para Juan Pérez: 2 camisetas a $15, 1 pantalón a $35"
-        │
-        ▼
-┌─────────────────────────────────────────────┐
-│  1. Lucho extrae datos con LLM             │
-│     - Cliente: Juan Pérez, cédula 1712...  │
-│     - Ítems: 2x Camiseta $15, 1x Pantalón $35 │
-│     - Calcula subtotal, IVA 15%, total     │
-│     - Muestra confirmación                 │
-└─────────────────────────────────────────────┘
-        │
-        ▼
-┌─────────────────────────────────────────────┐
-│  2. Guarda en billing_documents local      │
-│     - status = 'draft'                     │
-│     - sri_status = 'pending'               │
-│     - Asigna secuencial                    │
-└─────────────────────────────────────────────┘
-        │
-        ▼
-┌─────────────────────────────────────────────┐
-│  3. Envía a Key49 (POST /v1/invoices)     │
-│     - Mapea datos a formato Key49          │
-│     - establishment: 001                   │
-│     - issue_point: 001                     │
-│     - Calcula base imponible               │
-│     - 15% IVA con rate_code "4"           │
-└─────────────────────────────────────────────┘
-        │
-        ▼
-┌─────────────────────────────────────────────┐
-│  4. Scheduler poll Key49 (8 AM diario)     │
-│     - GET /v1/invoices/:id → status        │
-│     - AUTHORIZED → guarda access_key       │
-│     - Actualiza sri_status                 │
-└─────────────────────────────────────────────┘
-        │
-        ▼
-┌─────────────────────────────────────────────┐
-│  5. Lucho notifica al usuario              │
-│     "✅ Factura #42 autorizada por el SRI" │
-│     "¿Te envío el PDF?"                   │
-└─────────────────────────────────────────────┘
-```
+El % de IVA **NO está hardcodeado**. Se obtiene de:
+
+1. `BusinessInfo.iva_rate` (nuevo campo en la tabla `business_info`)
+2. Config fallback: `IVA_RATE` en `.env` (default: 15.0)
+
+Esto permite ajustar la tasa sin tocar código cuando el SRI cambie el IVA (como pasó de 12% → 15% en 2024).
 
 ---
 
-## 5. Tools del Agente (Propuesta)
+## 5. Tools del Agente (Fase 0 — Cotizaciones)
 
-### 5.1 `create_quote` — Crear cotización
+### 5.1 `create_quote` — Crear cotización ✅
 
 ```json
 {
   "name": "create_quote",
-  "description": "Crear una cotización/proforma para un cliente. No se envía al SRI.",
+  "description": "Crear una cotización/proforma para un cliente. Calcula automáticamente subtotal, IVA y total.",
   "parameters": {
     "client_name": "Nombre del cliente.",
     "client_id_number": "Cédula o RUC (opcional).",
     "items": [{"description": "...", "quantity": 1, "unit_price": 15.00}],
-    "notes": "Notas o términos."
+    "notes": "Términos o validez (ej: 'válido por 15 días')."
   },
   "required": ["client_name", "items"]
 }
 ```
 
-### 5.2 `convert_quote_to_invoice` — Cotización → Factura
+### 5.2 `list_my_quotes` — Consultar cotizaciones ✅
 
 ```json
 {
-  "name": "convert_quote_to_invoice",
-  "description": "Convertir una cotización en factura electrónica. Se envía al SRI vía Key49.",
+  "name": "list_my_quotes",
+  "description": "Consultar cotizaciones emitidas.",
   "parameters": {
-    "quote_number": "Número de cotización (ej: 'COT-0042').",
-    "payment_method": "'01'=efectivo, '16'=débito, '19'=crédito, '20'=transferencia"
-  },
-  "required": ["quote_number"]
-}
-```
-
-### 5.3 `create_invoice` — Factura directa
-
-```json
-{
-  "name": "create_billing_invoice",
-  "description": "Crear una factura electrónica directamente (sin cotización previa). Se envía al SRI vía Key49.",
-  "parameters": {
-    "client_name": "Nombre o Razón Social.",
-    "client_id_type": "'cedula', 'ruc', 'pasaporte', 'consumidor_final'",
-    "client_id_number": "Cédula o RUC.",
-    "client_email": "Correo para envío de factura.",
-    "items": [{"description": "...", "quantity": 1, "unit_price": 15.00}],
-    "payment_method": "'01'=efectivo, '20'=transferencia. Default: '01'"
-  },
-  "required": ["client_name", "client_id_type", "client_id_number", "items"]
-}
-```
-
-### 5.4 `list_my_invoices` — Consultar facturas
-
-```json
-{
-  "name": "list_my_invoices",
-  "description": "Consultar facturas y cotizaciones emitidas.",
-  "parameters": {
-    "document_type": "'quote', 'invoice', o 'all'. Default: 'all'.",
-    "status": "'draft', 'sent', 'paid', 'cancelled', 'all'. Default: 'all'.",
-    "period": "'this_month', 'last_month', 'this_year', 'all'."
+    "status": "'draft', 'sent', 'accepted', 'rejected', 'expired', 'all'. Default: 'all'.",
+    "period": "'this_month', 'last_month', 'all'. Default: 'this_month'."
   },
   "required": []
 }
 ```
 
-### 5.5 `mark_invoice_paid` — Marcar como pagada
-
-```json
-{
-  "name": "mark_invoice_paid",
-  "description": "Marcar una factura como pagada.",
-  "parameters": {
-    "invoice_number": "Número de factura (ej: '001-001-000000042').",
-    "payment_method": "'01'=efectivo, '20'=transferencia.",
-    "payment_date": "Fecha YYYY-MM-DD. Default: hoy."
-  },
-  "required": ["invoice_number"]
-}
-```
-
-### 5.6 `save_billing_client` — Guardar cliente
+### 5.3 `save_billing_client` — Guardar cliente ✅
 
 ```json
 {
   "name": "save_billing_client",
-  "description": "Guardar datos de un cliente frecuente.",
+  "description": "Guardar datos de un cliente frecuente para usarlo en cotizaciones.",
   "parameters": {
     "name": "Nombre o Razón Social.",
     "id_type": "'cedula', 'ruc', 'pasaporte', 'consumidor_final'.",
-    "id_number": "Cédula (10) o RUC (13).",
+    "id_number": "Cédula o RUC.",
     "email": "Correo.",
     "phone": "Teléfono.",
     "address": "Dirección."
@@ -301,12 +199,12 @@ Usuario: "factura para Juan Pérez: 2 camisetas a $15, 1 pantalón a $35"
 }
 ```
 
-### 5.7 `save_billing_product` — Guardar producto/servicio
+### 5.4 `save_billing_product` — Guardar producto ✅
 
 ```json
 {
   "name": "save_billing_product",
-  "description": "Guardar un producto o servicio del catálogo.",
+  "description": "Guardar un producto o servicio en el catálogo para usarlo en cotizaciones.",
   "parameters": {
     "name": "Nombre del producto/servicio.",
     "unit_price": "Precio unitario sin IVA.",
@@ -321,68 +219,44 @@ Usuario: "factura para Juan Pérez: 2 camisetas a $15, 1 pantalón a $35"
 
 ## 6. Plan de Implementación
 
-### Fase A — Core (MVP)
+### Fase 0 — Cotizaciones ✅ (esta sesión)
 
-| # | Tarea | Esfuerzo |
-|---|-------|----------|
-| 1 | Modelos: `billing_clients`, `billing_products`, `billing_documents`, `billing_document_items` | Medio |
-| 2 | Migraciones | Bajo |
-| 3 | Tool `create_invoice` + handler + integración Key49 | Medio |
-| 4 | Tool `list_my_invoices` + handler | Bajo |
-| 5 | Scheduler: polling Key49 para autorización SRI | Bajo |
-| 6 | Tool `mark_invoice_paid` | Bajo |
+| # | Tarea | Estado |
+|---|-------|:--:|
+| 1 | `iva_rate` en `BusinessInfo` + config | ✅ |
+| 2 | Modelos: `billing_clients`, `billing_products`, `billing_documents`, `billing_document_items` | ✅ |
+| 3 | `create_quote` + `list_my_quotes` tools | ✅ |
+| 4 | `save_billing_client` + `save_billing_product` tools | ✅ |
+| 5 | Cálculo IVA dinámico desde `business_info.iva_rate` | ✅ |
 
-### Fase B — Cotizaciones
+### Fase 1 — Facturación SRI (futuro)
 
-| # | Tarea | Esfuerzo |
-|---|-------|----------|
-| 7 | Tool `create_quote` + handler | Bajo |
-| 8 | Tool `convert_quote_to_invoice` | Medio |
-
-### Fase C — Catálogo y Clientes
-
-| # | Tarea | Esfuerzo |
-|---|-------|----------|
-| 9 | Tool `save_billing_client` + `save_billing_product` | Bajo |
-| 10 | Búsqueda semántica de productos ("busca camisetas") | Medio |
-
-### Esfuerzo total estimado: ~6-8 horas
+| # | Tarea |
+|---|-------|
+| 1 | `create_invoice` → Key49 (`POST /v1/invoices`) |
+| 2 | `convert_quote_to_invoice` tool |
+| 3 | Scheduler: polling Key49 para autorización |
+| 4 | `mark_invoice_paid` tool |
 
 ---
 
 ## 7. Reglas de Negocio
 
-1. **Secuenciales**: Lucho asigna automáticamente. Cotizaciones: `COT-0001`. Facturas: `001-001-000000001` (formato SRI).
-2. **IVA 15%**: Aplica por defecto a todos los ítems. El usuario puede indicar "sin IVA" para productos exentos.
-3. **Consumidor Final**: Si el cliente no da cédula/RUC, se usa `id_type=07`, `id=9999999999999`.
-4. **Cotización → Factura**: Una cotización solo se convierte UNA vez en factura.
-5. **Factura emitida = no editable**: Una vez enviada al SRI, no se modifica. Solo se puede anular.
-6. **Key49 es obligatorio**: Sin API key de Key49, el módulo funciona en modo borrador (sin autorización SRI).
-7. **Términos de pago**: Opcionales. "30 días", "contado", "50% anticipo".
+1. **Secuenciales automáticos**: Cotizaciones: `COT-0001`, `COT-0002`, etc. Gestionado por Lucho.
+2. **IVA dinámico**: Leído de `business_info.iva_rate`. Si no existe, usa `IVA_RATE` de config (default 15.0).
+3. **Ítems con/sin IVA**: Un ítem puede marcarse `has_iva=false` (productos exentos).
+4. **Cliente opcional**: Se puede cotizar sin guardar cliente (nombre libre).
+5. **Catálogo opcional**: Se pueden crear ítems sin usar el catálogo de productos.
+6. **Cotización editable**: Mientras esté en `draft`, se puede modificar. Al marcar `sent`, es final.
 
 ---
 
-## 8. Fuera de Alcance (v1)
+## 8. Fuera de Alcance
 
+- ❌ Facturación electrónica SRI (Fase 1)
 - ❌ Notas de crédito / débito
 - ❌ Retenciones de IVA / Impuesto a la Renta
 - ❌ Guías de remisión
-- ❌ Liquidaciones de compra
-- ❌ Facturación recurrente automática
-- ❌ Múltiples establecimientos / puntos de emisión
-- ❌ Reportes avanzados (IVA cobrado, retenciones)
+- ❌ Facturación recurrente
+- ❌ Múltiples establecimientos
 - ❌ Integración con contabilidad externa
-
----
-
-## 9. Comparación con alternativas
-
-| | **Lucho Facturación** | SIACO | QuickBooks | Facturación física |
-|---|:---:|:---:|:---:|:---:|
-| Interfaz | WhatsApp/Telegram | Web | Web/App | Papel |
-| Curva aprendizaje | 0 (conversación) | Media | Alta | Baja |
-| SRI automático | ✅ Key49 | ✅ | ❌ (Ecuador) | ❌ |
-| Precio | Desde $9.99/mes | $15-30/mes | $25-50/mes | Imprenta |
-| Catálogo productos | ✅ | ✅ | ✅ | ❌ |
-| Cotizaciones | ✅ | ✅ | ✅ | Manual |
-| Ideal para | Micro-negocios | PYMES | Empresas | Informal |

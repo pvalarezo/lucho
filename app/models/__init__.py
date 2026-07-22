@@ -18,6 +18,10 @@ from app.models.document import Document, DocumentType, DocumentStatus
 from app.models.transaction import Transaction, Budget, TransactionType, TransactionCategory, BudgetPeriod
 from app.models.business import BusinessInfo
 from app.models.billing_info import BillingInfo
+from app.models.billing import (
+    BillingClient, BillingProduct, BillingDocument, BillingDocumentItem,
+    BillingIdType, BillingDocumentType, BillingDocumentStatus,
+)
 
 __all__ = [
     "Base",
