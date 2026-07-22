@@ -10,7 +10,9 @@ Estado actual de cada fase, módulo y entregable.
 ### Versiones
 | Tag | Fecha | Descripción |
 |-----|-------|-------------|
-| v2.19.0 | 2026-07-22 | Ciclo de vida automático: expiry, pre-aviso 3d, webhook DeUna. 39 tools, 452 tests. |
+| v2.21.0 | 2026-07-22 | Key49: facturación electrónica SRI (AURACORE). 40 tools, 460 tests. |
+| v2.20.0 | 2026-07-22 | BillingInfo + invoice SRI fields + update_billing_info tool. |
+| v2.19.0 | 2026-07-22 | Ciclo de vida automático: expiry, pre-aviso 3d, webhook DeUna. |
 | v2.18.0 | 2026-07-22 | DeUna QR (Pichincha) como 3ª opción de pago. |
 | v2.17.0 | 2026-07-22 | Tabla business_info + transferencia bancaria desde DB. |
 | v2.16.0 | 2026-07-22 | PayPhone: API client + webhook + subscribe_to_plan tool. |
@@ -31,8 +33,8 @@ Estado actual de cada fase, módulo y entregable.
 - Cloudflare Tunnel: https://lucho-dev.apx5.com → localhost:8000
 - Systemd user services: lucho-api, lucho-tunnel
 
-### Base de Datos — 23 tablas
-`users`, `user_profiles`, `messages`, `documents`, `events`, `reminders`, `topics`, `notes`, `lists`, `list_items`, `projects`, `project_tasks`, `contacts`, `caregiver_links`, `vehicles`, `vehicle_maintenances`, `transactions`, `budgets`, `subscription_plans`, `subscriptions`, `payments`, `subscription_invoices`, `subscription_plans`
+### Base de Datos — 25 tablas
+`users`, `user_profiles`, `messages`, `documents`, `events`, `reminders`, `topics`, `notes`, `lists`, `list_items`, `projects`, `project_tasks`, `contacts`, `caregiver_links`, `vehicles`, `vehicle_maintenances`, `transactions`, `budgets`, `subscription_plans`, `subscriptions`, `payments`, `subscription_invoices`, `business_info`, `billing_info`
 
 ### Tools del Agente — 38 tools
 
@@ -76,7 +78,7 @@ Estado actual de cada fase, módulo y entregable.
 ### Documentación — 15 specs
 `finanzas`, `documentos`, `recordatorios`, `listas`, `notas_apuntes`, `proyectos_tareas`, `busqueda`, `contactos`, `vehiculos`, `funcionalidades_generales`, `skills_ecuador`, `ideas_nuevos_modulos`, `whatsapp_templates`, `lucho_especificaciones_proyecto`
 
-### Tests — 444/444 (100%) ✅
+### Tests — 460/460 (100%) ✅
 
 ---
 

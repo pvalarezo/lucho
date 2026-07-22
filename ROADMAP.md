@@ -59,14 +59,20 @@ Plan general del proyecto, fases, hitos y funcionalidades por ola.
 - [ ] Métricas: % extracción correcta, retención D7/D30, intención de pago
 - [ ] Templates Meta: `event_reminder` (es), `project_reminder` (es), `budget_alert`
 
+### Fase 2.5 — Monetización ✅ COMPLETADA (v2.15 → v2.21)
+- 3 planes con precios reales + seed
+- PayPhone + DeUna QR + transferencia
+- Ciclo de vida automático (expiry + pre-aviso 3d)
+- Billing info (personal/empresa/tercero)
+- Key49 facturación electrónica SRI
+
 ---
 
-## Fase 3 — Lanzamiento con Monetización 📋 PLANEADA
+## Fase 3 — Expansión 📋 PLANEADA
 
-- [ ] Integración de pago (Kushki/PayPhone)
-- [ ] Webhook de pago (reactivación automática)
-- [ ] Facturación SRI de la suscripción (AuraFac)
-- [ ] Métricas y analytics
+- [ ] APIs Ecuador: clima, noticias, CNE
+- [ ] Módulos: temporizador, CRM ligero
+- [ ] DeUna: gestionar credenciales reales de comercio
 - [ ] Módulos nuevos priorizados: temporizador, clientes (CRM ligero)
 - [ ] APIs Ecuador: clima, noticias, CNE
 
