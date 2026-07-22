@@ -64,6 +64,13 @@ class Settings(BaseSettings):
     VEHICLE_INFO_API_URL: str = "http://131.161.221.131:2356/v1/info/all/vehicle/"
     VEHICLE_INFO_API_TOKEN: str = ""
 
+    # ---- PayPhone (Ecuador) ----
+    PAYPHONE_CLIENT_ID: str = ""
+    PAYPHONE_CLIENT_SECRET: str = ""
+    PAYPHONE_STORE_ID: str = ""
+    PAYPHONE_API_URL: str = "https://api.payphone.app"
+    PAYPHONE_WEBHOOK_SECRET: str = ""  # For validating webhook signatures
+
     # ---- Feature Flags ----
     CONTEXTUAL_RESPONSES: bool = True  # LLM-powered conversational answers
 

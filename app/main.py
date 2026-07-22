@@ -13,7 +13,7 @@ logging.basicConfig(
 )
 
 from app.config import settings
-from app.routers import health, webhook, search, whatsapp_webhook, internal_test
+from app.routers import health, webhook, search, whatsapp_webhook, internal_test, payphone_webhook
 from app.services.scheduler import start_scheduler, stop_scheduler
 
 
@@ -39,6 +39,7 @@ app.include_router(webhook.router)
 app.include_router(search.router)
 app.include_router(whatsapp_webhook.router)
 app.include_router(internal_test.router)
+app.include_router(payphone_webhook.router)
 
 
 @app.get("/")

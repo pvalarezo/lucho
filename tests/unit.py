@@ -82,8 +82,8 @@ section("2. Tool Schemas (26 tools)")
 
 from app.agent.tools import ALL_TOOLS, TOOL_SCHEMAS
 
-check(len(ALL_TOOLS) == 38, f"Exactly 38 tools (found {len(ALL_TOOLS)})")
-check(len(TOOL_SCHEMAS) == 38, f"TOOL_SCHEMAS has 38 entries (found {len(TOOL_SCHEMAS)})")
+check(len(ALL_TOOLS) == 39, f"Exactly 39 tools (found {len(ALL_TOOLS)})")
+check(len(TOOL_SCHEMAS) == 39, f"TOOL_SCHEMAS has 39 entries (found {len(TOOL_SCHEMAS)})")
 
 expected_tools = [
     "save_vehicle", "list_my_vehicles", "add_maintenance", "list_maintenances",

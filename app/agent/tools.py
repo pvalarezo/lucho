@@ -861,6 +861,30 @@ TOOL_UPDATE_VEHICLE = {
     },
 }
 
+TOOL_SUBSCRIBE_TO_PLAN = {
+    "type": "function",
+    "function": {
+        "name": "subscribe_to_plan",
+        "description": "Iniciar suscripción a un plan de Lucho. Usar cuando el usuario dice 'suscribirme', 'contratar plan', 'pagar suscripción', 'cambiar de plan', 'elegir plan premium/familia'.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "plan_slug": {
+                    "type": "string",
+                    "enum": ["basic", "premium", "family"],
+                    "description": "Slug del plan: 'basic' ($4.99/mes), 'premium' ($9.99/mes), 'family' ($14.99/mes).",
+                },
+                "renewal": {
+                    "type": "string",
+                    "enum": ["monthly", "annual"],
+                    "description": "Tipo de renovación. Default: 'monthly'.",
+                },
+            },
+            "required": ["plan_slug"],
+        },
+    },
+}
+
 
 # =============================================================================
 # FINANCE TOOLS — transactions and budgets
@@ -1021,6 +1045,7 @@ ALL_TOOLS = [
     TOOL_LIST_MAINTENANCES,
     TOOL_DELETE_VEHICLE,
     TOOL_UPDATE_VEHICLE,
+    TOOL_SUBSCRIBE_TO_PLAN,
     TOOL_SAVE_DOCUMENT,
     TOOL_LIST_MY_DOCUMENTS,
     TOOL_SAVE_EVENT,
@@ -2967,6 +2992,126 @@ async def handle_update_vehicle(session, user_id: str, args: dict) -> dict:
 
 
 # =============================================================================
+# SUBSCRIPTION HANDLERS
+# =============================================================================
+
+async def handle_subscribe_to_plan(session, user_id: str, args: dict) -> dict:
+    """Create a pending payment and return PayPhone link for subscription."""
+    import uuid as uuid_mod
+    from sqlalchemy import select
+    from app.models.subscription import Subscription, Payment, PaymentStatus, PaymentMethod, RenewalType
+    from app.models.subscription_plan import SubscriptionPlan
+    from app.services import payphone as payphone_svc
+
+    uid = uuid_mod.UUID(user_id)
+    plan_slug = (args.get("plan_slug") or "basic").strip()
+    renewal = (args.get("renewal") or "monthly").strip()
+
+    # Find plan
+    plan_result = await session.execute(
+        select(SubscriptionPlan).where(SubscriptionPlan.slug == plan_slug)
+    )
+    plan = plan_result.scalar_one_or_none()
+    if not plan:
+        return {"success": False, "message": f"El plan '{plan_slug}' no existe. Planes disponibles: básico, premium, familia."}
+
+    # Find or create subscription
+    sub_result = await session.execute(
+        select(Subscription).where(Subscription.user_id == uid)
+    )
+    subscription = sub_result.scalar_one_or_none()
+
+    if not subscription:
+        subscription = Subscription(
+            user_id=uid,
+            plan_id=plan.id,
+            status="pending",
+        )
+        session.add(subscription)
+        await session.flush()
+    else:
+        subscription.plan_id = plan.id
+
+    # Calculate price
+    if renewal == "annual":
+        price = float(plan.price_annual_usd)
+    else:
+        price = float(plan.price_monthly_usd)
+
+    if price <= 0:
+        # Free plan — activate directly
+        subscription.status = "active"
+        await session.flush()
+        return {
+            "success": True,
+            "message": f"✅ Plan {plan.name} activado. ¡Bienvenido a Lucho!",
+            "plan": plan.name,
+            "price": 0,
+        }
+
+    # Set renewal type
+    try:
+        subscription.renewal_type = RenewalType(renewal)
+    except ValueError:
+        subscription.renewal_type = RenewalType.monthly
+
+    # Create pending payment
+    pay_ref = f"SUB-{str(uid)[:8]}-{plan_slug}-{uuid_mod.uuid4().hex[:6]}"
+    payment = Payment(
+        user_id=uid,
+        subscription_id=subscription.id,
+        amount=price,
+        currency="USD",
+        payment_method=PaymentMethod.other,
+        gateway="payphone",
+        gateway_payment_id=pay_ref,
+        status=PaymentStatus.pending,
+    )
+    session.add(payment)
+    await session.flush()
+
+    # Create PayPhone payment link
+    description = f"Lucho — Plan {plan.name} ({renewal})"
+    pp_payment = await payphone_svc.create_payment(
+        amount=price,
+        description=description,
+        reference=pay_ref,
+    )
+
+    if pp_payment and pp_payment.payment_url:
+        plan_label = plan.name
+        renewal_label = "anual" if renewal == "annual" else "mensual"
+        return {
+            "success": True,
+            "message": (
+                f"📱 *Suscribite al plan {plan_label}*\n\n"
+                f"💰 ${price:.2f} ({renewal_label})\n"
+                f"📦 {plan.description}\n\n"
+                f"👉 Pagá aquí: {pp_payment.payment_url}\n\n"
+                f"Abrí el link en tu celular y pagá con la app de PayPhone. "
+                f"Cuando confirmes el pago, tu suscripción se activa automáticamente."
+            ),
+            "payment_url": pp_payment.payment_url,
+            "plan": plan.name,
+            "price": price,
+            "renewal": renewal_label,
+        }
+    else:
+        # PayPhone not configured — show manual instructions
+        return {
+            "success": True,
+            "message": (
+                f"📱 *Suscribite al plan {plan.name}*\n\n"
+                f"💰 ${price:.2f}/mes\n\n"
+                f"Pronto podrás pagar directamente con PayPhone. "
+                f"Por ahora, escribime y te ayudamos con el pago manual."
+            ),
+            "plan": plan.name,
+            "price": price,
+        }
+
+
+# =============================================================================
 # FINANCE HANDLERS
 # =============================================================================
 
@@ -3323,6 +3468,7 @@ TOOL_HANDLERS: dict[str, Any] = {
     "list_maintenances": handle_list_maintenances,
     "delete_vehicle": handle_delete_vehicle,
     "update_vehicle": handle_update_vehicle,
+    "subscribe_to_plan": handle_subscribe_to_plan,
     "save_document": handle_save_document,
     "list_my_documents": handle_list_my_documents,
     "save_event": handle_save_event,
