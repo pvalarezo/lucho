@@ -254,9 +254,15 @@ async def check_access(session: AsyncSession, user_id: str) -> AccessResult:
             allowed=False,
             reason=(
                 "⏰ *Tu período de prueba de 7 días terminó.*\n\n"
-                "Para seguir usando Lucho, elegí tu plan:\n"
-                "• Plan Básico — $X/mes\n\n"
-                "Pronto podrás suscribirte con tarjeta, depósito o transferencia."
+                "Elegí tu plan para seguir usando Lucho:\n"
+                "📦 *Básico* — $4.99/mes\n"
+                "   • 2 vehículos, 10 docs, 3 proyectos\n"
+                "📦 *Premium* — $9.99/mes\n"
+                "   • 4 vehículos, 50 docs, 10 proyectos\n"
+                "   • Soporte prioritario\n"
+                "📦 *Familia* — $14.99/mes\n"
+                "   • Todo ilimitado + modo cuidado\n\n"
+                "Escribime 'suscribirme' y te ayudo con el pago."
             ),
         )
 
