@@ -3110,9 +3110,10 @@ async def handle_subscribe_to_plan(session, user_id: str, args: dict) -> dict:
         lines.append("")
 
     if deuna_payment and deuna_payment.payment_url:
-        lines.append("2️⃣ *DeUna — Pago interbancario*")
+        qr_info = f"\n   📱 Código QR: {deuna_payment.payment_url}" if deuna_payment.payment_url else ""
+        lines.append("2️⃣ *DeUna — Pago con QR*")
         lines.append(f"   👉 {deuna_payment.payment_url}")
-        lines.append("   Pagá desde tu app o web de cualquier banco.")
+        lines.append("   Escaneá el código QR desde tu app bancaria.")
         lines.append("   Funciona con Pichincha, Guayaquil, Produbanco, etc.")
         lines.append("")
 

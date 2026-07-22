@@ -268,11 +268,16 @@ async def check_access(session: AsyncSession, user_id: str) -> AccessResult:
 
     # Expired or cancelled
     if sub.status in (SubscriptionStatus.expired, SubscriptionStatus.cancelled):
+        plan_name = sub.plan_ref.name if sub.plan_ref else "tu plan"
+        price = float(sub.plan_ref.price_monthly_usd) if sub.plan_ref else 4.99
         return AccessResult(
             allowed=False,
             reason=(
-                "🔒 *Tu suscripción está inactiva.*\n\n"
-                "Renová tu plan para seguir usando Lucho."
+                f"⏰ *Tu suscripción a Lucho está inactiva.*\n\n"
+                f"Tu plan {plan_name} (${price:.2f}/mes) expiró.\n\n"
+                f"Pero no te preocupes — ¡tus datos están seguros!\n"
+                f"Renová en 1 minuto y seguís donde estabas:\n\n"
+                f"Escribime *'renovar'* o *'suscribirme'* y te paso el link. 📱"
             ),
         )
 

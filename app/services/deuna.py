@@ -32,6 +32,7 @@ class DeUnaPayment:
     amount: float
     status: str
     payment_url: str | None
+    qr_code_url: str | None
     reference: str
 
 
@@ -77,6 +78,7 @@ async def create_payment(
                 amount=amount,
                 status=data.get("status", "pending"),
                 payment_url=data.get("checkoutUrl") or data.get("paymentUrl"),
+                qr_code_url=data.get("qrCode") or data.get("qrUrl") or data.get("checkoutUrl"),
                 reference=reference,
             )
             logger.info("DeUna payment created: %s, url=%s", payment.payment_id, payment.payment_url)

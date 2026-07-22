@@ -63,6 +63,7 @@ async def run_daily_rules():
             await _evaluate_project_tasks(session)
             await _evaluate_pico_y_placa(session)
             await _evaluate_budgets(session)
+            await _evaluate_subscriptions(session)
             await session.commit()
             logger.info("Daily reminder evaluation complete.")
         except Exception as exc:
@@ -627,6 +628,116 @@ async def _evaluate_budgets(session: AsyncSession):
             if not budget.attributes:
                 budget.attributes = {}
             budget.attributes["last_alert_date"] = today.isoformat()
+
+
+# =============================================================================
+# SUBSCRIPTION EVALUATION — expiry checks + pre-warnings
+# =============================================================================
+
+async def _evaluate_subscriptions(session: AsyncSession):
+    """
+    Check subscriptions:
+    1. Expire subscriptions past their current_period_end
+    2. Send pre-expiry warnings 3 days before
+    """
+    from datetime import date, datetime
+    from app.models.subscription import Subscription, SubscriptionStatus, SubscriptionPlan
+    from sqlalchemy.orm import selectinload
+
+    today = date.today()
+    today_dt = datetime.combine(today, datetime.min.time())
+    three_days = today + timedelta(days=3)
+    three_days_dt = datetime.combine(three_days, datetime.max.time())
+
+    # 1. Expire subscriptions past their period end
+    expired_result = await session.execute(
+        select(Subscription)
+        .options(selectinload(Subscription.plan_ref))
+        .where(
+            Subscription.status == SubscriptionStatus.active,
+            Subscription.current_period_end.isnot(None),
+            Subscription.current_period_end < today_dt,
+        )
+    )
+    expired_subs = expired_result.scalars().all()
+
+    for sub in expired_subs:
+        sub.status = SubscriptionStatus.expired
+        logger.info("Subscription expired: user=%s, plan=%s", sub.user_id, sub.plan_ref.name if sub.plan_ref else "?")
+
+        # Notify user
+        user_result = await session.execute(
+            select(User).where(User.id == sub.user_id)
+        )
+        user = user_result.scalar_one_or_none()
+        if user:
+            contact_id, channel = await resolve_user_contact(user)
+            if contact_id:
+                plan_name = sub.plan_ref.name if sub.plan_ref else "tu plan"
+                msg = (
+                    f"⏰ *Tu suscripción a Lucho expiró.*\n\n"
+                    f"Plan: {plan_name}\n\n"
+                    f"Para seguir usando Lucho, renová tu plan:\n"
+                    f"Escribime 'suscribirme al plan {plan_name.lower()}' y te paso el link de pago."
+                )
+                await send_notification(
+                    user_id=str(sub.user_id),
+                    contact_id=contact_id,
+                    message=msg,
+                    channel=channel,
+                )
+
+    if expired_subs:
+        await session.flush()
+
+    # 2. Pre-expiry warning: 3 days before period end
+    warning_result = await session.execute(
+        select(Subscription)
+        .options(selectinload(Subscription.plan_ref))
+        .where(
+            Subscription.status == SubscriptionStatus.active,
+            Subscription.current_period_end.isnot(None),
+            Subscription.current_period_end >= today_dt,
+            Subscription.current_period_end <= three_days_dt,
+        )
+    )
+    warning_subs = warning_result.scalars().all()
+
+    for sub in warning_subs:
+        days_left = (sub.current_period_end.date() - today).days if sub.current_period_end else 3
+        user_result = await session.execute(
+            select(User).where(User.id == sub.user_id)
+        )
+        user = user_result.scalar_one_or_none()
+        if not user:
+            continue
+
+        contact_id, channel = await resolve_user_contact(user)
+        if not contact_id:
+            continue
+
+        plan_name = sub.plan_ref.name if sub.plan_ref else "tu plan"
+        price = float(sub.plan_ref.price_monthly_usd) if sub.plan_ref else 0
+        until_str = sub.current_period_end.strftime("%d/%m/%Y") if sub.current_period_end else ""
+        days_str = "mañana" if days_left == 1 else f"en {days_left} días"
+
+        msg = (
+            f"📅 *Tu suscripción vence {days_str}*\n\n"
+            f"Plan: {plan_name} — ${price:.2f}/mes\n"
+            f"Vence: {until_str}\n\n"
+            f"Renová ahora para no perder el acceso:\n"
+            f"Escribime 'renovar' y te paso el link de pago. 📱"
+        )
+
+        sent = await send_notification(
+            user_id=str(sub.user_id),
+            contact_id=contact_id,
+            message=msg,
+            channel=channel,
+        )
+        if sent:
+            logger.info("Pre-expiry warning sent: user=%s, plan=%s, days_left=%d",
+                       sub.user_id, plan_name, days_left)
 
 
 # =============================================================================
