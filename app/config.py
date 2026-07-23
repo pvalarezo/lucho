@@ -3,6 +3,25 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+def _default_version() -> str:
+    """Return version from the most recent Git tag, or '0.0.0-dev'."""
+    import subprocess
+    import re
+    try:
+        result = subprocess.run(
+            ["git", "tag", "--sort=-version:refname"],
+            capture_output=True, text=True,
+            cwd=__file__.rsplit("/", 2)[0] if "/" in __file__ else ".",
+        )
+        tags = result.stdout.strip().split("\n")
+        for tag in tags:
+            if re.match(r"^v\d+\.\d+\.\d+$", tag.strip()):
+                return tag.strip()
+    except Exception:
+        pass
+    return "0.0.0-dev"
+
+
 class Settings(BaseSettings):
     """Centralized settings for Lucho, loaded from environment / .env file."""
 
@@ -14,7 +33,7 @@ class Settings(BaseSettings):
 
     # ---- Application ----
     APP_NAME: str = "Lucho"
-    APP_VERSION: str = "0.1.0"
+    APP_VERSION: str = _default_version()
     DEBUG: bool = False
     LOG_LEVEL: str = "INFO"
 
