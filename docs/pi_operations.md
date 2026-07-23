@@ -7,6 +7,25 @@ el código fuente de Lucho y reinicie la aplicación de forma segura y determini
 
 ---
 
+## ⚠️ Antes de empezar: Estrategia de Tests
+
+Lucho tiene **dos tipos de tests**, y NO todos se corren en producción:
+
+| Tipo | Archivo | ¿Corre en PROD? | ¿Por qué? |
+|------|---------|:---:|---|
+| **Unitarios** | `tests/unit.py` | ✅ SÍ | Sin DB, sin APIs, seguros en cualquier entorno. 550+ tests. |
+| **Integración** | `tests/test_integration.py` | ❌ NO | Requiere DB `lucho_test` en puerto 5434 (Docker). Usa credenciales de desarrollo (`lucho:lucho`). Ejecutarlo contra la DB de producción **corrompería datos reales**. |
+
+**Regla de oro**: en el VPS de producción SIEMPRE se corre `python tests/unit.py`. El comando `pytest tests/` NUNCA se usa en producción porque ejecutaría `test_integration.py` contra una DB inexistente (falla) o peor aún, contra la DB real (corrompe datos).
+
+Los tests de integración se corren **solo en desarrollo** (donde existe Docker con `lucho_test`):
+```bash
+# Solo en máquina de desarrollo
+pytest tests/test_integration.py -v
+```
+
+---
+
 ## 1. Ruta crítica
 
 | Recurso | Ruta / Comando |
@@ -62,27 +81,49 @@ pip install -r requirements.txt 2>&1 | tail -5
 
 Si hay error de dependencias, reportar el error completo y abortar.
 
-### Paso 4 — Ejecutar tests
+### Paso 4 — Backup de la base de datos (OBLIGATORIO)
+
+> 🛡️ **Este paso es obligatorio.** Si el backup falla, ABORTAR. Nunca ejecutar
+> migraciones sin un backup reciente. El backup se guarda con timestamp para
+> poder identificarlo y restaurarlo fácilmente.
+
+```bash
+mkdir -p /root/backups
+su - postgres -c "pg_dump lucho" > /root/backups/backup_lucho_pre_deploy_$(date +%Y%m%d_%H%M%S).sql
+echo "✅ Backup guardado en /root/backups/"
+```
+
+Verificar que el backup no esté vacío:
+
+```bash
+BACKUP_FILE=$(ls -t /root/backups/backup_lucho_pre_deploy_*.sql | head -1)
+SIZE=$(stat -c%s "$BACKUP_FILE" 2>/dev/null || echo 0)
+if [ "$SIZE" -gt 1000 ]; then
+    echo "✅ Backup válido: $(basename $BACKUP_FILE) ($SIZE bytes)"
+else
+    echo "❌ Backup VACÍO o muy pequeño — ABORTAR"
+    exit 1
+fi
+```
+
+### Paso 5 — Ejecutar tests unitarios
+
+> ⚠️ **IMPORTANTE**: Solo se corren tests unitarios (`unit.py`). NO se usa `pytest`
+> en producción porque ejecutaría `test_integration.py`, que requiere la base de
+> datos `lucho_test` con credenciales de desarrollo (puerto 5434 Docker).
+> Ejecutar tests de integración contra la DB de producción **corrompería datos reales**.
+> Ver "Estrategia de Tests" al inicio de este documento.
 
 ```bash
 cd /root/lucho/app
 source venv/bin/activate
-python -m pytest tests/ -q 2>&1
+python tests/unit.py 2>&1
 ```
 
 | Resultado | Acción |
 |-----------|--------|
-| ✅ Todos pasan | Continuar al paso 5 |
-| ❌ Alguno falla | Reportar fallos, abortar, NO reiniciar |
-
-### Paso 5 — Backup rápido de la base de datos
-
-```bash
-su - postgres -c "pg_dump lucho" > /root/backups/backup_lucho_pre_deploy_$(date +%Y%m%d_%H%M%S).sql
-echo "✅ Backup guardado"
-```
-
-> El directorio `/root/backups/` debe existir. Si no, crearlo: `mkdir -p /root/backups`
+| ✅ Todos pasan (`FAIL: 0`) | Continuar al paso 6 |
+| ❌ `FAIL > 0` | Reportar los fallos, abortar, NO reiniciar |
 
 ### Paso 6 — Ejecutar migraciones
 
@@ -130,9 +171,13 @@ Revisar que no haya `ERROR`, `Traceback`, ni `FATAL`.
 
 ---
 
-## 3. Procedimiento rápido (sin tests ni backup — solo para hotfix trivial)
+## 3. Procedimiento rápido (hotfix trivial)
 
-> ⚠️ Solo para cambios de documentación o strings que no tocan lógica.
+> ⚠️ **SOLO para cambios que no tocan lógica**: documentación, strings, comentarios.
+> Si el cambio toca código Python, modelos, migraciones, o servicios, usar el
+> procedimiento COMPLETO de la Sección 2.
+>
+> Este procedimiento no hace backup. Si hay migraciones nuevas, se ejecutan.
 
 ```bash
 cd /root/lucho/app
@@ -185,8 +230,11 @@ journalctl -u lucho-api --since "5 min ago" --no-pager | grep -i -E "error|trace
 # Versión desplegada
 cd /root/lucho/app && git describe --tags --always
 
-# Tests
-cd /root/lucho/app && source venv/bin/activate && python -m pytest tests/ -q
+# Tests unitarios (seguros en producción)
+cd /root/lucho/app && source venv/bin/activate && python tests/unit.py
+
+# Tests de integración (SOLO en desarrollo — requiere lucho_test en Docker)
+cd /root/lucho/app && source venv/bin/activate && pytest tests/test_integration.py -v
 
 # Conexión a DB
 cd /root/lucho/app && source venv/bin/activate && \
@@ -238,7 +286,11 @@ Antes de ejecutar el procedimiento completo, Pi debe verificar:
   con root directo según la guía `deploy_vps_debian13.md`.
 - **Nunca modificar `.env`** sin autorización explícita de Patricio.
 - **Nunca hacer `git push --force`** ni `git reset --hard` sin confirmar.
-- **Si un test falla, reportar y abortar.** No desplegar código roto.
+- **Tests en producción**: solo `python tests/unit.py`. NUNCA uses `pytest`
+  a secas en el VPS porque ejecutaría tests de integración que requieren
+  `lucho_test` (base de datos de desarrollo en Docker) y podrían corromper
+  la base de datos de producción. Ver "Estrategia de Tests" al inicio.
+- **Si un test unitario falla, reportar y abortar.** No desplegar código roto.
 - **Siempre dejar el servicio corriendo.** Si algo falla a mitad del
   procedimiento, hacer rollback o restaurar el estado anterior.
 - **Documentar cada deploy** en `NEXT_SESSION.md` con: tag/commit, cambios,

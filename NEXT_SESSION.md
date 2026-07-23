@@ -2,20 +2,25 @@
 
 ---
 
-## Sesión finalizada — 2026-07-23 — Fix recordatorios duplicados v2.24.10
+## Sesión finalizada — 2026-07-23 — Fix recordatorios duplicados + Estrategia Tests v2.24.11
 
-**v2.24.10 — Bugfix: recordatorios ad-hoc envían un solo mensaje en lugar de dos.**
+**v2.24.10 — Bugfix: recordatorios ad-hoc un solo mensaje.**
+**v2.24.11 — Docs: pi_operations.md actualizado con estrategia de tests segura para producción.**
 
 ### Entregables de la sesión
 
 | Qué | Archivo | Detalle |
 |-----|---------|--------|
-| Fix | `app/services/scheduler.py` | `_send_event_reminder()` ahora recibe `send_whatsapp_template` (default True). `_ad_hoc_event_reminder()` lo pasa como False para evitar duplicado template+directo en WhatsApp. |
+| Fix | `app/services/scheduler.py` | `send_whatsapp_template=False` en ad-hoc, evita duplicado. |
+| Docs | `docs/pi_operations.md` | Estrategia de Tests: unit.py en PROD, integración solo en DEV. Backup OBLIGATORIO con verificación. |
 
-### Bug corregido
-- **Síntoma**: recordatorios ad-hoc ("avísame en 10 minutos") enviaban dos mensajes al usuario.
-- **Causa**: `_send_event_reminder()` siempre enviaba `send_notification()` + `_send_event_reminder_whatsapp()` simultáneamente.
-- **Fix**: el template de WhatsApp (`event_reminder`) solo se envía para recordatorios del cron diario (ventanas 15/7/3/0 días), no para ad-hoc donde la ventana de 24h ya está abierta.
+### Cambios en pi_operations.md
+- **Nueva sección**: "Estrategia de Tests" — explica que `pytest` NUNCA se usa en producción
+- **Paso 4**: Backup OBLIGATORIO (antes que cualquier cambio) con verificación de tamaño
+- **Paso 5**: `python tests/unit.py` (reemplaza a `pytest tests/ -q`)
+- **Sección 3**: Procedimiento rápido restringido solo a docs/strings
+- **Sección 5**: Comandos de diagnóstico con test unitario + nota de integración solo dev
+- **Sección 8**: Notas reforzadas: NUNCA `pytest` en producción
 
 ---
 
