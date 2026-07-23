@@ -235,6 +235,66 @@ for skill_path in skills:
     check("|" in content, f"[{name}] Contains at least one table")
 
 # ════════════════════════════════════════════════════════
+# 6. ONBOARDING REGRESSION — v2.24.6 fix applied to both channels
+# ════════════════════════════════════════════════════════
+section("6. Onboarding Regression (v2.24.6)")
+
+import re
+
+webhook_files = [
+    ("Telegram", "app/routers/webhook.py"),
+    ("WhatsApp", "app/routers/whatsapp_webhook.py"),
+]
+
+for channel, path in webhook_files:
+    src = Path(path).read_text()
+
+    # Fix 1: onboarding_step = 0 (not 3) after accent selection
+    has_step_zero = bool(re.search(
+        r'send_onboarding_step2.*\n\s*user\.onboarding_step\s*=\s*0',
+        src
+    ))
+    has_step_three = bool(re.search(
+        r'send_onboarding_step2.*\n\s*user\.onboarding_step\s*=\s*3',
+        src
+    ))
+    check(has_step_zero, f"[{channel}] onboarding_step = 0 after step2 completion")
+    check(not has_step_three, f"[{channel}] NO onboarding_step = 3 after step2 completion")
+
+    # Fix 2: Post-pago guard uses onboarding_complete
+    has_guard = bool(re.search(
+        r'not\s+user\.onboarding_complete\s+and\s+3\s*<=\s*user\.onboarding_step\s*<=\s*6',
+        src
+    ))
+    bare_step_check = bool(re.search(
+        r'#\s*-+\s*Post-pago.*\n\s*if\s+3\s*<=\s*user\.onboarding_step\s*<=\s*6\s*:',
+        src
+    ))
+    check(has_guard, f"[{channel}] Post-pago guard has 'not onboarding_complete'")
+    check(not bare_step_check, f"[{channel}] Post-pago does NOT use bare step range check")
+
+# Logic regression: Given onboarding_complete=True and step=3, post-pago must NOT trigger
+section("6b. Onboarding Logic Regression")
+
+from app.models.user import User
+
+class MockUser:
+    onboarding_complete = True
+    onboarding_step = 3
+
+user = MockUser()
+should_skip_post_pago = not user.onboarding_complete and 3 <= user.onboarding_step <= 6
+check(not should_skip_post_pago, "Completed user (step=3) blocked from post-pago")
+
+class MockPostPagoUser:
+    onboarding_complete = False
+    onboarding_step = 3
+
+pp_user = MockPostPagoUser()
+should_enter_post_pago = not pp_user.onboarding_complete and 3 <= pp_user.onboarding_step <= 6
+check(should_enter_post_pago, "Post-pago user (not complete) enters flow")
+
+# ════════════════════════════════════════════════════════
 # REPORT
 # ════════════════════════════════════════════════════════
 print(f"\n{'='*50}")

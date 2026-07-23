@@ -140,13 +140,13 @@ async def telegram_webhook(
                 session.add(profile)
 
             await _send_onboarding_step2_telegram(chat_id, user.preferred_name or name, accent)
-            user.onboarding_step = 3
+            user.onboarding_step = 0
             user.onboarding_complete = True
             await session.commit()
             return {"status": "onboarding_complete"}
 
     # ---- 5b. Post-pago flow (steps 3-6, trial expired data collection) ----
-    if 3 <= user.onboarding_step <= 6:
+    if not user.onboarding_complete and 3 <= user.onboarding_step <= 6:
         result = await user_svc.advance_post_pago_step(
             session, str(user.id), user.onboarding_step,
             text if text else "",
