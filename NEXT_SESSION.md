@@ -2,41 +2,58 @@
 
 ---
 
-## Próxima sesión — Estabilización técnica desde v2.24.6
+## Sesión finalizada — 2026-07-23 — Estabilización técnica v2.24.7
 
-Se realizó una revisión integral del repositorio el 2026-07-23. Antes de continuar con nuevas funcionalidades, trabajar el plan detallado:
+**v2.24.7 — 6 bloques de estabilización completados. 567 tests, Ruff 0, zona horaria Ecuador.**
 
-**[`docs/plan_estabilizacion_v2.24.6.md`](docs/plan_estabilizacion_v2.24.6.md)**
+### Entregables
 
-### Hallazgo al incorporar v2.24.6
+| Bloque | Commit | Qué |
+|--------|--------|-----|
+| P0 Onboarding | `72e20fd` | Fix replicado en Telegram, 10 pruebas de regresión |
+| P0 Seguridad | `1e6d6f6` | HMAC en DeUna, endpoint interno restringido, 22 pruebas |
+| P0 Runtime | `2d4be42` | `select`/`timedelta` imports, F821 a cero |
+| P1 Ruff | `e19f549` | 137 → 0 errores, 36 archivos limpiados |
+| P1 Zona horaria | `797d42a` | UTC eliminado, `now_ec()` Ecuador, migración Alembic, 23 pruebas |
+| P2 Versión/Docs | `fd56a67` | Versión auto-detectada de Git, ROADMAP/PROGRESS sincronizados |
 
-- La corrección remota se incorporó correctamente en la rama local.
-- WhatsApp ahora deja `onboarding_step=0` al completar y protege el flujo post-pago con `not user.onboarding_complete`.
-- **Telegram conserva el defecto equivalente:** deja `onboarding_step=3` y entra al flujo post-pago sin comprobar `onboarding_complete`.
-- El commit `v2.24.6` no añadió pruebas de regresión.
-- Antes de los demás bloques P0, completar el arreglo en Telegram y probar ambos canales.
+### Métricas finales v2.24.7
 
-### Orden prioritario
-
-1. **P0 Onboarding:** completar en Telegram el arreglo de v2.24.6 y añadir regresión para ambos canales.
-2. **P0 Seguridad:** autenticar el webhook DeUna y restringir `/internal/test-reminder`.
-3. **P0 Runtime:** corregir los `F821` de `app/agent/tools.py`, especialmente usos de `select()` sin importar.
-4. **P1 Zona horaria:** eliminar inconsistencias con UTC y aplicar la política de hora local Ecuador.
-5. **P1 Pruebas:** añadir pruebas reales de handlers, webhooks, multi-tenant y scheduler.
-6. **P1 Calidad:** reducir los 137 errores de Ruff a cero.
-7. **P2 Consistencia:** sincronizar versión de API y documentación con Git.
-
-### Línea base verificada
-
-- Base funcional remota: `v2.24.6`, con corrección del choque entre onboarding y post-pago en WhatsApp.
-- Compilación previa: correcta.
-- Suite declarada: 512/512, con cobertura insuficiente de ejecución real.
-- Ruff: 137 errores en la revisión inicial.
-- Regla de la sesión: no añadir módulos nuevos hasta cerrar P0 y P1.
+| Métrica | Antes | Después |
+|---------|:-----:|:-------:|
+| Tests | 512 | **567** |
+| Ruff | 137 | **0** |
+| UTC traces | 18 archivos | **0** |
+| Endpoints inseguros | 2 | **0** |
+| F821 runtime errors | 11 | **0** |
 
 ---
 
-## Sesión finalizada — 2026-07-22 — Despliegue VPS
+## Próxima sesión — Prioridades
+
+### 🔴 Suite de integración
+- [ ] pytest + pytest-asyncio + fixtures PostgreSQL
+- [ ] Probar handlers reales contra base de datos (no solo schemas)
+- [ ] Aislamiento multi-tenant, idempotencia de webhooks, rollback
+- [ ] Mockear APIs externas (WhatsApp, Telegram, PayPhone, DeUna, LLMs)
+
+### 🟡 Templates Meta
+- [ ] `event_reminder` (es) — 5 params
+- [ ] `budget_alert` (es) — 5 params
+- [ ] `project_reminder` (es) — esperar traducción
+
+### 🟡 Operaciones
+- [ ] Métricas: % extracción correcta, retención D7/D30
+- [ ] Key49 API key real
+- [ ] DeUna credenciales reales
+
+### 🟢 Fase 3
+- [ ] APIs Ecuador: clima, noticias, CNE
+- [ ] Módulos: temporizador, CRM ligero
+
+---
+
+## Sesión anterior — 2026-07-22 — Despliegue VPS
 
 **v2.24.2 desplegado en VPS Debian 13 (147.93.2.206) — 4 vCPU, 8 GB RAM, 148 GB SSD**
 
