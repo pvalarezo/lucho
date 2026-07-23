@@ -75,8 +75,8 @@ class Subscription(UUIDMixin, TimestampMixin, Base):
     )
 
     # Relationships
-    user: Mapped["User"] = relationship("User", back_populates="subscription")
-    plan_ref: Mapped["SubscriptionPlan"] = relationship("SubscriptionPlan", back_populates="subscriptions")
+    user: Mapped["User"] = relationship("User", back_populates="subscription")  # noqa: F821
+    plan_ref: Mapped["SubscriptionPlan"] = relationship("SubscriptionPlan", back_populates="subscriptions")  # noqa: F821
     payments: Mapped[list["Payment"]] = relationship("Payment", back_populates="subscription")
 
     __table_args__ = ()

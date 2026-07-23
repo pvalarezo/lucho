@@ -9,13 +9,11 @@ Architecture:
 
 import asyncio
 import logging
-import time
 
 from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from app.config import settings
 from app.dependencies import get_db
 from app.models.message import MessageChannel, MessageType, MessageStatus
 from app.models.message import Message as MessageModel

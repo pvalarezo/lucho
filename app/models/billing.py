@@ -10,7 +10,7 @@ import uuid as _uuid
 from datetime import date, datetime
 from enum import Enum
 
-from sqlalchemy import String, Integer, Float, Date, DateTime, Boolean, Text, ForeignKey, Enum as SAEnum
+from sqlalchemy import String, Float, Date, DateTime, Boolean, Text, ForeignKey, Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import UUID
 

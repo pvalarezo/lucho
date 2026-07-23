@@ -21,7 +21,7 @@ from sqlalchemy import select
 async def main():
     async with async_session() as session:
         result = await session.execute(
-            select(BusinessInfo).where(BusinessInfo.is_active == True)
+            select(BusinessInfo).where(BusinessInfo.is_active is True)
         )
         existing = result.scalar_one_or_none()
 

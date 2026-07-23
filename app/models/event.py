@@ -16,7 +16,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import UUID
 
-from app.models.base import UUIDMixin, TimestampMixin, Base, utcnow
+from app.models.base import UUIDMixin, TimestampMixin, Base
 
 import enum
 

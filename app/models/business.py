@@ -4,7 +4,7 @@ Stores AURACORE's business data used in payment instructions and SRI invoicing.
 Single-row table: only one active record at a time.
 """
 
-from sqlalchemy import String, Boolean, Text, Float
+from sqlalchemy import String, Boolean, Float
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import UUIDMixin, TimestampMixin, Base

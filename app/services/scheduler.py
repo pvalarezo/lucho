@@ -12,28 +12,26 @@ Entity types and their reminder windows:
 ALL deterministic — no LLM involved in any decision.
 """
 
-import asyncio
 import logging
 from datetime import date, datetime, timezone, timedelta
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
-from sqlalchemy import select, and_, func
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import async_session
-from app.models.document import Document, DocumentType, DocumentStatus
+from app.models.document import Document
 from app.models.event import Event, EventStatus
 from app.models.reminder import Reminder, ReminderChannel, ReminderStatus
 from app.models.user import User
 from app.models.vehicle import Vehicle
 from app.models.list import ListItem, ItemStatus
 from app.services import vehicle_rules as vr
-from app.services.notifications import send_notification, NotificationChannel, resolve_user_contact
+from app.services.notifications import send_notification, resolve_user_contact
 from app.services import telegram as telegram_svc
 from app.services import whatsapp as whatsapp_svc
-from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -192,7 +190,7 @@ async def _send_event_reminder(
         return
 
     emoji = "🔴" if days_until == 0 else "🟡" if days_until <= 3 else "🟢"
-    ds = "HOY" if days_until == 0 else f"mañana" if days_until == 1 else f"en {days_until} días"
+    ds = "HOY" if days_until == 0 else "mañana" if days_until == 1 else f"en {days_until} días"
 
     # Format datetime nicely: show time only if it's not midnight
     target = event.target_date
@@ -362,7 +360,7 @@ async def _send_document_reminder(
     doc_name = doc.name
     expiry_date = doc.expiry_date
     emoji = "🔴" if days_until <= 7 else "🟡" if days_until <= 15 else "🟢"
-    ds = "HOY" if days_until == 0 else f"mañana" if days_until == 1 else f"en {days_until} días"
+    ds = "HOY" if days_until == 0 else "mañana" if days_until == 1 else f"en {days_until} días"
 
     msg = (
         f"{emoji} *Recordatorio de documento*\n\n"
@@ -423,7 +421,7 @@ async def _evaluate_project_tasks(session: AsyncSession):
             ProjectTask.due_date.isnot(None),
             ProjectTask.due_date >= today,
             ProjectTask.due_date <= window_end,
-            ProjectTask.reminder_sent == False,
+            ProjectTask.reminder_sent is False,
         )
     )
     tasks = result.all()
@@ -460,7 +458,7 @@ async def _send_project_reminder(
         return
 
     emoji = "🔴" if days_until <= 1 else "🟡" if days_until <= 3 else "🟢"
-    ds = "HOY" if days_until == 0 else f"mañana" if days_until == 1 else f"en {days_until} días"
+    ds = "HOY" if days_until == 0 else "mañana" if days_until == 1 else f"en {days_until} días"
 
     msg = (
         f"{emoji} *Recordatorio de proyecto*\n\n"
@@ -553,14 +551,14 @@ async def _evaluate_pico_y_placa(session: AsyncSession):
 async def _evaluate_budgets(session: AsyncSession):
     """Check budgets and alert users who are near or over their spending limits."""
     from datetime import date, datetime
-    from app.models.transaction import Budget, Transaction, TransactionType, TransactionCategory
+    from app.models.transaction import Budget, Transaction, TransactionType
 
     today = date.today()
     start = datetime.combine(today.replace(day=1), datetime.min.time())
     end = datetime.combine(today, datetime.max.time())
 
     result = await session.execute(
-        select(Budget).where(Budget.is_active == True)
+        select(Budget).where(Budget.is_active is True)
     )
     budgets = result.scalars().all()
 
@@ -642,7 +640,7 @@ async def _evaluate_subscriptions(session: AsyncSession):
     2. Send pre-expiry warnings 3 days before
     """
     from datetime import date, datetime
-    from app.models.subscription import Subscription, SubscriptionStatus, SubscriptionPlan
+    from app.models.subscription import Subscription, SubscriptionStatus
     from sqlalchemy.orm import selectinload
 
     today = date.today()
@@ -838,7 +836,7 @@ async def run_daily_digest():
     async with async_session() as session:
         try:
             result = await session.execute(
-                select(User).where(User.is_active == True)
+                select(User).where(User.is_active is True)
             )
             users = result.scalars().all()
 
@@ -1092,7 +1090,7 @@ async def _send_monthly_summary(
     budgets_result = await session.execute(
         select(Budget).where(
             Budget.user_id == user.id,
-            Budget.is_active == True,
+            Budget.is_active is True,
         )
     )
     budgets = budgets_result.scalars().all()

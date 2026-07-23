@@ -7,7 +7,7 @@ Each reminder records the actual message sent and user response.
 import uuid as _uuid
 from datetime import datetime
 
-from sqlalchemy import String, Integer, DateTime, ForeignKey, Enum, Text
+from sqlalchemy import Integer, DateTime, ForeignKey, Enum, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import UUID
 

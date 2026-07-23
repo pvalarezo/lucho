@@ -1,11 +1,9 @@
 """SubscriptionPlan model — catalog of available plans with feature flags."""
 
-import uuid as _uuid
 
-from sqlalchemy import String, Float, Integer, Boolean, ForeignKey
+from sqlalchemy import String, Float, Integer, Boolean
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy.types import UUID
 
 from app.models.base import UUIDMixin, TimestampMixin, Base
 
@@ -29,6 +27,6 @@ class SubscriptionPlan(UUIDMixin, TimestampMixin, Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     # Reverse relationship
-    subscriptions: Mapped[list["Subscription"]] = relationship(
+    subscriptions: Mapped[list["Subscription"]] = relationship(  # noqa: F821
         "Subscription", back_populates="plan_ref"
     )

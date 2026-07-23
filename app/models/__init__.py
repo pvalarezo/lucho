@@ -1,6 +1,26 @@
 """SQLAlchemy ORM models — all models must be imported here for Alembic autogenerate."""
 
 from app.models.base import Base, UUIDMixin, TimestampMixin
+__all__ = [
+    "User", "UserProfile", "Message", "MessageChannel", "MessageType", "MessageStatus",
+    "Document", "DocumentType", "DocumentStatus",
+    "Event", "EventCertainty", "EventStatus",
+    "Reminder", "ReminderChannel", "ReminderStatus",
+    "Topic", "Note",
+    "List", "ListType", "ListItem", "ItemStatus",
+    "Project", "ProjectStatus", "ProjectTask", "TaskStatus",
+    "Contact", "CaregiverLink",
+    "Vehicle", "VehicleMaintenance",
+    "Transaction", "Budget", "TransactionType", "TransactionCategory", "BudgetPeriod",
+    "SubscriptionPlan", "Subscription", "SubscriptionStatus",
+    "Payment", "PaymentStatus", "PaymentMethod", "RenewalType",
+    "SubscriptionInvoice", "InvoiceStatus",
+    "BusinessInfo",
+    "BillingInfo",
+    "BillingClient", "BillingProduct", "BillingDocument", "BillingDocumentItem",
+    "BillingIdType", "BillingDocumentType", "BillingDocumentStatus",
+]
+
 from app.models.user import User
 from app.models.user_profile import UserProfile
 from app.models.message import Message, MessageChannel, MessageType, MessageStatus
@@ -9,7 +29,6 @@ from app.models.reminder import Reminder, ReminderChannel, ReminderStatus
 from app.models.topic import Topic, Note
 from app.models.list import List, ListItem, ListType, ItemStatus
 from app.models.project import Project, ProjectTask, ProjectStatus, TaskStatus
-from app.models.contact import Contact, CaregiverLink
 from app.models.contact import Contact, CaregiverLink
 from app.models.subscription_plan import SubscriptionPlan
 from app.models.subscription import Subscription, Payment, SubscriptionInvoice, SubscriptionStatus, PaymentStatus, PaymentMethod, RenewalType

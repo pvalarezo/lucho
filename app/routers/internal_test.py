@@ -1,6 +1,5 @@
 """Internal test endpoints — only available in DEBUG mode."""
 
-import uuid
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, HTTPException, Header, Depends

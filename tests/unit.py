@@ -13,8 +13,6 @@ Run: python3 tests/unit.py
 
 import hashlib
 import hmac
-import json
-import os
 import sys
 from pathlib import Path
 
@@ -49,7 +47,7 @@ def section(title: str):
 # ════════════════════════════════════════════════════════
 section("1. System Prompt")
 
-from app.agent.lucho_system_prompt import build_system_prompt, LUCHO_SYSTEM_PROMPT_SHORT
+from app.agent.lucho_system_prompt import build_system_prompt, LUCHO_SYSTEM_PROMPT_SHORT  # noqa: E402
 
 sp = build_system_prompt()
 
@@ -83,7 +81,7 @@ check(len(LUCHO_SYSTEM_PROMPT_SHORT) < 700, f"Short prompt is short ({len(LUCHO_
 # ════════════════════════════════════════════════════════
 section("2. Tool Schemas (26 tools)")
 
-from app.agent.tools import ALL_TOOLS, TOOL_SCHEMAS
+from app.agent.tools import ALL_TOOLS, TOOL_SCHEMAS  # noqa: E402
 
 check(len(ALL_TOOLS) == 45, f"Exactly 45 tools (found {len(ALL_TOOLS)})")
 check(len(TOOL_SCHEMAS) == 45, f"TOOL_SCHEMAS has 45 entries (found {len(TOOL_SCHEMAS)})")
@@ -126,7 +124,6 @@ check(len(tool_names) == len(set(tool_names)), "No duplicate tool names")
 # ════════════════════════════════════════════════════════
 section("3. Tool Handlers")
 
-from app.agent.tools import execute_tool
 
 # Handler mapping
 handler_map = {
@@ -166,7 +163,7 @@ for tool_name, handler_name in handler_map.items():
 # ════════════════════════════════════════════════════════
 section("4. Skill Loader")
 
-from app.agent.skills import (
+from app.agent.skills import (  # noqa: E402
     list_available_skills,
     load_skill_content,
     load_skills_for_message,
@@ -242,7 +239,7 @@ for skill_path in skills:
 # ════════════════════════════════════════════════════════
 section("6. Onboarding Regression (v2.24.6)")
 
-import re
+import re  # noqa: E402
 
 webhook_files = [
     ("Telegram", "app/routers/webhook.py"),
@@ -279,7 +276,6 @@ for channel, path in webhook_files:
 # Logic regression: Given onboarding_complete=True and step=3, post-pago must NOT trigger
 section("6b. Onboarding Logic Regression")
 
-from app.models.user import User
 
 class MockUser:
     onboarding_complete = True
@@ -302,7 +298,7 @@ check(should_enter_post_pago, "Post-pago user (not complete) enters flow")
 # ════════════════════════════════════════════════════════
 section("7. Security — DeUna webhook")
 
-from app.services import deuna as deuna_svc
+from app.services import deuna as deuna_svc  # noqa: E402
 
 # Signature validation: correct secret + payload
 test_payload = b'{"id":"pay_123","status":"approved","amount":9.99,"currency":"USD"}'
@@ -313,7 +309,7 @@ test_signature = hmac.new(
 ).hexdigest()
 
 # Temporarily set the secret so validation works
-import app.config as cfg
+import app.config as cfg  # noqa: E402
 original_secret = cfg.settings.DEUNA_WEBHOOK_SECRET
 cfg.settings.DEUNA_WEBHOOK_SECRET = "test-secret"
 

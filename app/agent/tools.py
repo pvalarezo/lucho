@@ -1352,14 +1352,11 @@ async def handle_save_vehicle(session, user_id: str, args: dict) -> dict:
     await session.flush()
 
     # ---- Build response ----
-    brand_model = ""
     if args.get("brand") and args.get("model"):
-        brand_model = f"{args['brand']} {args['model']} "
+        f"{args['brand']} {args['model']} "
     elif args.get("brand"):
-        brand_model = f"{args['brand']} "
+        f"{args['brand']} "
 
-    pyp_info = f"\n• Pico y placa: {pyp_days}" if pyp_days else ""
-    matric_info = f"\n• Próxima matriculación: {next_matric}" if next_matric else ""
 
     return {
         "success": True,
@@ -1773,7 +1770,7 @@ async def handle_list_items(session, user_id: str, args: dict) -> dict:
     from collections import defaultdict
     grouped = defaultdict(list)
     for item in all_items:
-        lst_name = next((l.name for l in lists if l.id == item.list_id), "?")
+        lst_name = next((lst.name for lst in lists if lst.id == item.list_id), "?")
         grouped[lst_name].append({
             "id": str(item.id),
             "content": item.content,
@@ -1787,7 +1784,7 @@ async def handle_list_items(session, user_id: str, args: dict) -> dict:
         for name, items in grouped.items()
     ]
 
-    total = sum(l["count"] for l in result_lists)
+    total = sum(lst["count"] for lst in result_lists)
     return {
         "success": True,
         "message": f"Tenés {total} ítem(s) en {len(result_lists)} lista(s).",
@@ -2277,7 +2274,7 @@ async def handle_check_vehicle_info(session, user_id: str, args: dict) -> dict:
             data = resp.json()
     except httpx.HTTPError as exc:
         logger.warning("Vehicle API HTTP error for %s: %s", plate, exc)
-        return {"success": False, "message": f"El servicio de consulta no está disponible. Intentá más tarde."}
+        return {"success": False, "message": "El servicio de consulta no está disponible. Intentá más tarde."}
     except Exception as exc:
         logger.exception("Vehicle API error for %s: %s", plate, exc)
         return {"success": False, "message": "No pude consultar la información del vehículo."}
@@ -2291,7 +2288,7 @@ async def handle_check_vehicle_info(session, user_id: str, args: dict) -> dict:
     web = info.get("infoWeb", {}).get("data", {})
     sri = info.get("infoSri", {}).get("datosBase", {})
     multas_rows = info.get("multasAnt", {}).get("rows", [])
-    propietario = info.get("propietario", {}).get("data", {})
+    info.get("propietario", {}).get("data", {})
 
     vehicle_info = {
         "plate": web.get("licensePlate") or sri.get("numeroPlaca") or plate,
@@ -2393,7 +2390,7 @@ async def handle_analyze_image(session, user_id: str, args: dict) -> dict:
     from app.services.vision import extract_document_data
 
     file_key = (args.get("file_key") or "").strip()
-    hint = (args.get("hint") or "").strip()
+    (args.get("hint") or "").strip()
 
     if not file_key:
         return {"success": False, "message": "No encuentro la foto. ¿Podés reenviarla?"}
@@ -3248,7 +3245,7 @@ async def handle_subscribe_to_plan(session, user_id: str, args: dict) -> dict:
 
     # Load business info for transfer instructions
     biz_result = await session.execute(
-        select(BusinessInfo).where(BusinessInfo.is_active == True)
+        select(BusinessInfo).where(BusinessInfo.is_active is True)
     )
     biz = biz_result.scalar_one_or_none()
 
@@ -3286,7 +3283,6 @@ async def handle_subscribe_to_plan(session, user_id: str, args: dict) -> dict:
         lines.append("")
 
     if deuna_payment and deuna_payment.payment_url:
-        qr_info = f"\n   📱 Código QR: {deuna_payment.payment_url}" if deuna_payment.payment_url else ""
         lines.append("2️⃣ *DeUna — Pago con QR*")
         lines.append(f"   👉 {deuna_payment.payment_url}")
         lines.append("   Escaneá el código QR desde tu app bancaria.")
@@ -3317,7 +3313,7 @@ async def handle_subscribe_to_plan(session, user_id: str, args: dict) -> dict:
 async def handle_update_billing_info(session, user_id: str, args: dict) -> dict:
     """Create or update a billing profile for SRI invoicing."""
     import uuid as uuid_mod
-    from sqlalchemy import select, update
+    from sqlalchemy import select
     from app.models.billing_info import BillingInfo
 
     uid = uuid_mod.UUID(user_id)
@@ -3400,7 +3396,7 @@ async def _get_iva_rate(session) -> float:
     from app.config import settings
 
     result = await session.execute(
-        select(BusinessInfo).where(BusinessInfo.is_active == True)
+        select(BusinessInfo).where(BusinessInfo.is_active is True)
     )
     biz = result.scalar_one_or_none()
     if biz and biz.iva_rate:
@@ -3526,7 +3522,7 @@ async def handle_create_quote(session, user_id: str, args: dict) -> dict:
 async def handle_list_my_quotes(session, user_id: str, args: dict) -> dict:
     """List quotes with status and period filters."""
     import uuid as uuid_mod
-    from datetime import date, datetime
+    from datetime import date
     from sqlalchemy import select
     from app.models.billing import BillingDocument, BillingDocumentType, BillingDocumentStatus
 
@@ -3920,7 +3916,6 @@ async def handle_get_balance(session, user_id: str, args: dict) -> dict:
         end = datetime.combine(first_of_this_month - timedelta(days=1), datetime.max.time())
         period_label = "el mes pasado"
     elif period == "this_year":
-        from datetime import timedelta
         start = datetime.combine(today.replace(month=1, day=1), datetime.min.time())
         end = datetime.combine(today, datetime.max.time())
         period_label = "este año"
@@ -4042,7 +4037,7 @@ async def handle_check_budget(session, user_id: str, args: dict) -> dict:
         # Get active budgets
         budget_filters = [
             Budget.user_id == _uuid_mod.UUID(user_id),
-            Budget.is_active == True,
+            Budget.is_active is True,
         ]
         if category:
             try:

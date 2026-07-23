@@ -7,7 +7,8 @@ from sqlalchemy import DateTime
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.types import UUID
 
-from app.database import Base
+from app.database import Base  # noqa: F401 — re-exported via models.__init__
+
 
 
 def utcnow() -> datetime:

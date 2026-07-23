@@ -146,7 +146,7 @@ async def main():
         specific_template = sys.argv[3]
 
     print(f"\n{'='*60}")
-    print(f"  WhatsApp Template Test")
+    print("  WhatsApp Template Test")
     print(f"  Phone: {phone}")
     print(f"  Template(s): {specific_template or 'ALL (5)'}")
     print(f"{'='*60}")
@@ -170,7 +170,7 @@ async def main():
 
     # Summary
     print(f"\n{'='*60}")
-    print(f"  SUMMARY")
+    print("  SUMMARY")
     print(f"{'='*60}")
     for name, result in results.items():
         status = "✅" if result else "❌"

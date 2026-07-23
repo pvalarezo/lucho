@@ -10,7 +10,6 @@ Channels: telegram (today), whatsapp, email, sms (future)
 import logging
 from enum import Enum
 
-from app.config import settings
 
 logger = logging.getLogger(__name__)
 

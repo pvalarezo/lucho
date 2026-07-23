@@ -37,9 +37,9 @@ class User(UUIDMixin, TimestampMixin, Base):
     )  # 0=not started, 1=awaiting name, 2=done
 
     # Relationships
-    profile: Mapped["UserProfile | None"] = relationship(
+    profile: Mapped["UserProfile | None"] = relationship(  # noqa: F821
         "UserProfile", back_populates="user", uselist=False, lazy="selectin"
     )
-    subscription: Mapped["Subscription | None"] = relationship(
+    subscription: Mapped["Subscription | None"] = relationship(  # noqa: F821
         "Subscription", back_populates="user", uselist=False, lazy="selectin"
     )

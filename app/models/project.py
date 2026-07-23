@@ -12,7 +12,7 @@ from datetime import date, datetime
 from enum import Enum
 
 from sqlalchemy import String, Text, Date, DateTime, Boolean, ForeignKey, Enum as SAEnum, Index
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.types import UUID
 
 from app.models.base import UUIDMixin, TimestampMixin, Base, utcnow

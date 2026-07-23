@@ -12,7 +12,7 @@ import logging
 import uuid
 from datetime import date, datetime, timedelta
 
-from sqlalchemy import text, select, func
+from sqlalchemy import select, func
 from sqlalchemy.orm import joinedload
 from sqlalchemy.ext.asyncio import AsyncSession
 

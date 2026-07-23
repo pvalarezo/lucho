@@ -11,10 +11,8 @@ API docs: https://docs.payphone.app
 
 import hashlib
 import hmac
-import json
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from typing import Any
 
 import httpx

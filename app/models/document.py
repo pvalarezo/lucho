@@ -16,7 +16,7 @@ import uuid as _uuid
 from datetime import datetime
 from enum import Enum
 
-from sqlalchemy import String, Date, DateTime, Boolean, ForeignKey, Enum as SAEnum, Index, Text
+from sqlalchemy import String, Date, DateTime, ForeignKey, Enum as SAEnum, Index, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import UUID

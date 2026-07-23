@@ -5,7 +5,6 @@ Supports:
 - Function calling / tool use (for the Lucho agent)
 """
 
-import json
 import logging
 from typing import Any
 

@@ -12,7 +12,6 @@ Sources:
 
 import logging
 from datetime import date, timedelta
-from enum import IntEnum
 
 logger = logging.getLogger(__name__)
 

@@ -19,7 +19,6 @@ import logging
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import settings
 from app.dependencies import get_db
 from app.models.message import MessageChannel, MessageType, MessageStatus
 from app.models.message import Message as MessageModel
@@ -129,6 +128,7 @@ async def telegram_webhook(
             accent = accent_map.get(text.strip().lower(), "neutral")
 
             from app.models.user_profile import UserProfile
+            from sqlalchemy import select
             profile_result = await session.execute(
                 select(UserProfile).where(UserProfile.user_id == user.id)
             )

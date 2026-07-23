@@ -68,7 +68,7 @@ async def deuna_webhook(request: Request):
     if not payment_data:
         raise HTTPException(status_code=400, detail="Missing transaction ID")
 
-    transaction_id = payment_data["transaction_id"]
+    payment_data["transaction_id"]
     status = payment_data["status"]
 
     if status != "approved":
@@ -175,8 +175,8 @@ async def _create_invoice(session, payment, subscription) -> SubscriptionInvoice
     billing_result = await session.execute(
         select(BillingInfo).where(
             BillingInfo.user_id == payment.user_id,
-            BillingInfo.is_default == True,
-            BillingInfo.is_active == True,
+            BillingInfo.is_default is True,
+            BillingInfo.is_active is True,
         )
     )
     billing = billing_result.scalar_one_or_none()

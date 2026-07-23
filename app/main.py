@@ -12,9 +12,9 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 
-from app.config import settings
-from app.routers import health, webhook, search, whatsapp_webhook, payphone_webhook, deuna_webhook
-from app.services.scheduler import start_scheduler, stop_scheduler
+from app.config import settings  # noqa: E402
+from app.routers import health, webhook, search, whatsapp_webhook, payphone_webhook, deuna_webhook  # noqa: E402
+from app.services.scheduler import start_scheduler, stop_scheduler  # noqa: E402
 
 
 @asynccontextmanager

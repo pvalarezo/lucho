@@ -7,16 +7,16 @@ the actual database writes, resolving entities, and enforcing business rules.
 
 import logging
 import uuid
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.document import Document, DocumentType, DocumentStatus
+from app.models.document import Document, DocumentType
 from app.models.event import Event, EventCertainty, EventStatus
 from app.models.list import List, ListItem, ItemStatus, ListType
 from app.models.topic import Topic, Note
-from app.models.project import Project, ProjectTask, TaskStatus
+from app.models.project import Project, ProjectTask
 from app.models.contact import Contact
 from app.models.transaction import Transaction, Budget, TransactionType, TransactionCategory, BudgetPeriod
 
@@ -344,7 +344,6 @@ async def persist_transaction(
     notes: str | None = None,
 ) -> Transaction:
     """Create a transaction (expense or income)."""
-    from app.models.transaction import TransactionType, TransactionCategory
 
     # Resolve type enum
     try:
@@ -392,8 +391,7 @@ async def persist_budget(
     alert_threshold: int = 80,
 ) -> Budget:
     """Create or update a budget for a category."""
-    from app.models.transaction import TransactionCategory, BudgetPeriod, Budget
-    from sqlalchemy import update
+    from app.models.transaction import Budget
 
     # Resolve category
     try:
@@ -412,7 +410,7 @@ async def persist_budget(
         select(Budget).where(
             Budget.user_id == user_id,
             Budget.category == cat_enum,
-            Budget.is_active == True,
+            Budget.is_active is True,
         )
     )
     existing = result.scalar_one_or_none()

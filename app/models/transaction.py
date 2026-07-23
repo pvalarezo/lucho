@@ -122,5 +122,5 @@ class Budget(UUIDMixin, TimestampMixin, Base):
     user = relationship("User", backref="budgets")
 
     __table_args__ = (
-        Index("idx_budgets_user_category", "user_id", "category", unique=True, postgresql_where=(is_active == True)),
+        Index("idx_budgets_user_category", "user_id", "category", unique=True, postgresql_where=(is_active is True)),
     )

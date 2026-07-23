@@ -64,7 +64,6 @@ async def send_photo(
 
     # Detect file type from extension
     is_image = filename.lower().endswith((".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"))
-    is_document = not is_image
 
     if is_image:
         # sendPhoto: inline preview

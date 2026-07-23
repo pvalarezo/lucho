@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """Test suite for local embeddings — semantic search by meaning, not words."""
 
-import json, subprocess, sys, time
+import json
+import subprocess
+import sys
+import time
 
 API = "http://localhost:8000"
 CID = 999888
@@ -11,14 +14,18 @@ def send(text):
     r = subprocess.run(["curl","-s","-X","POST",f"{API}/telegram/webhook",
         "-H","Content-Type: application/json","-d",payload],
         capture_output=True,text=True,timeout=30)
-    try: return json.loads(r.stdout) if r.stdout else {}
-    except: return {}
+    try:
+        return json.loads(r.stdout) if r.stdout else {}
+    except Exception:
+        return {}
 
 def search(q, uid):
     r = subprocess.run(["curl","-s",f"{API}/search/semantic?q={q}&user_id={uid}"],
         capture_output=True,text=True,timeout=30)
-    try: return json.loads(r.stdout) if r.stdout else {}
-    except: return {}
+    try:
+        return json.loads(r.stdout) if r.stdout else {}
+    except Exception:
+        return {}
 
 # ═══════════════════════════════════════════
 # 1. Sembrar datos variados
@@ -42,9 +49,9 @@ for d in data:
     time.sleep(2.5)
 
 # Obtener user_id
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import create_async_engine
-import asyncio
+from sqlalchemy import text  # noqa: E402
+from sqlalchemy.ext.asyncio import create_async_engine  # noqa: E402
+import asyncio  # noqa: E402
 async def get_uid():
     e = create_async_engine('postgresql+asyncpg://lucho:lucho@localhost:5434/lucho')
     async with e.connect() as c:
@@ -88,7 +95,7 @@ for query, expected, desc in tests:
     found = False
     top_matches = []
     for res in results[:3]:
-        text = res.get("text", "")
+        ttext = res.get("text", "")
         sim = res.get("similarity", 0)
         src = res.get("source", "?")
         top_matches.append(f"{src}:{sim:.2f}")
@@ -96,8 +103,10 @@ for query, expected, desc in tests:
             found = True
     
     status = "✅" if found else "❌"
-    if found: passed += 1
-    else: failed += 1
+    if found:
+        passed += 1
+    else:
+        failed += 1
     
     print(f"{status} \"{query}\" → busca '{expected}' | top: {', '.join(top_matches)} | {desc}")
 

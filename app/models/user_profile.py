@@ -7,7 +7,7 @@ from sqlalchemy import String, Boolean, DateTime, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import UUID
 
-from app.models.base import UUIDMixin, TimestampMixin, Base, utcnow
+from app.models.base import UUIDMixin, TimestampMixin, Base
 
 
 class UserProfile(UUIDMixin, TimestampMixin, Base):
@@ -36,4 +36,4 @@ class UserProfile(UUIDMixin, TimestampMixin, Base):
     )
 
     # Relationship
-    user: Mapped["User"] = relationship("User", back_populates="profile")
+    user: Mapped["User"] = relationship("User", back_populates="profile")  # noqa: F821

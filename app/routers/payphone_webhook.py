@@ -104,7 +104,7 @@ async def _activate_subscription(session, payment_data: dict):
             subscription.trial_ends_at = None
 
             # Generate invoice with billing info
-            invoice = await _create_invoice(session, payment, subscription)
+            await _create_invoice(session, payment, subscription)
 
             # Notify user
             await _notify_activation(session, subscription)
@@ -134,8 +134,8 @@ async def _create_invoice(session, payment, subscription) -> SubscriptionInvoice
     billing_result = await session.execute(
         select(BillingInfo).where(
             BillingInfo.user_id == payment.user_id,
-            BillingInfo.is_default == True,
-            BillingInfo.is_active == True,
+            BillingInfo.is_default is True,
+            BillingInfo.is_active is True,
         )
     )
     billing = billing_result.scalar_one_or_none()

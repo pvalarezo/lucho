@@ -169,7 +169,7 @@ async def main():
         # Show current catalog
         result = await session.execute(
             select(SubscriptionPlan)
-            .where(SubscriptionPlan.is_active == True)
+            .where(SubscriptionPlan.is_active is True)
             .order_by(SubscriptionPlan.price_monthly_usd)
         )
         for p in result.scalars():
