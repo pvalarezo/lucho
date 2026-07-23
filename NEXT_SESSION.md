@@ -6,16 +6,25 @@
 
 Se realizó una revisión integral del repositorio el 2026-07-23. Antes de continuar con nuevas funcionalidades, trabajar el plan detallado:
 
-**[`docs/plan_estabilizacion_v2.24.5.md`](docs/plan_estabilizacion_v2.24.5.md)**
+**[`docs/plan_estabilizacion_v2.24.6.md`](docs/plan_estabilizacion_v2.24.6.md)**
+
+### Hallazgo al incorporar v2.24.6
+
+- La corrección remota se incorporó correctamente en la rama local.
+- WhatsApp ahora deja `onboarding_step=0` al completar y protege el flujo post-pago con `not user.onboarding_complete`.
+- **Telegram conserva el defecto equivalente:** deja `onboarding_step=3` y entra al flujo post-pago sin comprobar `onboarding_complete`.
+- El commit `v2.24.6` no añadió pruebas de regresión.
+- Antes de los demás bloques P0, completar el arreglo en Telegram y probar ambos canales.
 
 ### Orden prioritario
 
-1. **P0 Seguridad:** autenticar el webhook DeUna y restringir `/internal/test-reminder`.
-2. **P0 Runtime:** corregir los `F821` de `app/agent/tools.py`, especialmente usos de `select()` sin importar.
-3. **P1 Zona horaria:** eliminar inconsistencias con UTC y aplicar la política de hora local Ecuador.
-4. **P1 Pruebas:** añadir pruebas reales de handlers, webhooks, multi-tenant y scheduler.
-5. **P1 Calidad:** reducir los 137 errores de Ruff a cero.
-6. **P2 Consistencia:** sincronizar versión de API y documentación con Git.
+1. **P0 Onboarding:** completar en Telegram el arreglo de v2.24.6 y añadir regresión para ambos canales.
+2. **P0 Seguridad:** autenticar el webhook DeUna y restringir `/internal/test-reminder`.
+3. **P0 Runtime:** corregir los `F821` de `app/agent/tools.py`, especialmente usos de `select()` sin importar.
+4. **P1 Zona horaria:** eliminar inconsistencias con UTC y aplicar la política de hora local Ecuador.
+5. **P1 Pruebas:** añadir pruebas reales de handlers, webhooks, multi-tenant y scheduler.
+6. **P1 Calidad:** reducir los 137 errores de Ruff a cero.
+7. **P2 Consistencia:** sincronizar versión de API y documentación con Git.
 
 ### Línea base verificada
 

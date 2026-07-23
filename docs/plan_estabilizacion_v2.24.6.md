@@ -1,7 +1,7 @@
 # Plan de estabilización técnica de Lucho
 
 **Fecha de preparación:** 2026-07-23  
-**Versión revisada:** v2.24.5  
+**Versión base revisada:** v2.24.6
 **Objetivo:** estabilizar la base técnica antes de continuar con nuevas funcionalidades o ampliar la beta.
 
 ---
@@ -51,6 +51,29 @@ No desarrollar módulos nuevos hasta cerrar, como mínimo, los bloques P0 y P1.
 5. **P1: dejar Ruff en cero.**
 6. **P2: sincronizar versión y documentación.**
 7. Ejecutar regresión completa y preparar una versión de estabilización.
+
+---
+
+## 3.1 Corrección previa incorporada desde v2.24.6
+
+La versión remota `v2.24.6` corrige en WhatsApp un choque entre el onboarding normal y el flujo post-pago:
+
+- Al completar la selección de acento, usa `onboarding_step=0`.
+- El flujo post-pago exige `not user.onboarding_complete`.
+
+La revisión posterior detectó que `app/routers/webhook.py`, correspondiente a Telegram, conserva el comportamiento anterior:
+
+- Asigna `onboarding_step=3` al completar el onboarding.
+- Evalúa los pasos 3 a 6 sin comprobar `onboarding_complete`.
+
+Antes de iniciar los demás bloques de estabilización se debe aplicar el arreglo equivalente a Telegram y añadir pruebas de regresión para los dos canales. Las pruebas deben demostrar que el siguiente mensaje normal después de completar el onboarding llega al agente y no al recolector de datos post-pago.
+
+**Criterios de aceptación:**
+
+- WhatsApp y Telegram dejan un estado final de onboarding coherente.
+- Un usuario con `onboarding_complete=True` nunca entra al flujo post-pago por el valor residual de `onboarding_step`.
+- Un usuario cuyo trial expiró sí puede iniciar deliberadamente el flujo post-pago.
+- Existen pruebas para finalización de onboarding, siguiente mensaje normal e inicio legítimo del flujo post-pago en ambos canales.
 
 ---
 
