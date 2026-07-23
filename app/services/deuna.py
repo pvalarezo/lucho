@@ -36,6 +36,55 @@ class DeUnaPayment:
     reference: str
 
 
+def validate_webhook_signature(payload: bytes, signature: str) -> bool:
+    """
+    Validate the HMAC-SHA256 signature from DeUna webhook.
+
+    Uses a shared secret configured in DEUNA_WEBHOOK_SECRET.
+    If DeUna documents a different scheme, update accordingly.
+    """
+    if not settings.DEUNA_WEBHOOK_SECRET:
+        logger.warning("DeUna webhook secret not configured — rejecting")
+        return False
+
+    expected = hmac.new(
+        settings.DEUNA_WEBHOOK_SECRET.encode(),
+        payload,
+        hashlib.sha256,
+    ).hexdigest()
+
+    return hmac.compare_digest(expected, signature)
+
+
+def process_webhook(payload: dict[str, Any]) -> dict[str, Any] | None:
+    """
+    Process a DeUna webhook payment confirmation.
+
+    Returns processed payment data, or None if invalid.
+    """
+    transaction_id = payload.get("id") or payload.get("reference")
+    status = (payload.get("status") or "").lower()
+
+    if not transaction_id:
+        logger.warning("DeUna webhook missing transaction ID")
+        return None
+
+    logger.info(
+        "DeUna webhook received: tx=%s, status=%s",
+        transaction_id, status,
+    )
+
+    return {
+        "transaction_id": str(transaction_id),
+        "status": status,
+        "amount": float(payload.get("amount", 0)),
+        "currency": (payload.get("currency") or "USD").upper(),
+        "payment_id": payload.get("id"),
+        "reference": payload.get("reference"),
+        "raw": payload,
+    }
+
+
 async def create_payment(
     amount: float,
     description: str,

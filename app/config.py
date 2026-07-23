@@ -74,6 +74,7 @@ class Settings(BaseSettings):
     # ---- DeUna (Banco Pichincha — Ecuador) ----
     DEUNA_API_KEY: str = ""
     DEUNA_MERCHANT_ID: str = ""
+    DEUNA_WEBHOOK_SECRET: str = ""  # For validating webhook signatures
 
     # ---- Key49 (Facturación electrónica SRI — AURACORE) ----
     KEY49_API_KEY: str = ""

@@ -1,7 +1,9 @@
 """DeUna webhook endpoint — receives payment confirmations from DeUna (Pichincha).
 
 POST /webhooks/deuna
-  - Validates signature
+  - Validates HMAC signature (X-DeUna-Signature header)
+  - Verifies amount, currency, and reference match the pending payment
+  - Idempotent: ignores already-completed payments
   - Processes payment confirmation
   - Activates subscription
 """
@@ -25,6 +27,7 @@ from app.models.subscription import (
 )
 from app.models.user import User
 from app.models.billing_info import BillingInfo
+from app.services import deuna as deuna_svc
 from app.services.notifications import send_notification, resolve_user_contact
 
 logger = logging.getLogger(__name__)
@@ -37,6 +40,7 @@ async def deuna_webhook(request: Request):
     """
     Handle DeUna payment confirmation webhook.
 
+    Authenticated via HMAC-SHA256 signature in X-DeUna-Signature header.
     DeUna sends a POST with JSON body:
       {
         "id": "pay_xxx",
@@ -46,38 +50,70 @@ async def deuna_webhook(request: Request):
         "currency": "USD"
       }
     """
+    raw_body = await request.body()
+    signature = request.headers.get("X-DeUna-Signature", "")
+
+    # ---- Signature validation ----
+    if not deuna_svc.validate_webhook_signature(raw_body, signature):
+        logger.warning("DeUna webhook: invalid signature")
+        raise HTTPException(status_code=401, detail="Invalid signature")
+
     try:
-        payload = await request.json()
+        payload = json.loads(raw_body)
     except json.JSONDecodeError:
         logger.error("DeUna webhook: invalid JSON")
         raise HTTPException(status_code=400, detail="Invalid JSON")
 
-    transaction_id = payload.get("id") or payload.get("reference")
-    status = (payload.get("status") or "").lower()
-
-    if not transaction_id:
+    payment_data = deuna_svc.process_webhook(payload)
+    if not payment_data:
         raise HTTPException(status_code=400, detail="Missing transaction ID")
 
-    logger.info("DeUna webhook: tx=%s, status=%s", transaction_id, status)
+    transaction_id = payment_data["transaction_id"]
+    status = payment_data["status"]
 
     if status != "approved":
         return {"status": "ignored", "reason": f"status={status}"}
 
     async with async_session() as session:
-        await _activate_subscription(session, transaction_id)
+        await _activate_subscription(session, payment_data)
         await session.commit()
 
     return {"status": "ok"}
 
 
-async def _activate_subscription(session, ref: str):
-    """Activate subscription after successful DeUna payment."""
+async def _activate_subscription(session, payment_data: dict):
+    """Find payment, validate amount/currency, mark completed, activate subscription, notify user."""
+    ref = payment_data["transaction_id"]
+    webhook_amount = payment_data["amount"]
+    webhook_currency = payment_data["currency"]
+
     result = await session.execute(
         select(Payment).where(Payment.gateway_payment_id == ref)
     )
     payment = result.scalar_one_or_none()
     if not payment:
         logger.warning("DeUna webhook: no payment found for ref %s", ref)
+        return
+
+    # ---- Idempotency: skip already-completed payments ----
+    if payment.status == PaymentStatus.completed:
+        logger.info("DeUna webhook: payment %s already completed — idempotent skip", ref)
+        return
+
+    # ---- Validate currency ----
+    if webhook_currency != "USD":
+        logger.warning(
+            "DeUna webhook: unexpected currency %s for tx %s", webhook_currency, ref
+        )
+        return
+
+    # ---- Validate amount (within 1 cent tolerance) ----
+    stored_amount = float(payment.amount)
+    if abs(webhook_amount - stored_amount) > 0.01:
+        logger.warning(
+            "DeUna webhook: amount mismatch for tx %s — webhook=%.2f, stored=%.2f",
+            ref, webhook_amount, stored_amount,
+        )
         return
 
     payment.status = PaymentStatus.completed
@@ -180,12 +216,10 @@ async def _create_invoice(session, payment, subscription) -> SubscriptionInvoice
         )
 
     session.add(invoice)
-    logger.info("Invoice created: %s for user=%s", invoice.invoice_number, payment.user_id)
     return invoice
 
 
 def _generate_invoice_number(payment_id) -> str:
-    import uuid as _uuid
-    short_id = str(payment_id)[:8].upper()
-    date_str = datetime.now(timezone.utc).strftime("%Y%m%d")
-    return f"LUCHO-{date_str}-{short_id}"
+    """Generate a sequential invoice number from payment UUID."""
+    raw = str(payment_id).replace("-", "")
+    return f"001-001-{raw[:9]}"

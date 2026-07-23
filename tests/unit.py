@@ -11,7 +11,10 @@ Validates:
 Run: python3 tests/unit.py
 """
 
+import hashlib
+import hmac
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -293,6 +296,120 @@ class MockPostPagoUser:
 pp_user = MockPostPagoUser()
 should_enter_post_pago = not pp_user.onboarding_complete and 3 <= pp_user.onboarding_step <= 6
 check(should_enter_post_pago, "Post-pago user (not complete) enters flow")
+
+# ════════════════════════════════════════════════════════
+# 7. SECURITY REGRESSION — DeUna webhook + internal endpoint
+# ════════════════════════════════════════════════════════
+section("7. Security — DeUna webhook")
+
+from app.services import deuna as deuna_svc
+
+# Signature validation: correct secret + payload
+test_payload = b'{"id":"pay_123","status":"approved","amount":9.99,"currency":"USD"}'
+test_signature = hmac.new(
+    b"test-secret",
+    test_payload,
+    hashlib.sha256,
+).hexdigest()
+
+# Temporarily set the secret so validation works
+import app.config as cfg
+original_secret = cfg.settings.DEUNA_WEBHOOK_SECRET
+cfg.settings.DEUNA_WEBHOOK_SECRET = "test-secret"
+
+check(
+    deuna_svc.validate_webhook_signature(test_payload, test_signature),
+    "DeUna: valid HMAC signature accepted",
+)
+check(
+    not deuna_svc.validate_webhook_signature(test_payload, "wrong_signature"),
+    "DeUna: invalid HMAC signature rejected",
+)
+check(
+    not deuna_svc.validate_webhook_signature(test_payload, ""),
+    "DeUna: empty HMAC signature rejected",
+)
+check(
+    not deuna_svc.validate_webhook_signature(b'{"different":"payload"}', test_signature),
+    "DeUna: signature mismatch for different payload",
+)
+
+# Restore original secret
+cfg.settings.DEUNA_WEBHOOK_SECRET = original_secret
+
+# Test that unconfigured secret rejects everything (unlike PayPhone's accept-all)
+cfg.settings.DEUNA_WEBHOOK_SECRET = ""
+check(
+    not deuna_svc.validate_webhook_signature(test_payload, test_signature),
+    "DeUna: unconfigured secret REJECTS (not accepts)",
+)
+cfg.settings.DEUNA_WEBHOOK_SECRET = original_secret
+
+# process_webhook: valid payload
+parsed = deuna_svc.process_webhook({"id": "pay_123", "status": "approved", "amount": 9.99, "currency": "USD"})
+check(parsed is not None, "DeUna: process_webhook returns data for valid payload")
+check(parsed["transaction_id"] == "pay_123", "DeUna: transaction_id extracted correctly")
+check(parsed["currency"] == "USD", "DeUna: currency defaults to USD")
+check(parsed["amount"] == 9.99, "DeUna: amount parsed correctly")
+
+# process_webhook: missing id and reference
+parsed2 = deuna_svc.process_webhook({"status": "approved", "amount": 10})
+check(parsed2 is None, "DeUna: process_webhook returns None for missing ID")
+
+# process_webhook: reference fallback
+parsed3 = deuna_svc.process_webhook({"reference": "SUB-456", "status": "pending"})
+check(parsed3 is not None, "DeUna: process_webhook uses reference as fallback")
+check(parsed3["transaction_id"] == "SUB-456", "DeUna: reference used as transaction_id")
+
+# ---- Webhook source code patterns ----
+deuna_src = Path("app/routers/deuna_webhook.py").read_text()
+check(
+    "raw_body = await request.body()" in deuna_src,
+    "DeUna router: reads raw body for signature validation",
+)
+check(
+    '"X-DeUna-Signature"' in deuna_src,
+    "DeUna router: checks X-DeUna-Signature header",
+)
+check(
+    "validate_webhook_signature(raw_body, signature)" in deuna_src,
+    "DeUna router: calls validate_webhook_signature with raw body",
+)
+check(
+    "payment.status == PaymentStatus.completed" in deuna_src,
+    "DeUna router: idempotency check for completed payments",
+)
+check(
+    "amount mismatch" in deuna_src,
+    "DeUna router: validates amount against stored payment",
+)
+check(
+    "unexpected currency" in deuna_src or "currency" in deuna_src.lower(),
+    "DeUna router: validates currency",
+)
+
+# ---- Internal endpoint ----
+section("7b. Security — Internal endpoint")
+
+internal_src = Path("app/routers/internal_test.py").read_text()
+main_src = Path("app/main.py").read_text()
+
+check(
+    'include_in_schema=False' in internal_src,
+    "Internal router: hidden from OpenAPI schema",
+)
+check(
+    '"593993832368"' not in internal_src,
+    "Internal router: NO hardcoded WhatsApp number",
+)
+check(
+    '_require_internal_token' in internal_src,
+    "Internal router: has token auth dependency",
+)
+check(
+    'if settings.DEBUG:' in main_src and 'internal_test' in main_src,
+    "Main: internal router only mounted when DEBUG=True",
+)
 
 # ════════════════════════════════════════════════════════
 # REPORT
