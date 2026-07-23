@@ -13,7 +13,10 @@ All handlers return structured dicts that the LLM uses to craft the response.
 """
 
 import logging
+from datetime import timedelta
 from typing import Any
+
+from sqlalchemy import select
 
 from app.services.persistence import (
     persist_document,
