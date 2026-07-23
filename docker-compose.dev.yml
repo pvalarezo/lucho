@@ -10,6 +10,8 @@ services:
       POSTGRES_USER: lucho
       POSTGRES_PASSWORD: lucho
       POSTGRES_DB: lucho
+      TZ: America/Guayaquil
+      PGTZ: America/Guayaquil
     ports:
       - "5434:5432"    # 5434 on host → 5432 in container (avoids conflict with local PG 9.6:5432, 13:5433)
     volumes:

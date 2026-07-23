@@ -12,6 +12,7 @@ Estado actual de cada fase, módulo y entregable.
 |-----|-------|-------------|
 | v2.24.6 | 2026-07-22 | Fix: onboarding_step=0 al completar, evita choque con post-pago. + guard en post-pago. |
 | v2.24.5 | 2026-07-22 | Onboarding: paso de acento regional (costeño/serrano/amazónico/neutral). |
+| v2.24.8 | 2026-07-23 | Suite de integración: 31 tests contra PostgreSQL, DB lucho_test, TZ Docker+deploy, Pi ops |
 | v2.24.7 | 2026-07-23 | Estabilización: onboarding Telegram, seguridad webhooks, Ruff 0, zona horaria Ecuador, versión auto-detectada. 567 tests. |
 | v2.24.0 | 2026-07-22 | Acentos regionales: costeño, serrano, amazónico, neutral. 45 tools, 512 tests. |
 | v2.23.0 | 2026-07-22 | Landing page holalucho.com — Tailwind, 8 secciones, responsive. |
@@ -81,7 +82,7 @@ Estado actual de cada fase, módulo y entregable.
 ### Documentación — 15 specs
 `finanzas`, `documentos`, `recordatorios`, `listas`, `notas_apuntes`, `proyectos_tareas`, `busqueda`, `contactos`, `vehiculos`, `funcionalidades_generales`, `skills_ecuador`, `ideas_nuevos_modulos`, `whatsapp_templates`, `lucho_especificaciones_proyecto`
 
-### Tests — 567/567 (100%) ✅ | Ruff — 0 errores ✅
+### Tests — 598/598 (100%) ✅ | Ruff — 0 errores ✅
 
 ---
 
@@ -90,7 +91,7 @@ Estado actual de cada fase, módulo y entregable.
 ### Pendientes menores Fase 2:
 - [ ] Métricas: % extracción correcta, retención D7/D30
 - [ ] Templates Meta: `event_reminder` (es), `project_reminder` (es), `budget_alert`
-- [ ] Pruebas de integración con base de datos real (pytest + fixtures PostgreSQL)
+- [x] ~~Pruebas de integración con base de datos real (pytest + fixtures PostgreSQL)~~ ✅ v2.24.8
 
 ---
 

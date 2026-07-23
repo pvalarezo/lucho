@@ -75,6 +75,11 @@ KEY49_API_KEY=k49_...
 apt update && apt upgrade -y
 apt install -y curl wget git build-essential nginx certbot python3-certbot-nginx ufw
 
+# ── Zona horaria Ecuador (NO NEGOCIABLE) ──
+timedatectl set-timezone America/Guayaquil
+timedatectl | grep "Time zone"
+# Debe mostrar: America/Guayaquil (-05, -0500)
+
 # Firewall
 ufw allow 22/tcp
 ufw allow 80/tcp
@@ -114,6 +119,12 @@ su - postgres -c "psql -c \"CREATE USER lucho WITH PASSWORD '${DB_PASSWORD}';\""
 su - postgres -c "psql -c \"CREATE DATABASE lucho OWNER lucho;\""
 su - postgres -c "psql -d lucho -c \"CREATE EXTENSION IF NOT EXISTS vector;\""
 su - postgres -c "psql -d lucho -c \"CREATE EXTENSION IF NOT EXISTS \\\"uuid-ossp\\\";\""
+
+# ── Zona horaria PostgreSQL (NO NEGOCIABLE) ──
+su - postgres -c "psql -d lucho -c \"ALTER DATABASE lucho SET timezone TO 'America/Guayaquil';\""
+# Verificar
+su - postgres -c "psql -d lucho -c \"SHOW timezone;\""
+# Debe mostrar: America/Guayaquil
 
 echo "✅ PostgreSQL 17 + pgvector"
 ```
@@ -438,6 +449,10 @@ echo "✅ Verificación completa"
 
 ## 8. Comandos de Mantenimiento
 
+> 🤖 **Pi**: Para el procedimiento completo de actualización segura (con tests,
+> backup, health check y rollback), usá [`docs/pi_operations.md`](pi_operations.md)
+> en vez de los comandos simplificados de abajo.
+
 ```bash
 # Ver logs
 journalctl -u lucho-api --since "10 min ago"
@@ -445,7 +460,7 @@ journalctl -u lucho-api --since "10 min ago"
 # Reiniciar
 systemctl restart lucho-api
 
-# Actualizar código
+# Actualizar código (procedimiento simplificado)
 cd /root/lucho/app
 git pull
 source venv/bin/activate
