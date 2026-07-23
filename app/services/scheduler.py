@@ -177,8 +177,14 @@ async def _send_event_reminder(
     session: AsyncSession,
     event: Event,
     days_until: int,
+    *,
+    send_whatsapp_template: bool = True,
 ):
-    """Send an event reminder to the user (Telegram + WhatsApp template)."""
+    """Send an event reminder to the user (Telegram + WhatsApp template).
+
+    Set send_whatsapp_template=False for ad-hoc reminders where
+    send_notification already delivers via WhatsApp within the 24h window.
+    """
     user_result = await session.execute(
         select(User).where(User.id == event.user_id)
     )
@@ -219,8 +225,10 @@ async def _send_event_reminder(
     if sent:
         logger.info("Event reminder sent: %s (%d days)", event.title, days_until)
 
-    # WhatsApp template (for proactive reminders outside 24h window)
-    if user.whatsapp_id:
+    # WhatsApp template (for proactive reminders outside 24h window).
+    # Skip when called from ad-hoc reminders — send_notification already
+    # delivers via WhatsApp within the active 24h customer service window.
+    if send_whatsapp_template and user.whatsapp_id:
         await _send_event_reminder_whatsapp(
             user.whatsapp_id, emoji, event.title, ds, date_str
         )
@@ -267,7 +275,10 @@ async def _ad_hoc_event_reminder(event_id_str: str):
             days_until = (event.target_date.date() - today).days
             days_until = max(days_until, 0)  # clamp: if time already passed, treat as today
 
-            await _send_event_reminder(session, event, days_until)
+            await _send_event_reminder(
+                session, event, days_until,
+                send_whatsapp_template=False,
+            )
             logger.info("Ad-hoc event reminder sent: %s", event.title)
 
         except Exception as exc:

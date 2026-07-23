@@ -2,7 +2,24 @@
 
 ---
 
-## Sesión finalizada — 2026-07-23 — Daily Digest opt-in v2.24.9
+## Sesión finalizada — 2026-07-23 — Fix recordatorios duplicados v2.24.10
+
+**v2.24.10 — Bugfix: recordatorios ad-hoc envían un solo mensaje en lugar de dos.**
+
+### Entregables de la sesión
+
+| Qué | Archivo | Detalle |
+|-----|---------|--------|
+| Fix | `app/services/scheduler.py` | `_send_event_reminder()` ahora recibe `send_whatsapp_template` (default True). `_ad_hoc_event_reminder()` lo pasa como False para evitar duplicado template+directo en WhatsApp. |
+
+### Bug corregido
+- **Síntoma**: recordatorios ad-hoc ("avísame en 10 minutos") enviaban dos mensajes al usuario.
+- **Causa**: `_send_event_reminder()` siempre enviaba `send_notification()` + `_send_event_reminder_whatsapp()` simultáneamente.
+- **Fix**: el template de WhatsApp (`event_reminder`) solo se envía para recordatorios del cron diario (ventanas 15/7/3/0 días), no para ad-hoc donde la ventana de 24h ya está abierta.
+
+---
+
+## Sesión anterior — 2026-07-23 — Daily Digest opt-in v2.24.9
 
 **v2.24.9 — Opt-in implementado. 46 tools, 612 tests (575 unit + 37 integration).**
 

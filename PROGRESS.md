@@ -10,6 +10,7 @@ Estado actual de cada fase, módulo y entregable.
 ### Versiones
 | Tag | Fecha | Descripción |
 |-----|-------|-------------|
+| v2.24.10 | 2026-07-23 | Fix: recordatorios ad-hoc envían un solo mensaje (no duplicado template+directo). |
 | v2.24.6 | 2026-07-22 | Fix: onboarding_step=0 al completar, evita choque con post-pago. + guard en post-pago. |
 | v2.24.5 | 2026-07-22 | Onboarding: paso de acento regional (costeño/serrano/amazónico/neutral). |
 | v2.24.9 | 2026-07-23 | Daily Digest: opt-in, tool set_daily_digest, pregunta en onboarding, 6 tests |
