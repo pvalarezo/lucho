@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import async_session
 from app.models.document import Document
+from app.models.user_profile import UserProfile
 from app.models.event import Event, EventStatus
 from app.models.reminder import Reminder, ReminderChannel, ReminderStatus
 from app.models.user import User
@@ -828,15 +829,21 @@ async def _ensure_event(session, user_id, asset_id, title, target_date, certaint
 # =============================================================================
 
 async def run_daily_digest():
-    """Send a morning summary to users with active data (Telegram + WhatsApp)."""
+    """Send a morning summary to users who have opted in (Telegram + WhatsApp)."""
     logger.info("Starting daily digest...")
     today = date.today()
     weekday = ["lunes","martes","miércoles","jueves","viernes","sábado","domingo"][today.weekday()]
 
     async with async_session() as session:
         try:
+            # Only users with explicit opt-in (daily_digest_enabled = TRUE)
             result = await session.execute(
-                select(User).where(User.is_active is True)
+                select(User)
+                .join(UserProfile, User.id == UserProfile.user_id)
+                .where(
+                    User.is_active == True,
+                    UserProfile.daily_digest_enabled == True,
+                )
             )
             users = result.scalars().all()
 

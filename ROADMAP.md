@@ -11,7 +11,7 @@ Plan general del proyecto, fases, hitos y funcionalidades por ola.
 
 ## Fase 2 — Beta Cerrada ✅ COMPLETADA — v2.24.6
 
-**Versión actual:** v2.24.8 | **Tools:** 45 | **Tests:** 598/598 (100%) | **Ruff:** 0 errores
+**Versión actual:** v2.24.9 | **Tools:** 46 | **Tests:** 612/612 (100%) | **Ruff:** 0 errores
 **Canales:** Telegram (webhook) + WhatsApp Cloud API (webhook)
 **Tablas:** 27 PostgreSQL + pgvector
 **Docs:** 18 specs + funcionalidades
@@ -59,6 +59,7 @@ Plan general del proyecto, fases, hitos y funcionalidades por ola.
 - [ ] Métricas: % extracción correcta, retención D7/D30, intención de pago
 - [ ] Templates Meta: `event_reminder` (es), `project_reminder` (es), `budget_alert`
 - [x] ~~Pruebas de integración con base de datos real (pytest + fixtures PostgreSQL)~~ ✅ v2.24.8
+- [x] ~~Daily Digest: opt-in implementado~~ ✅ v2.24.9
 
 ### Fase 2.5 — Monetización ✅ COMPLETADA (v2.15 → v2.21)
 - 3 planes con precios reales + seed

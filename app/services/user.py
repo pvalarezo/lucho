@@ -201,6 +201,23 @@ async def _ensure_trial_subscription(
 # =============================================================================
 
 
+async def get_or_create_profile(session: AsyncSession, user_id: str) -> "UserProfile":
+    """Get or create a UserProfile for a user. Safe to call from any context."""
+    from app.models.user_profile import UserProfile
+    import uuid as _uuid
+
+    uid = _uuid.UUID(user_id) if isinstance(user_id, str) else user_id
+    result = await session.execute(
+        select(UserProfile).where(UserProfile.user_id == uid)
+    )
+    profile = result.scalar_one_or_none()
+    if not profile:
+        profile = UserProfile(user_id=uid)
+        session.add(profile)
+        await session.flush()
+    return profile
+
+
 class AccessResult:
     """Result of an access check."""
 

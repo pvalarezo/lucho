@@ -26,6 +26,9 @@ class UserProfile(UUIDMixin, TimestampMixin, Base):
     # Accent preference: 'neutral', 'costeno', 'serrano', 'amazonico'
     accent: Mapped[str | None] = mapped_column(String(32), nullable=True, default='neutral')
 
+    # Daily digest opt-in (default OFF — must be explicit per spec rule)
+    daily_digest_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
     privacy_policy_accepted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     privacy_policy_accepted_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=False), nullable=True

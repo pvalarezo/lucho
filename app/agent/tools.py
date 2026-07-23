@@ -1055,6 +1055,30 @@ TOOL_SET_ACCENT = {
     },
 }
 
+TOOL_SET_DAILY_DIGEST = {
+    "type": "function",
+    "function": {
+        "name": "set_daily_digest",
+        "description": (
+            "Activar o desactivar el resumen matutino diario. "
+            "Usar cuando el usuario dice 'avisame cada mañana', "
+            "'mandame el resumen diario', 'no me mandes más resúmenes', "
+            "'no quiero el resumen', 'desactiva el resumen', "
+            "o variantes de activar/desactivar notificaciones matutinas."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "description": "True para activar, False para desactivar.",
+                },
+            },
+            "required": ["enabled"],
+        },
+    },
+}
+
 
 # =============================================================================
 # FINANCE TOOLS — transactions and budgets
@@ -1222,6 +1246,7 @@ ALL_TOOLS = [
     TOOL_SAVE_BILLING_CLIENT,
     TOOL_SAVE_BILLING_PRODUCT,
     TOOL_SET_ACCENT,
+    TOOL_SET_DAILY_DIGEST,
     TOOL_SAVE_DOCUMENT,
     TOOL_LIST_MY_DOCUMENTS,
     TOOL_SAVE_EVENT,
@@ -3738,6 +3763,47 @@ async def handle_set_accent(session, user_id: str, args: dict) -> dict:
     }
 
 
+async def handle_set_daily_digest(session, user_id: str, args: dict) -> dict:
+    """Activate or deactivate the daily morning digest."""
+    import uuid as uuid_mod
+    from sqlalchemy import select
+    from app.models.user_profile import UserProfile
+
+    uid = uuid_mod.UUID(user_id)
+    enabled = args.get("enabled", False)
+
+    result = await session.execute(
+        select(UserProfile).where(UserProfile.user_id == uid)
+    )
+    profile = result.scalar_one_or_none()
+
+    if not profile:
+        profile = UserProfile(user_id=uid, daily_digest_enabled=enabled)
+        session.add(profile)
+    else:
+        profile.daily_digest_enabled = enabled
+
+    await session.flush()
+
+    if enabled:
+        return {
+            "success": True,
+            "message": (
+                "☀️ ¡Listo! Te mandaré un resumen cada mañana a las 8am "
+                "con tu pico y placa, eventos, documentos por vencer, y pendientes. "
+                "Si algún día no querés, decime 'no me mandes el resumen'."
+            ),
+        }
+    else:
+        return {
+            "success": True,
+            "message": (
+                "Entendido. No te enviaré más el resumen diario. "
+                "Si cambiás de opinión, decime 'activame el resumen' o 'mandame el resumen diario'."
+            ),
+        }
+
+
 # =============================================================================
 # FINANCE HANDLERS
 # =============================================================================
@@ -4101,6 +4167,7 @@ TOOL_HANDLERS: dict[str, Any] = {
     "save_billing_client": handle_save_billing_client,
     "save_billing_product": handle_save_billing_product,
     "set_accent": handle_set_accent,
+    "set_daily_digest": handle_set_daily_digest,
     "save_document": handle_save_document,
     "list_my_documents": handle_list_my_documents,
     "save_event": handle_save_event,

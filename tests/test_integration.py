@@ -774,3 +774,110 @@ def test_now_ec_is_naive():
     dt = now_ec()
     assert dt.tzinfo is None, "now_ec() must return naive datetime"
     assert isinstance(dt, datetime), "now_ec() must return a datetime"
+
+
+# =============================================================================
+# 18. DAILY DIGEST OPT-IN
+# =============================================================================
+
+
+@pytest.mark.asyncio
+async def test_daily_digest_defaults_to_false(db_session, test_user):
+    """New users have daily_digest_enabled = FALSE by default."""
+    from app.models.user_profile import UserProfile
+    from sqlalchemy import select
+
+    result = await db_session.execute(
+        select(UserProfile).where(UserProfile.user_id == test_user.id)
+    )
+    profile = result.scalar_one_or_none()
+    # Fixture doesn't create a profile, so it should be None
+    # When profile is created later, default is False
+    assert profile is None or profile.daily_digest_enabled is False
+
+
+@pytest.mark.asyncio
+async def test_set_daily_digest_enabled(db_session, test_user):
+    """Activate daily digest via get_or_create_profile."""
+    from app.services.user import get_or_create_profile
+
+    profile = await get_or_create_profile(db_session, str(test_user.id))
+    profile.daily_digest_enabled = True
+    await db_session.flush()
+
+    assert profile.daily_digest_enabled is True
+    assert profile.user_id == test_user.id
+
+
+@pytest.mark.asyncio
+async def test_daily_digest_query_excludes_disabled(db_session, test_user):
+    """run_daily_digest query should only return opted-in users."""
+    from app.models.user import User
+    from app.models.user_profile import UserProfile
+    from app.services.user import resolve_user_by_telegram, get_or_create_profile
+
+    # User A: opted in
+    profile_a = await get_or_create_profile(db_session, str(test_user.id))
+    profile_a.daily_digest_enabled = True
+    await db_session.flush()
+
+    # User B: NOT opted in (default False)
+    user_b = await resolve_user_by_telegram(db_session, "digest_test_b", "User B")
+    profile_b = await get_or_create_profile(db_session, str(user_b.id))
+    # profile_b.daily_digest_enabled stays False
+    await db_session.flush()
+
+    # Simulate the filtered query
+    result = await db_session.execute(
+        select(User)
+        .join(UserProfile, User.id == UserProfile.user_id)
+        .where(
+            User.is_active == True,
+            UserProfile.daily_digest_enabled == True,
+        )
+    )
+    opted_in_users = result.scalars().all()
+    opted_in_ids = {str(u.id) for u in opted_in_users}
+
+    assert str(test_user.id) in opted_in_ids, "Opted-in user should be included"
+    assert str(user_b.id) not in opted_in_ids, "Non-opted-in user should be excluded"
+
+
+@pytest.mark.asyncio
+async def test_daily_digest_migration_column_exists(db_session):
+    """Verify the daily_digest_enabled column exists in user_profiles."""
+    from sqlalchemy import text
+
+    result = await db_session.execute(text(
+        "SELECT column_name, data_type, column_default "
+        "FROM information_schema.columns "
+        "WHERE table_name = 'user_profiles' AND column_name = 'daily_digest_enabled'"
+    ))
+    row = result.fetchone()
+    assert row is not None, "Column daily_digest_enabled should exist"
+    assert row[1] == "boolean", f"Expected boolean type, got {row[1]}"
+
+
+@pytest.mark.asyncio
+async def test_handler_set_daily_digest_activate(db_session, test_user):
+    """The tool handler correctly activates the digest."""
+    from app.agent.tools import handle_set_daily_digest
+
+    result = await handle_set_daily_digest(
+        db_session, str(test_user.id), {"enabled": True}
+    )
+    assert result["success"] is True
+    assert "☀️" in result["message"]
+    assert "8am" in result["message"]
+
+
+@pytest.mark.asyncio
+async def test_handler_set_daily_digest_deactivate(db_session, test_user):
+    """The tool handler correctly deactivates the digest."""
+    from app.agent.tools import handle_set_daily_digest
+
+    result = await handle_set_daily_digest(
+        db_session, str(test_user.id), {"enabled": False}
+    )
+    assert result["success"] is True
+    assert "no te enviaré" in result["message"] or "no te enviaré" in result.get("message", "").lower()

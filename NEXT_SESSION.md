@@ -2,7 +2,35 @@
 
 ---
 
-## Sesión finalizada — 2026-07-23 — Suite de Integración v2.24.8
+## Sesión finalizada — 2026-07-23 — Daily Digest opt-in v2.24.9
+
+**v2.24.9 — Opt-in implementado. 46 tools, 612 tests (575 unit + 37 integration).**
+
+### Entregables de la sesión
+
+| Qué | Archivo | Detalle |
+|-----|---------|--------|
+| Especificación | `docs/modules/daily_digest_especificacion.md` | 11 secciones, spec completa |
+| Columna BD | `user_profiles.daily_digest_enabled` | BOOLEAN DEFAULT FALSE |
+| Migración | `43f1a001ba39` | Alembic migration |
+| Tool | `set_daily_digest` | Tool #46 — handler + schema |
+| Helper | `get_or_create_profile()` | En `app/services/user.py` |
+| Filtro opt-in | `run_daily_digest()` | JOIN UserProfile, solo enabled=TRUE |
+| Onboarding | WhatsApp + Telegram | Pregunta "¿Querés resumen cada mañana?" en step 2 |
+| Tests | 6 tests nuevos | defaults, activate, deactivate, query filter, migration, handler |
+
+### Métricas finales v2.24.9
+
+| Métrica | v2.24.8 | v2.24.9 |
+|---------|:-------:|:-------:|
+| Tools | 45 | **46** |
+| Tests unitarios | 567 | **575** |
+| Tests integración | 31 | **37** |
+| **Total tests** | 598 | **612** |
+
+---
+
+## Sesión anterior — 2026-07-23 — Suite de Integración v2.24.8
 
 **v2.24.8 — 31 tests de integración contra PostgreSQL real. 598 tests totales.**
 

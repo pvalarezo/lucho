@@ -695,6 +695,9 @@ async def _send_onboarding_step2(phone: str, name: str, accent: str) -> None:
         f"🎉 Tienes *7 días de prueba GRATIS* con acceso a "
         "todas las funcionalidades. Sin datos de pago.\n\n"
         "Al finalizar, si quieres continuar, eliges tu plan. "
-        "Por ahora, ¡disfruta Lucho! 🚀"
+        "Por ahora, ¡disfruta Lucho! 🚀\n\n"
+        "☀️ *¿Querés que te mande un resumen cada mañana a las 8am "
+        "con tu pico y placa, eventos y pendientes?*\n"
+        "Respondé *SÍ* o *NO*."
     )
     await whatsapp_svc.send_message(phone, msg)
