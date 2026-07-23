@@ -10,7 +10,7 @@ POST /webhooks/deuna
 
 import json
 import logging
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Request, HTTPException
 from sqlalchemy import select
@@ -117,7 +117,7 @@ async def _activate_subscription(session, payment_data: dict):
         return
 
     payment.status = PaymentStatus.completed
-    payment.completed_at = datetime.now(timezone.utc)
+    payment.completed_at = datetime.now()
     payment.gateway_status = "approved"
 
     sub_result = await session.execute(
@@ -129,7 +129,7 @@ async def _activate_subscription(session, payment_data: dict):
     if not subscription:
         return
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now()
     subscription.status = SubscriptionStatus.active
     subscription.current_period_start = now
     if subscription.renewal_type and hasattr(subscription.renewal_type, 'value') and subscription.renewal_type.value == "annual":
@@ -170,7 +170,7 @@ async def _activate_subscription(session, payment_data: dict):
 
 async def _create_invoice(session, payment, subscription) -> SubscriptionInvoice:
     """Create an SRI-compliant invoice with billing info from user's default profile."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now()
 
     billing_result = await session.execute(
         select(BillingInfo).where(

@@ -10,7 +10,7 @@ POST /webhooks/payphone
 import json
 import logging
 import uuid as _uuid
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Request, HTTPException
 from sqlalchemy import select
@@ -82,7 +82,7 @@ async def _activate_subscription(session, payment_data: dict):
 
     if status == "approved":
         payment.status = PaymentStatus.completed
-        payment.completed_at = datetime.now(timezone.utc)
+        payment.completed_at = datetime.now()
         payment.gateway_status = "approved"
 
         # Activate subscription
@@ -94,7 +94,7 @@ async def _activate_subscription(session, payment_data: dict):
         subscription = sub_result.scalar_one_or_none()
 
         if subscription:
-            now = datetime.now(timezone.utc)
+            now = datetime.now()
             subscription.status = SubscriptionStatus.active
             subscription.current_period_start = now
             if subscription.renewal_type and hasattr(subscription.renewal_type, 'value') and subscription.renewal_type.value == "annual":
@@ -122,13 +122,13 @@ async def _activate_subscription(session, payment_data: dict):
 
 def _generate_invoice_number(payment_id: _uuid.UUID) -> str:
     short_id = str(payment_id)[:8].upper()
-    date_str = datetime.now(timezone.utc).strftime("%Y%m%d")
+    date_str = datetime.now().strftime("%Y%m%d")
     return f"LUCHO-{date_str}-{short_id}"
 
 
 async def _create_invoice(session, payment, subscription) -> SubscriptionInvoice:
     """Create an SRI-compliant invoice with billing info from the user's default profile."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now()
 
     # Find default billing info
     billing_result = await session.execute(

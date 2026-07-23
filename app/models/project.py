@@ -15,7 +15,7 @@ from sqlalchemy import String, Text, Date, DateTime, Boolean, ForeignKey, Enum a
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.types import UUID
 
-from app.models.base import UUIDMixin, TimestampMixin, Base, utcnow
+from app.models.base import UUIDMixin, TimestampMixin, Base, now_ec
 
 
 class ProjectStatus(str, Enum):
@@ -68,11 +68,11 @@ class ProjectTask(UUIDMixin, Base):
     reminder_sent: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=utcnow, nullable=False
+        DateTime(timezone=False), default=now_ec, nullable=False
     )
 
     completed_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
+        DateTime(timezone=False), nullable=True
     )
 
     __table_args__ = (

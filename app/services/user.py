@@ -4,7 +4,7 @@ Also handles subscription creation for new users (trial).
 """
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -156,7 +156,7 @@ async def _create_trial_subscription(
         sub = Subscription(
             user_id=user.id,
             status=SubscriptionStatus.trial,
-            trial_ends_at=datetime.now(timezone.utc) + timedelta(days=7),
+            trial_ends_at=datetime.now() + timedelta(days=7),
         )
         session.add(sub)
         return sub
@@ -165,7 +165,7 @@ async def _create_trial_subscription(
         user_id=user.id,
         plan_id=plan.id,
         status=SubscriptionStatus.trial,
-        trial_ends_at=datetime.now(timezone.utc) + timedelta(days=plan.trial_days),
+        trial_ends_at=datetime.now() + timedelta(days=plan.trial_days),
     )
     session.add(sub)
     logger.info(
@@ -237,7 +237,7 @@ async def check_access(session: AsyncSession, user_id: str) -> AccessResult:
             reason="⚠️ No tenés una suscripción activa. Contactanos para activar tu cuenta.",
         )
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now()
 
     # Active subscription — always allowed
     if sub.status == SubscriptionStatus.active:
@@ -419,9 +419,9 @@ async def advance_post_pago_step(
                 "message": "Necesito que aceptés las políticas. Respondé *SI* para continuar.",
             }
         profile.privacy_policy_accepted = True
-        profile.privacy_policy_accepted_at = datetime.now(timezone.utc)
+        profile.privacy_policy_accepted_at = datetime.now()
         profile.terms_accepted = True
-        profile.terms_accepted_at = datetime.now(timezone.utc)
+        profile.terms_accepted_at = datetime.now()
         user.onboarding_step = 7
         await session.flush()
         return {

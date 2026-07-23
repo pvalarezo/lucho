@@ -11,7 +11,7 @@ from sqlalchemy import Integer, DateTime, ForeignKey, Enum, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import UUID
 
-from app.models.base import UUIDMixin, Base, utcnow
+from app.models.base import UUIDMixin, Base, now_ec
 
 import enum
 
@@ -53,10 +53,10 @@ class Reminder(UUIDMixin, Base):
 
     # Audit trail
     scheduled_for: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
+        DateTime(timezone=False), nullable=False
     )
     sent_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
+        DateTime(timezone=False), nullable=True
     )
     message_text: Mapped[str | None] = mapped_column(
         Text, nullable=True
@@ -66,7 +66,7 @@ class Reminder(UUIDMixin, Base):
     )  # user reply (if any)
 
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=utcnow, nullable=False
+        DateTime(timezone=False), default=now_ec, nullable=False
     )
 
     # Relationship

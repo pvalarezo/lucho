@@ -14,7 +14,7 @@ from sqlalchemy import String, Float, Date, DateTime, Boolean, Text, ForeignKey,
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import UUID
 
-from app.models.base import UUIDMixin, TimestampMixin, Base, utcnow
+from app.models.base import UUIDMixin, TimestampMixin, Base, now_ec
 
 
 # ---- ENUMs ----
@@ -146,7 +146,7 @@ class BillingDocumentItem(UUIDMixin, Base):
     line_total: Mapped[float] = mapped_column(Float, nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=utcnow, nullable=False
+        DateTime(timezone=False), default=now_ec, nullable=False
     )
 
     # Relationships

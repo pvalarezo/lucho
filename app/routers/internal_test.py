@@ -1,6 +1,6 @@
 """Internal test endpoints — only available in DEBUG mode."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, HTTPException, Header, Depends
 from pydantic import BaseModel
@@ -49,7 +49,7 @@ async def test_ad_hoc_reminder(
         if not user:
             return {"error": f"User not found: {req.whatsapp_id}"}
 
-        target = datetime.now(timezone.utc) + timedelta(minutes=req.minutes_from_now)
+        target = datetime.now() + timedelta(minutes=req.minutes_from_now)
 
         event = Event(
             user_id=user.id,

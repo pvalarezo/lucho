@@ -15,7 +15,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import UUID
 from pgvector.sqlalchemy import Vector
 
-from app.models.base import UUIDMixin, TimestampMixin, Base, utcnow
+from app.models.base import UUIDMixin, TimestampMixin, Base, now_ec
 
 
 class ListType(str, Enum):
@@ -67,11 +67,11 @@ class ListItem(UUIDMixin, Base):
     quantity: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=utcnow, nullable=False
+        DateTime(timezone=False), default=now_ec, nullable=False
     )
 
     completed_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
+        DateTime(timezone=False), nullable=True
     )
 
     # Embedding for semantic search

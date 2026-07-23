@@ -15,7 +15,7 @@ from sqlalchemy import String, Float, DateTime, ForeignKey, Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import UUID
 
-from app.models.base import UUIDMixin, TimestampMixin, Base, utcnow
+from app.models.base import UUIDMixin, TimestampMixin, Base, now_ec
 
 
 class SubscriptionStatus(str, Enum):
@@ -63,9 +63,9 @@ class Subscription(UUIDMixin, TimestampMixin, Base):
         nullable=False,
     )
 
-    trial_ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    current_period_start: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    current_period_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    trial_ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=False), nullable=True)
+    current_period_start: Mapped[datetime | None] = mapped_column(DateTime(timezone=False), nullable=True)
+    current_period_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=False), nullable=True)
 
     payment_method: Mapped[PaymentMethod | None] = mapped_column(
         SAEnum(PaymentMethod, name="payment_method"), nullable=True
@@ -111,9 +111,9 @@ class Payment(UUIDMixin, Base):
     )
 
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=utcnow, nullable=False
+        DateTime(timezone=False), default=now_ec, nullable=False
     )
-    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=False), nullable=True)
 
     # Relationships
     subscription: Mapped["Subscription"] = relationship("Subscription", back_populates="payments")
@@ -166,12 +166,12 @@ class SubscriptionInvoice(UUIDMixin, Base):
         String(128), nullable=True
     )  # SRI authorization number
     sri_authorization_date: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
+        DateTime(timezone=False), nullable=True
     )
 
     # ---- Timestamps -------
     issued_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=utcnow, nullable=False
+        DateTime(timezone=False), default=now_ec, nullable=False
     )
 
     __table_args__ = ()

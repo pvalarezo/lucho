@@ -408,6 +408,64 @@ check(
 )
 
 # ════════════════════════════════════════════════════════
+# 8. TIMEZONE REGRESSION — local Ecuador, zero UTC
+# ════════════════════════════════════════════════════════
+section("8. Timezone — Local Ecuador (no UTC)")
+
+# 8a. Source code: no prohibited patterns
+forbidden_patterns = [
+    ("timezone.utc", "datetime.now(timezone.utc)"),
+    ("utcnow", "utcnow() function or import"),
+    ("astimezone(", "astimezone() conversion"),
+    ("replace(tzinfo=", "replace(tzinfo=) assignment"),
+    ("DateTime(timezone=True)", "DateTime(timezone=True) in models"),
+]
+app_py_files = list(Path("app").rglob("*.py"))
+for pattern, label in forbidden_patterns:
+    found = False
+    for fpath in app_py_files:
+        if pattern in fpath.read_text():
+            found = True
+            break
+    check(not found, f"No '{label}' anywhere in app/")
+
+# 8b. base.py has now_ec() not utcnow()
+base_src = Path("app/models/base.py").read_text()
+check("def now_ec()" in base_src, "base.py: now_ec() function exists")
+check("datetime.now()" in base_src, "base.py: uses datetime.now() naive")
+check("utcnow" not in base_src, "base.py: no utcnow() function")
+check("import timezone" not in base_src, "base.py: no 'import timezone' statement")
+check("DateTime(timezone=False)" in base_src, "base.py: TimestampMixin uses timezone=False")
+check("now_ec" in base_src and "default=now_ec" in base_src, "base.py: TimestampMixin defaults to now_ec")
+check("onupdate=now_ec" in base_src, "base.py: TimestampMixin onupdate uses now_ec")
+
+# 8c. now_ec() produces naive datetime (no tzinfo)
+from app.models.base import now_ec  # noqa: E402
+from datetime import datetime  # noqa: E402
+ec_now = now_ec()
+check(ec_now.tzinfo is None, "now_ec() returns naive datetime (tzinfo=None)")
+check(isinstance(ec_now, datetime), "now_ec() returns datetime instance")
+
+# 8d. All models use now_ec, not utcnow
+model_files = list(Path("app/models").rglob("*.py"))
+for mp in model_files:
+    if mp.name == "__init__.py" or mp.name == "base.py":
+        continue
+    src = mp.read_text()
+    if "utcnow" in src:
+        check(False, f"{mp.name}: still references utcnow")
+    # If file imports from base, it should use now_ec or not need it
+    if "from app.models.base import" in src:
+        if "default=now_ec" in src:
+            check("now_ec" in src, f"{mp.name}: imports now_ec from base")
+
+# 8e. Scheduler uses naive datetime.now() without timezone
+sched_src = Path("app/services/scheduler.py").read_text()
+check("datetime.now()" in sched_src, "scheduler: uses datetime.now()")
+check("timezone.utc" not in sched_src, "scheduler: no timezone.utc")
+check("local Ecuador time" in sched_src, "scheduler: documents local Ecuador time")
+
+# ════════════════════════════════════════════════════════
 # REPORT
 # ════════════════════════════════════════════════════════
 print(f"\n{'='*50}")

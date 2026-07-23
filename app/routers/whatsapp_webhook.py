@@ -605,9 +605,9 @@ async def _find_recent_photo_key(session: AsyncSession, user_id) -> str | None:
     Find the most recent photo message with a MinIO file_key for a user.
     Looks back up to 2 minutes to find the last image the user sent.
     """
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
-    cutoff = datetime.now(timezone.utc) - timedelta(minutes=2)
+    cutoff = datetime.now() - timedelta(minutes=2)
     result = await session.execute(
         select(MessageModel)
         .where(

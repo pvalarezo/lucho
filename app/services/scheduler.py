@@ -13,7 +13,7 @@ ALL deterministic — no LLM involved in any decision.
 """
 
 import logging
-from datetime import date, datetime, timezone, timedelta
+from datetime import date, datetime, timedelta
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -770,7 +770,7 @@ async def _poll_key49_invoices(session: AsyncSession):
         if status == "AUTHORIZED" or status == "NOTIFIED":
             invoice.status = InvoiceStatus.authorized
             invoice.sri_access_key = access_key or invoice.sri_access_key
-            invoice.sri_authorization_date = datetime.now(timezone.utc)
+            invoice.sri_authorization_date = datetime.now()
             logger.info("Invoice %s authorized by SRI: access_key=%s",
                        invoice.invoice_number, access_key)
         elif status == "REJECTED" or status == "FAILED":

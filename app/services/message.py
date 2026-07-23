@@ -2,7 +2,7 @@
 
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -29,7 +29,7 @@ async def create_message(
         file_path=file_path,
         transcription=transcription,
         status=MessageStatus.received,
-        received_at=datetime.now(timezone.utc),
+        received_at=datetime.now(),
     )
     session.add(message)
     logger.info(
@@ -49,7 +49,7 @@ async def update_message_status(
     """Update message status and corresponding timestamp."""
     message.status = status
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now()
     match status:
         case MessageStatus.acked:
             message.acked_at = now

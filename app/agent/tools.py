@@ -1796,7 +1796,7 @@ async def handle_list_items(session, user_id: str, args: dict) -> dict:
 async def handle_complete_item(session, user_id: str, args: dict) -> dict:
     """Mark items as done by content match, optionally across all lists."""
     import uuid as uuid_mod
-    from datetime import datetime, timezone
+    from datetime import datetime
     from sqlalchemy import select, update
     from app.models.list import List, ListItem, ItemStatus
 
@@ -1822,7 +1822,7 @@ async def handle_complete_item(session, user_id: str, args: dict) -> dict:
     list_ids = [lst.id for lst in lists]
 
     # ---- Find matching items -------
-    now = datetime.now(timezone.utc)
+    now = datetime.now()
 
     if mark_all:
         # Mark all pending items in these lists as done
@@ -2522,7 +2522,7 @@ async def handle_complete_project_task(session, user_id: str, args: dict) -> dic
     """Mark a project task as completed."""
     import uuid
     from sqlalchemy import select
-    from datetime import datetime, timezone
+    from datetime import datetime
     from app.models.project import Project, ProjectTask, TaskStatus
 
     uid = uuid.UUID(user_id)
@@ -2554,7 +2554,7 @@ async def handle_complete_project_task(session, user_id: str, args: dict) -> dic
         return {"success": False, "message": f"No encontré una tarea pendiente que coincida con '{task_content}' en '{project_name}'."}
 
     task.status = TaskStatus.done
-    task.completed_at = datetime.now(timezone.utc)
+    task.completed_at = datetime.now()
     await session.flush()
 
     return {
@@ -3067,7 +3067,7 @@ async def handle_list_maintenances(session, user_id: str, args: dict) -> dict:
 async def handle_delete_vehicle(session, user_id: str, args: dict) -> dict:
     """Soft-delete a vehicle by plate."""
     import uuid as uuid_mod
-    from datetime import datetime, timezone
+    from datetime import datetime
     from sqlalchemy import select
     from app.models.vehicle import Vehicle
 
@@ -3088,7 +3088,7 @@ async def handle_delete_vehicle(session, user_id: str, args: dict) -> dict:
     if not vehicle:
         return {"success": True, "message": f"No tienes un vehículo con placa {plate}."}
 
-    vehicle.deleted_at = datetime.now(timezone.utc)
+    vehicle.deleted_at = datetime.now()
     await session.flush()
 
     return {"success": True, "message": f"Vehículo {plate} eliminado."}
