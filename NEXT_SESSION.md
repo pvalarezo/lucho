@@ -2,6 +2,31 @@
 
 ---
 
+## Próxima sesión — Estabilización técnica desde v2.24.6
+
+Se realizó una revisión integral del repositorio el 2026-07-23. Antes de continuar con nuevas funcionalidades, trabajar el plan detallado:
+
+**[`docs/plan_estabilizacion_v2.24.5.md`](docs/plan_estabilizacion_v2.24.5.md)**
+
+### Orden prioritario
+
+1. **P0 Seguridad:** autenticar el webhook DeUna y restringir `/internal/test-reminder`.
+2. **P0 Runtime:** corregir los `F821` de `app/agent/tools.py`, especialmente usos de `select()` sin importar.
+3. **P1 Zona horaria:** eliminar inconsistencias con UTC y aplicar la política de hora local Ecuador.
+4. **P1 Pruebas:** añadir pruebas reales de handlers, webhooks, multi-tenant y scheduler.
+5. **P1 Calidad:** reducir los 137 errores de Ruff a cero.
+6. **P2 Consistencia:** sincronizar versión de API y documentación con Git.
+
+### Línea base verificada
+
+- Base funcional remota: `v2.24.6`, con corrección del choque entre onboarding y post-pago en WhatsApp.
+- Compilación previa: correcta.
+- Suite declarada: 512/512, con cobertura insuficiente de ejecución real.
+- Ruff: 137 errores en la revisión inicial.
+- Regla de la sesión: no añadir módulos nuevos hasta cerrar P0 y P1.
+
+---
+
 ## Sesión finalizada — 2026-07-22 — Despliegue VPS
 
 **v2.24.2 desplegado en VPS Debian 13 (147.93.2.206) — 4 vCPU, 8 GB RAM, 148 GB SSD**
